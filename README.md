@@ -90,29 +90,34 @@ objects) and reported before export.
 ### Requirements
 
 ```
-pm4py >= 2.7.16   # OCEL 2.0 JSON exporter
+pm4py >= 2.7.16   # OCEL 2.0 JSON and SQLite exporters
 pandas            # pulled in by pm4py
 jsonschema        # optional; enables full draft-07 schema validation
 ```
 
 The pure-Python transformation and consistency checks (`transform`,
 `run_consistency_checks`) are importable without pm4py; only the I/O helpers
-(`read_collaborative_xes`, `write_ocel2_json`) require it.
+(`read_collaborative_xes`, `write_ocel2_json`, `write_ocel2_sqlite`) require it.
 
 ### Usage
 
+The second argument is a **base path without extension**. Two output files are
+always written: `<output_base>.jsonocel` and `<output_base>.sqlite`.
+
 ```bash
-# Convert a collaborative XES log to OCEL 2.0 JSON
-python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel
+# Convert a collaborative XES log to OCEL 2.0 (JSON + SQLite)
+python src/mapping/collab_xes_to_ocel.py input.xes output/my_log
+# → output/my_log.jsonocel
+# → output/my_log.sqlite
 
 # Abort if any P1 check or schema validation fails
-python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel --strict
+python src/mapping/collab_xes_to_ocel.py input.xes output/my_log --strict
 
-# Skip OCEL 2.0 schema validation of the output
-python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel --no-validate
+# Skip OCEL 2.0 JSON schema validation of the output
+python src/mapping/collab_xes_to_ocel.py input.xes output/my_log --no-validate
 
 # Verbose logging
-python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel -v
+python src/mapping/collab_xes_to_ocel.py input.xes output/my_log -v
 ```
 
 The extended XES source must use the `collab` extension attributes defined in
