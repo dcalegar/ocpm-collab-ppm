@@ -63,6 +63,65 @@ The three directories the project revolves around: **example logs** (`data/logs/
 
 ---
 
+## Mapping tool (`src/mapping/`)
+
+`src/mapping/collab_xes_to_ocel.py` implements the model-to-model transformation
+**μ: extended collaborative XES → OCEL 2.0** (mapping rules M1–M8), producing a
+`.jsonocel` file conformant with the OCEL 2.0 JSON schema (Berti et al. 2023,
+Definition 2). This is the converter referenced as RQ1 in the evaluation stages table.
+
+### What it does
+
+| Rule | Effect |
+|---|---|
+| M1 | One `CollaborationInstance` object per global case |
+| M2 | One `Participant` object per orchestration/pool (log-level scope) |
+| M3 | One `LocalCase` object per (case, participant) pair |
+| M4 | One `Message` object per `SendTask`; heuristic send/receive correlation |
+| M5 | Each source event → OCEL event (activity = event type; `elemType` attribute) |
+| M6 | E2O relations: `within` (→ CI), `local` (→ LocalCase), `send`/`receive` (→ Message) |
+| M7 | O2O relations: `part_of`, `executed_by`, `from`, `to`, `exchanged_in` |
+| M8 | Residual source attributes forwarded unchanged to the OCEL events |
+
+After transformation, consistency properties **P1.1–P1.5** are checked automatically
+(totality, per-case partition, message well-formedness, local-case coherence, no orphan
+objects) and reported before export.
+
+### Requirements
+
+```
+pm4py >= 2.7.16   # OCEL 2.0 JSON exporter
+pandas            # pulled in by pm4py
+jsonschema        # optional; enables full draft-07 schema validation
+```
+
+The pure-Python transformation and consistency checks (`transform`,
+`run_consistency_checks`) are importable without pm4py; only the I/O helpers
+(`read_collaborative_xes`, `write_ocel2_json`) require it.
+
+### Usage
+
+```bash
+# Convert a collaborative XES log to OCEL 2.0 JSON
+python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel
+
+# Abort if any P1 check or schema validation fails
+python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel --strict
+
+# Skip OCEL 2.0 schema validation of the output
+python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel --no-validate
+
+# Verbose logging
+python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel -v
+```
+
+The extended XES source must use the `collab` extension attributes defined in
+`src/mapping/aux/collab.xesext`: `collab:elemType` (`task` / `SendTask` /
+`ReceiveTask`), `collab:participant`, `collab:fromParticipant`, and
+`collab:toParticipant`.
+
+---
+
 ## Setup (macOS, virtual environment)
 
 Recommended Python: **3.10** (a version compatible with OCPA's pinned `pm4py==2.2.32`;
