@@ -1,0 +1,11 @@
+# ---------------------------------------------------------------------------
+# Dependencies follow what OCPA requires (OCPA pins pm4py==2.2.32 and brings the
+# OCEL 2.0 importer on its main branch). Install OCPA FIRST, then this file:
+#
+#   pip install "git+https://github.com/ocpm/ocpa.git@main"     # GPL-3.0
+#   pip install -r requirements.txt
+#
+# pandas / numpy / pm4py(==2.2.32) are resolved transitively by OCPA; do not
+# override them. Only the learner is added here.
+# ---------------------------------------------------------------------------
+scikit-learn

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xesextension name="Collaborative Processes" prefix="collab" uri="http://www.xes-standard.org/collab.xesext"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+				xsi:schemaLocation="http://collab
+				C:\Users\admin\Desktop\CSICdatos\xesext-ieee-1849-2016.xsd">
+
+	<!--<log>
+	   <string key="processType">
+		   <alias mapping="EN" name="Type of the business process (collaboration, coreography)"/>
+	   </string>
+	</log>-->
+
+	<event>
+	   <string key="elemType">
+		   <alias mapping="EN" name="Event Element Type"/>
+	   </string>
+	   <string key="participant">
+		   <alias mapping="EN" name="Participant executing the event (collaboration)"/>
+	   </string>
+	   <string key="fromParticipant">
+		   <alias mapping="EN" name="Participant sender of the interaction (coreography)"/>
+	   </string>
+	   <string key="toParticipant">
+		   <alias mapping="EN" name="Participant receiver of the interaction (coreography)"/>
+	   </string>
+	</event>
+</xesextension>
