@@ -63,18 +63,27 @@ The three directories the project revolves around: **example logs** (`data/logs/
 
 ---
 
-## Setup (macOS, virtual environment)
+## Setup (macOS, virtual environments)
 
-Recommended Python: **3.10** (a version compatible with OCPA's pinned `pm4py==2.2.32`;
-verify against OCPA's `requirements.txt`). Optional system dependency for OCPA
-visualization (not used by this pipeline): `brew install graphviz`.
+`mapping` and `ocpm_eval`/`ocpm_tasks` require **different versions of pm4py** and
+must run in **separate virtual environments**:
+
+| Environment | Used by | pm4py |
+|---|---|---|
+| `.venv` | `ocpm_eval`, `ocpm_tasks` | `==2.2.32` (pinned by OCPA) |
+| `.venv-mapping` | `src/mapping/` | `>=2.7.16` (OCEL 2.0 write support) |
+
+Recommended Python: **3.10**. Optional system dependency for OCPA visualization
+(not used by this pipeline): `brew install graphviz`.
+
+### Environment 1 — evaluation (`ocpm_eval` + `ocpm_tasks`)
 
 ```bash
 # 1) clone
 git clone <your-fork-url> ocpm-collab-ppm
 cd ocpm-collab-ppm
 
-# 2) virtual environment (isolates everything from the system Python)
+# 2) create the evaluation environment
 python3.10 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -82,26 +91,34 @@ python -m pip install --upgrade pip
 # 3) install OCPA FIRST (it resolves pm4py==2.2.32 and the OCEL 2.0 importer)
 pip install "git+https://github.com/ocpm/ocpa.git@main"      # GPL-3.0
 
-# 4) install the remaining deps and make the local packages importable
+# 4) install remaining deps and make local packages importable
 pip install -r requirements.txt
 pip install -e .
-
-# 5) (optional) regenerate the toy log
-python scripts/make_toy_log.py 8 data/logs/toy_collab.sqlite
 ```
 
 > If `pip install -e .` re-resolves `pandas`/`numpy` in a way that conflicts with
-> OCPA, prefer OCPA's versions (reinstall OCPA last) — installation follows what OCPA
-> requires.
+> OCPA, prefer OCPA's versions (reinstall OCPA last).
+
+### Environment 2 — mapping (`src/mapping/`)
+
+```bash
+# In a separate terminal (or after deactivating .venv)
+python3.10 -m venv .venv-mapping
+source .venv-mapping/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements-mapping.txt
+pip install -e .
+```
 
 ---
 
 ## Visual Studio Code
 
-Open the folder in VS Code and select the `.venv` interpreter (the workspace already
-points to `${workspaceFolder}/.venv/bin/python`). `src/` is on the analysis path, and
-two ready-to-run debug configurations are provided (Run ▸ "Example: prediction tasks"
-and "Run evaluation (toy)"). Recommended extensions: Python + Pylance.
+`src/` is on the analysis path. Recommended extensions: Python + Pylance.
+
+- For `ocpm_eval` / `ocpm_tasks` files → select the `.venv` interpreter.
+- For `src/mapping/` files → select `.venv-mapping` interpreter
+  (use **Python: Select Interpreter** per file, or set it per workspace folder).
 
 ---
 

@@ -1,0 +1,15 @@
+# Environment: .venv-mapping
+# Used by: src/mapping/collab_xes_to_ocel.py
+#
+# pm4py >= 2.7.16 is required for OCEL 2.0 write support
+# (write_ocel2_json, write_ocel2_sqlite) and the modern read_xes API.
+# This is INCOMPATIBLE with the .venv environment, which pins pm4py==2.2.32
+# via OCPA. Use .venv-mapping ONLY for the XES→OCEL conversion step.
+#
+# Setup:
+#   python3.10 -m venv .venv-mapping
+#   source .venv-mapping/bin/activate
+#   pip install --upgrade pip
+#   pip install -r requirements-mapping.txt
+#
+pm4py>=2.7.16
