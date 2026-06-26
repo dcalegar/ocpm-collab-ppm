@@ -16,14 +16,14 @@ The code is split into a reusable **prediction-task library** and a modular
 |---|---|---|
 | [OCPA](https://github.com/ocpm/ocpa) | native object-centric feature extraction (RQ3) and OCEL 2.0 import | GPL-3.0; pins `pm4py==2.2.32`; OCEL 2.0 importer on `main` |
 | [pm4py](https://processintelligence.solutions/pm4py/installation) | dependency of OCPA | `==2.2.32` (pulled by OCPA). It does **not** read OCEL 2.0, so it is **not** used for reading here |
-| [scikit-learn](https://scikit-learn.org) | RandomForest learner + metrics (RQ3) | macro-F1 / MAE |
+| [scikit-learn](https://scikit-learn.org) | RandomForest learner + metrics | macro-F1 / MAE |
 | OCEL 2.0 (SQLite) | input event-log format | read natively by OCPA; read for labels with the stdlib `sqlite3` |
 
 **Why SQLite and not pm4py for reading?** OCPA pins `pm4py==2.2.32`, which predates
 OCEL 2.0 and cannot read it. OCPA's own OCEL 2.0 importer reads the **SQLite** format.
-Therefore both sides read OCEL 2.0 SQLite: OCPA for features, and a small stdlib
-`sqlite3` reader (`ocpm_tasks.adapters.from_ocel2_sqlite`) for the labels. No OCEL 1.0
-is used anywhere.
+Therefore, both sides read OCEL 2.0 SQLite: OCPA for features, and a small stdlib
+`sqlite3` reader (`ocpm_tasks.adapters.from_ocel2_sqlite`) for the labels. 
+No OCEL 1.0 is used anywhere.
 
 ---
 
@@ -37,11 +37,11 @@ ocpm-collab-ppm/
 ├── pyproject.toml             # makes src/ packages importable (pip install -e .)
 ├── src/
 │   ├── mapping/               # MAPPING TOOL — extended XES → OCEL 2.0
-│   │   ├── collab_xes_to_ocel.py  #   transformation μ (M1-M8) + checks P1.1-P1.5
+│   │   ├── collab_xes_to_ocel.py  #   transformation + checks
 │   │   └── aux/               #   supporting files
 │   │       ├── collab.xesext  #     collaborative XES extension definition
 │   │       ├── ocel20-schema-json.json  #   OCEL 2.0 JSON schema (draft-07)
-│   │       └── printOCEL.py   #     debug helper to inspect OCEL objects
+│   │       └── printOCEL.py   #     debug helper to inspect OCEL objects and print images
 │   ├── ocpm_tasks/            # PREDICTION TASKS — reusable library (decoupled)
 │   │   ├── schema.py          #   mapping vocabulary (object types/qualifiers/attrs)
 │   │   ├── model.py           #   neutral object-centric model (Event/Execution/Log)
@@ -60,15 +60,7 @@ ocpm-collab-ppm/
 │       └── run_evaluation.py  #   orchestrator (RQ2/RQ3/RQ4)
 ├── data/
 │   └── logs/                  # EXAMPLE LOGS (extended XES + converted OCEL 2.0 JSON)
-│       ├── collectivelog_artificial1_collab.xes
-│       ├── collectivelog_artificial1_collab.jsonocel
-│       ├── collectivelog_artificial5_collab.xes
-│       ├── collectivelog_artificial5_collab.jsonocel
-│       ├── collectivelog_healthcare_collab.xes
-│       ├── collectivelog_healthcare_collab.jsonocel
-│       ├── collectivelog_real4_collab.xes
-│       └── collectivelog_real4_collab.jsonocel
-└── results/                   # evaluation outputs (empty; populated at runtime)
+└── results/                   # evaluation outputs
 ```
 
 The three directories the project revolves around: **example logs** (`data/logs/`),
@@ -79,8 +71,8 @@ The three directories the project revolves around: **example logs** (`data/logs/
 ## Mapping tool (`src/mapping/`)
 
 `src/mapping/collab_xes_to_ocel.py` implements the model-to-model transformation
-**μ: extended collaborative XES → OCEL 2.0** (mapping rules M1–M8), producing a
-`.jsonocel` file conformant with the OCEL 2.0 JSON schema (Berti et al. 2023,
+**μ: extended collaborative XES → OCEL 2.0** (mapping rules M1–M8), producing
+`.jsonocel` and SQLite files conformant with the OCEL 2.0 JSON schema (Berti et al. 2023,
 Definition 2). This is the converter referenced as RQ1 in the evaluation stages table.
 
 ### What it does
