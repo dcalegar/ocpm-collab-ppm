@@ -48,8 +48,8 @@ Target side (OCEL 2.0):
 
 IMPORTANT VERIFICATION NOTES (read before running elsewhere):
   * Requires pm4py >= 2.7.16 (the SQLite timestamp fix in 2.7.16 also
-    hardened the OCEL2 exporters; the JSON exporter is available from
-    2.7.x). pandas is pulled in as a pm4py dependency.
+    hardened the OCEL2 exporters; both the JSON and SQLite exporters are
+    available from 2.7.x). pandas is pulled in as a pm4py dependency.
   * This script does not call pm4py at import time for anything other
     than the I/O endpoints, so the pure-Python transformation/checks
     can be unit-tested without a full pm4py install if desired.
@@ -928,11 +928,21 @@ def convert(input_xes: str,
     schema.
 
     If strict=True, a failing consistency check aborts before export.
-    If validate=True (default), the exported file is checked against the
+    If validate=True (default), the .jsonocel file is checked against the
     OCEL 2.0 JSON schema; problems are logged, and under strict=True a
     schema violation raises.
     """
     cfg = cfg or MappingConfig()
+    # Strip any extension the caller may have supplied so the base is clean.
+    base = output_base
+    for ext in (".jsonocel", ".sqlite", ".json"):
+        if base.lower().endswith(ext):
+            base = base[: -len(ext)]
+            break
+
+    json_path = base + ".jsonocel"
+    sqlite_path = base + ".sqlite"
+
     src_df = read_collaborative_xes(input_xes, encoding=encoding)
     res = transform(src_df, cfg)
     checks = run_consistency_checks(src_df, res, cfg)
@@ -964,7 +974,7 @@ def convert(input_xes: str,
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Transform an extended collaborative XES log into an "
-                    "OCEL 2.0 log (.jsonocel) per mapping rules M1-M8.")
+                    "OCEL 2.0 log (.jsonocel + .sqlite) per mapping rules M1-M8.")
     p.add_argument("input_xes", help="Path to the extended collaborative XES file.")
     p.add_argument("output", help="Path to the output files. Provide <output_base> name.")
     p.add_argument("--strict", action="store_true",
