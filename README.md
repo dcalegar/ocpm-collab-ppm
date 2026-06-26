@@ -36,7 +36,12 @@ ocpm-collab-ppm/
 ├── requirements.txt           # learner dep; OCPA installed separately
 ├── pyproject.toml             # makes src/ packages importable (pip install -e .)
 ├── src/
-│   ├── mapping/               # MAPPING TOOL — from extended XES to OCED 2.0
+│   ├── mapping/               # MAPPING TOOL — extended XES → OCEL 2.0
+│   │   ├── collab_xes_to_ocel.py  #   transformation μ (M1-M8) + checks P1.1-P1.5
+│   │   └── aux/               #   supporting files
+│   │       ├── collab.xesext  #     collaborative XES extension definition
+│   │       ├── ocel20-schema-json.json  #   OCEL 2.0 JSON schema (draft-07)
+│   │       └── printOCEL.py   #     debug helper to inspect OCEL objects
 │   ├── ocpm_tasks/            # PREDICTION TASKS — reusable library (decoupled)
 │   │   ├── schema.py          #   mapping vocabulary (object types/qualifiers/attrs)
 │   │   ├── model.py           #   neutral object-centric model (Event/Execution/Log)
@@ -54,8 +59,16 @@ ocpm-collab-ppm/
 │       ├── rq4_structure.py   #   RQ4 — structural measures + expressiveness
 │       └── run_evaluation.py  #   orchestrator (RQ2/RQ3/RQ4)
 ├── data/
-│   └── logs/                  # EXAMPLE LOGS (OCEL 2.0 SQLite)
-└── results/                   # evaluation outputs
+│   └── logs/                  # EXAMPLE LOGS (extended XES + converted OCEL 2.0 JSON)
+│       ├── collectivelog_artificial1_collab.xes
+│       ├── collectivelog_artificial1_collab.jsonocel
+│       ├── collectivelog_artificial5_collab.xes
+│       ├── collectivelog_artificial5_collab.jsonocel
+│       ├── collectivelog_healthcare_collab.xes
+│       ├── collectivelog_healthcare_collab.jsonocel
+│       ├── collectivelog_real4_collab.xes
+│       └── collectivelog_real4_collab.jsonocel
+└── results/                   # evaluation outputs (empty; populated at runtime)
 ```
 
 The three directories the project revolves around: **example logs** (`data/logs/`),
