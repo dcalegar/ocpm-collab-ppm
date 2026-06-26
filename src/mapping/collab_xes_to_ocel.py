@@ -89,7 +89,7 @@ import pandas as pd
 # =====================================================================
 
 # --- Source (extended collaborative XES) attribute keys -------------
-CASE_KEY = "concept:name"
+CASE_KEY = "case:concept:name"
 ACTIVITY_KEY = "concept:name"
 TIMESTAMP_KEY = "time:timestamp"
 ELEMTYPE_KEY = "collab:elemType"
@@ -436,6 +436,17 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
     Returns, per case, a list of event dicts enriched with a minted eid
     and the within-case index.
     """
+    def _clean(v: Any) -> Optional[str]:
+        # Treat NaN, None, and empty/whitespace strings as absent, so a
+        # blank fromParticipant/toParticipant/participant never mints a
+        # spurious object (e.g. an empty-named Participant).
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return None
+        if pd.isna(v):
+            return None
+        s = str(v).strip()
+        return s if s != "" else None
+
     work = df.copy()
     # Preserve the original file order as the tie-breaker.
     work["__src_order__"] = range(len(work))
@@ -451,22 +462,19 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
                               kind="mergesort")  # stable
         evlist: List[Dict[str, Any]] = []
         for idx, (_, row) in enumerate(grp.iterrows()):
+            elem_raw = _clean(row.get(cfg.elemtype_key))
             evlist.append({
                 "eid": _event_id(str(case_val), idx),
                 "case": str(case_val),
                 "idx": idx,
                 "activity": row[cfg.activity_key],
                 "timestamp": row[cfg.timestamp_key],
-                "elem": (row[cfg.elemtype_key]
-                         if pd.notna(row.get(cfg.elemtype_key)) else ELEM_TASK),
-                "participant": (str(row[cfg.participant_key])
-                                if pd.notna(row.get(cfg.participant_key)) else None),
-                "from": (str(row[cfg.from_key])
-                         if cfg.from_key in work.columns and pd.notna(row.get(cfg.from_key))
-                         else None),
-                "to": (str(row[cfg.to_key])
-                       if cfg.to_key in work.columns and pd.notna(row.get(cfg.to_key))
-                       else None),
+                "elem": elem_raw if elem_raw is not None else ELEM_TASK,
+                "participant": _clean(row.get(cfg.participant_key)),
+                "from": (_clean(row.get(cfg.from_key))
+                         if cfg.from_key in work.columns else None),
+                "to": (_clean(row.get(cfg.to_key))
+                       if cfg.to_key in work.columns else None),
                 "row": row,
             })
         cases[str(case_val)] = evlist
@@ -934,7 +942,7 @@ def convert(input_xes: str,
     """
     cfg = cfg or MappingConfig()
     # Strip any extension the caller may have supplied so the base is clean.
-    base = output_base
+    base = output
     for ext in (".jsonocel", ".sqlite", ".json"):
         if base.lower().endswith(ext):
             base = base[: -len(ext)]
@@ -951,11 +959,11 @@ def convert(input_xes: str,
         raise RuntimeError("Consistency checks failed under strict mode; not exporting.")
     ocel = build_ocel_object(res.events_df, res.objects_df,
                              res.relations_df, res.o2o_df)
-    write_ocel2_json(ocel, output+".jsonocel")
-    write_ocel2_sqlite(ocel, output+".sqlite")
+    write_ocel2_json(ocel, json_path)
+    write_ocel2_sqlite(ocel, sqlite_path)
 
     if validate:
-        problems = validate_jsonocel(output+".jsonocel")
+        problems = validate_jsonocel(json_path)
         if problems:
             logger.warning("OCEL 2.0 JSON schema validation found %d issue(s):",
                            len(problems))

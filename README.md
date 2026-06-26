@@ -1,5 +1,4 @@
-# ocpm-collab-ppm
-Object-Centric Predictive Monitoring of Collaborative Processes
+# Object-Centric Predictive Monitoring of Collaborative Processes
 
 Reproducibility code for the study that reformulates collaborative predictive process
 monitoring (PPM) tasks over a **rich object-centric representation (OCEL 2.0)** and
@@ -129,6 +128,8 @@ pip install -e .
 
 ## Usage
 
+### Evaluation (`ocpm_eval` + `ocpm_tasks`)
+
 ```bash
 export PYTHONPATH=src   # or rely on `pip install -e .`
 
@@ -145,13 +146,40 @@ pytest -q
 Point the evaluation at your own logs by editing the registry in
 `src/ocpm_eval/config.py` (`LogSpec(name, ocel_path)` with OCEL 2.0 `.sqlite` files).
 
+### Mapping tool (`src/mapping/`)
+
+`collab_xes_to_ocel.py` implements the model-to-model transformation
+**μ: extended collaborative XES → OCEL 2.0** (mapping rules M1–M8), producing 
+`output.jsonocel` and `output.sqlite` files conformant with the OCEL 2.0 JSON schema (Berti et al. 2023,
+Definition 2).
+
+```bash
+# Convert a collaborative XES log to OCEL 2.0
+python src/mapping/collab_xes_to_ocel.py input.xes output
+
+# Abort if any P1 check or schema validation fails
+python src/mapping/collab_xes_to_ocel.py input.xes output --strict
+
+# Skip OCEL 2.0 schema validation of the output
+python src/mapping/collab_xes_to_ocel.py input.xes output --no-validate
+
+# Verbose logging
+python src/mapping/collab_xes_to_ocel.py input.xes output -v
+```
+
+The extended XES source must use the `collab` extension attributes defined in
+`src/mapping/aux/collab.xesext`: `collab:elemType` (`task` / `SendTask` /
+`ReceiveTask`), `collab:participant`, `collab:fromParticipant`, and
+`collab:toParticipant`.
+
+
 ---
 
 ## Evaluation stages
 
 | RQ | What | Where | Output |
 |---|---|---|---|
-| RQ1 | XES→OCEL transformation + properties P1 | **converter (separate tool)** — out of scope here | — |
+| RQ1 | XES→OCEL transformation + checks | **converter (separate tool)** — out of scope here | — |
 | RQ2 | label fidelity (equivalence for the 14 tasks; consistency for X-PaL/X-MSt) | `ocpm_eval/rq2_fidelity.py` | `results/rq2_fidelity.csv` |
 | RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `ocpm_eval/rq3_pipeline.py` | `results/rq3_results.csv` |
 | RQ4 | structural measures + expressiveness matrix | `ocpm_eval/rq4_structure.py` | `results/rq4_structure.csv`, `results/rq4_expressiveness.csv` |
