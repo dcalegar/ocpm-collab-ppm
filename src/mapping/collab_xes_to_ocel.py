@@ -5,7 +5,7 @@ collab_xes_to_ocel.py
 =====================================================================
 Model-to-model transformation mu: extended collaborative XES log
   -->  OCEL 2.0 log (conforming to Berti et al. 2023, Definition 2),
-exported to the .jsonocel format.
+exported to both .jsonocel and .sqlite formats.
 
 This implements rules M1-M8 and the consistency criteria P1.1-P1.5 of
 the mapping section. It is a transformation that produces an event log
@@ -48,8 +48,8 @@ Target side (OCEL 2.0):
 
 IMPORTANT VERIFICATION NOTES (read before running elsewhere):
   * Requires pm4py >= 2.7.16 (the SQLite timestamp fix in 2.7.16 also
-    hardened the OCEL2 exporters; the JSON exporter is available from
-    2.7.x). pandas is pulled in as a pm4py dependency.
+    hardened the OCEL2 exporters; both the JSON and SQLite exporters are
+    available from 2.7.x). pandas is pulled in as a pm4py dependency.
   * This script does not call pm4py at import time for anything other
     than the I/O endpoints, so the pure-Python transformation/checks
     can be unit-tested without a full pm4py install if desired.
@@ -217,6 +217,14 @@ def write_ocel2_json(ocel: Any, path: str) -> None:
     import pm4py
     logger.info("Writing OCEL 2.0 (JSON) to: %s", path)
     pm4py.write.write_ocel2_json(ocel, path)
+    logger.info("Done.")
+
+
+def write_ocel2_sqlite(ocel: Any, path: str) -> None:
+    """Export the constructed OCEL 2.0 log to .sqlite."""
+    import pm4py
+    logger.info("Writing OCEL 2.0 (SQLite) to: %s", path)
+    pm4py.write.write_ocel2_sqlite(ocel, path)
     logger.info("Done.")
 
 
@@ -911,21 +919,34 @@ def print_check_report(checks: List[CheckResult], stats: Dict[str, Any]) -> bool
 # =====================================================================
 
 def convert(input_xes: str,
-            output_jsonocel: str,
+            output_base: str,
             cfg: Optional[MappingConfig] = None,
             strict: bool = False,
             validate: bool = True,
             encoding: str = "utf-8") -> TransformResult:
     """Full pipeline: read XES -> transform (M1-M8) -> check (P1) ->
-    build OCEL -> export .jsonocel -> validate against the OCEL 2.0 JSON
-    schema.
+    build OCEL -> export <output_base>.jsonocel and <output_base>.sqlite
+    -> validate the JSON export against the OCEL 2.0 JSON schema.
+
+    output_base is a file path without extension; the two output files
+    are derived by appending '.jsonocel' and '.sqlite'.
 
     If strict=True, a failing consistency check aborts before export.
-    If validate=True (default), the exported file is checked against the
+    If validate=True (default), the .jsonocel file is checked against the
     OCEL 2.0 JSON schema; problems are logged, and under strict=True a
     schema violation raises.
     """
     cfg = cfg or MappingConfig()
+    # Strip any extension the caller may have supplied so the base is clean.
+    base = output_base
+    for ext in (".jsonocel", ".sqlite", ".json"):
+        if base.lower().endswith(ext):
+            base = base[: -len(ext)]
+            break
+
+    json_path = base + ".jsonocel"
+    sqlite_path = base + ".sqlite"
+
     src_df = read_collaborative_xes(input_xes, encoding=encoding)
     res = transform(src_df, cfg)
     checks = run_consistency_checks(src_df, res, cfg)
@@ -934,10 +955,11 @@ def convert(input_xes: str,
         raise RuntimeError("Consistency checks failed under strict mode; not exporting.")
     ocel = build_ocel_object(res.events_df, res.objects_df,
                              res.relations_df, res.o2o_df)
-    write_ocel2_json(ocel, output_jsonocel)
+    write_ocel2_json(ocel, json_path)
+    write_ocel2_sqlite(ocel, sqlite_path)
 
     if validate:
-        problems = validate_jsonocel(output_jsonocel)
+        problems = validate_jsonocel(json_path)
         if problems:
             logger.warning("OCEL 2.0 JSON schema validation found %d issue(s):",
                            len(problems))
@@ -956,9 +978,12 @@ def convert(input_xes: str,
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Transform an extended collaborative XES log into an "
-                    "OCEL 2.0 log (.jsonocel) per mapping rules M1-M8.")
+                    "OCEL 2.0 log (.jsonocel + .sqlite) per mapping rules M1-M8.")
     p.add_argument("input_xes", help="Path to the extended collaborative XES file.")
-    p.add_argument("output_jsonocel", help="Path to the output .jsonocel file.")
+    p.add_argument("output_base",
+                   help="Base path for the output files (no extension). "
+                        "Two files are written: <output_base>.jsonocel and "
+                        "<output_base>.sqlite.")
     p.add_argument("--strict", action="store_true",
                    help="Abort if any P1 check or schema validation fails.")
     p.add_argument("--no-validate", action="store_true",
@@ -974,10 +999,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)s %(message)s")
     cfg = MappingConfig()
-    if not args.output_jsonocel.lower().endswith((".jsonocel", ".json")):
-        logger.warning("Output extension is not .jsonocel/.json; the OCEL2 JSON "
-                       "exporter expects one of these.")
-    convert(args.input_xes, args.output_jsonocel, cfg=cfg,
+    convert(args.input_xes, args.output_base, cfg=cfg,
             strict=args.strict, validate=not args.no_validate,
             encoding=args.encoding)
     return 0

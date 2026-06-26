@@ -36,7 +36,12 @@ ocpm-collab-ppm/
 ├── requirements.txt           # learner dep; OCPA installed separately
 ├── pyproject.toml             # makes src/ packages importable (pip install -e .)
 ├── src/
-│   ├── mapping/               # MAPPING TOOL — from extended XES to OCED 2.0
+│   ├── mapping/               # MAPPING TOOL — extended XES → OCEL 2.0
+│   │   ├── collab_xes_to_ocel.py  #   transformation μ (M1-M8) + checks P1.1-P1.5
+│   │   └── aux/               #   supporting files
+│   │       ├── collab.xesext  #     collaborative XES extension definition
+│   │       ├── ocel20-schema-json.json  #   OCEL 2.0 JSON schema (draft-07)
+│   │       └── printOCEL.py   #     debug helper to inspect OCEL objects
 │   ├── ocpm_tasks/            # PREDICTION TASKS — reusable library (decoupled)
 │   │   ├── schema.py          #   mapping vocabulary (object types/qualifiers/attrs)
 │   │   ├── model.py           #   neutral object-centric model (Event/Execution/Log)
@@ -54,8 +59,16 @@ ocpm-collab-ppm/
 │       ├── rq4_structure.py   #   RQ4 — structural measures + expressiveness
 │       └── run_evaluation.py  #   orchestrator (RQ2/RQ3/RQ4)
 ├── data/
-│   └── logs/                  # EXAMPLE LOGS (OCEL 2.0 SQLite)
-└── results/                   # evaluation outputs
+│   └── logs/                  # EXAMPLE LOGS (extended XES + converted OCEL 2.0 JSON)
+│       ├── collectivelog_artificial1_collab.xes
+│       ├── collectivelog_artificial1_collab.jsonocel
+│       ├── collectivelog_artificial5_collab.xes
+│       ├── collectivelog_artificial5_collab.jsonocel
+│       ├── collectivelog_healthcare_collab.xes
+│       ├── collectivelog_healthcare_collab.jsonocel
+│       ├── collectivelog_real4_collab.xes
+│       └── collectivelog_real4_collab.jsonocel
+└── results/                   # evaluation outputs (empty; populated at runtime)
 ```
 
 The three directories the project revolves around: **example logs** (`data/logs/`),
@@ -90,29 +103,34 @@ objects) and reported before export.
 ### Requirements
 
 ```
-pm4py >= 2.7.16   # OCEL 2.0 JSON exporter
+pm4py >= 2.7.16   # OCEL 2.0 JSON and SQLite exporters
 pandas            # pulled in by pm4py
 jsonschema        # optional; enables full draft-07 schema validation
 ```
 
 The pure-Python transformation and consistency checks (`transform`,
 `run_consistency_checks`) are importable without pm4py; only the I/O helpers
-(`read_collaborative_xes`, `write_ocel2_json`) require it.
+(`read_collaborative_xes`, `write_ocel2_json`, `write_ocel2_sqlite`) require it.
 
 ### Usage
 
+The second argument is a **base path without extension**. Two output files are
+always written: `<output_base>.jsonocel` and `<output_base>.sqlite`.
+
 ```bash
-# Convert a collaborative XES log to OCEL 2.0 JSON
-python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel
+# Convert a collaborative XES log to OCEL 2.0 (JSON + SQLite)
+python src/mapping/collab_xes_to_ocel.py input.xes output/my_log
+# → output/my_log.jsonocel
+# → output/my_log.sqlite
 
 # Abort if any P1 check or schema validation fails
-python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel --strict
+python src/mapping/collab_xes_to_ocel.py input.xes output/my_log --strict
 
-# Skip OCEL 2.0 schema validation of the output
-python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel --no-validate
+# Skip OCEL 2.0 JSON schema validation of the output
+python src/mapping/collab_xes_to_ocel.py input.xes output/my_log --no-validate
 
 # Verbose logging
-python src/mapping/collab_xes_to_ocel.py input.xes output.jsonocel -v
+python src/mapping/collab_xes_to_ocel.py input.xes output/my_log -v
 ```
 
 The extended XES source must use the `collab` extension attributes defined in
