@@ -133,13 +133,10 @@ pip install -e .
 ```bash
 export PYTHONPATH=src   # or rely on `pip install -e .`
 
-# A) prediction-task library on the toy log — runs WITHOUT OCPA/pm4py
-python scripts/example_tasks.py data/logs/toy_collab.sqlite
+# A) full evaluation — RQ3 requires OCPA installed
+python scripts/run_evaluation.py
 
-# B) full evaluation on the toy log — RQ3 requires OCPA installed
-python scripts/run_evaluation.py --toy
-
-# C) run the offline task tests
+# B) run the offline task tests
 pytest -q
 ```
 

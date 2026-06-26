@@ -26,20 +26,7 @@ from typing import List, Dict
 import pandas as pd
 
 from ocpm_tasks.model import ObjectCentricLog
-
-
-def load_ocpa_ocel(schema, ocel2_sqlite_path: str):
-    """Import an OCEL 2.0 SQLite log into OCPA with leading-type execution extraction
-    (one process execution per CollaborationInstance)."""
-    from ocpa.objects.log.importer.ocel2.sqlite import factory as ocel2_import_factory
-    params = {"execution_extraction": "leading_type", "leading_type": schema.ot_ci}
-    try:
-        return ocel2_import_factory.apply(ocel2_sqlite_path, parameters=params)
-    except TypeError:
-        # Older signature without parameters: import then rely on default extraction.
-        # NOTE: the default "connected components" merges instances sharing a
-        # Participant; verify the partitioning (the oracle will flag a wrong split).
-        return ocel2_import_factory.apply(ocel2_sqlite_path)
+from .io_ocel import load_ocpa_ocel  # noqa: F401  (re-exported for callers)
 
 
 def build_feature_set(ocel, schema):
@@ -80,11 +67,12 @@ def _case_by_event_id(log: ObjectCentricLog) -> Dict[str, str]:
 
 
 def extract_feature_table(name: str, schema, ocel2_sqlite_path: str,
-                          ocel_log: ObjectCentricLog) -> Dict[str, object]:
+                          ocel_log: ObjectCentricLog,
+                          ocpa_ocel=None) -> Dict[str, object]:
     from ocpa.algo.predictive_monitoring import factory as predictive_monitoring
     from ocpa.algo.predictive_monitoring import tabular
 
-    ocel = load_ocpa_ocel(schema, ocel2_sqlite_path)
+    ocel = ocpa_ocel if ocpa_ocel is not None else load_ocpa_ocel(schema, ocel2_sqlite_path)
     feature_set = build_feature_set(ocel, schema)
     feature_storage = predictive_monitoring.apply(ocel, feature_set, [])
     table = tabular.construct_table(feature_storage).reset_index(drop=True)

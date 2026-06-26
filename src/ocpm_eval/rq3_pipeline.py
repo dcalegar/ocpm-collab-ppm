@@ -18,7 +18,7 @@ from sklearn.model_selection import GroupKFold
 from ocpm_tasks.catalog import TASKS
 from ocpm_tasks import labels as TL
 from .config import ExperimentConfig, LogSpec
-from .io_ocel import read_ocel2_labels
+from .io_ocel import load_ocpa_ocel, read_ocel2_labels
 from .features_ocpa import extract_feature_table
 from .models import fit_and_score_fold
 
@@ -43,11 +43,13 @@ def _param(task, a_hat, p_star):
 
 
 def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
-    ocel_log = read_ocel2_labels(spec.ocel_path, cfg.schema)
+    ocpa_ocel = load_ocpa_ocel(cfg.schema, spec.ocel_path)
+    ocel_log = read_ocel2_labels(spec.ocel_path, cfg.schema, ocpa_ocel=ocpa_ocel)
     ctx = TL.build_context(ocel_log, cfg.bottom)
     a_hat, p_star = _a_hat(ocel_log, cfg), _p_star(ocel_log, cfg)
 
-    feats = extract_feature_table(spec.name, cfg.schema, spec.ocel_path, ocel_log)
+    feats = extract_feature_table(spec.name, cfg.schema, spec.ocel_path, ocel_log,
+                                  ocpa_ocel=ocpa_ocel)
     table, feature_cols = feats["table"], feats["feature_cols"]
 
     rows: List[dict] = []

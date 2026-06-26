@@ -150,12 +150,76 @@ def from_pm4py(pm4py_ocel, schema: Optional[Schema] = None) -> ObjectCentricLog:
 
 
 def from_ocpa(ocpa_ocel, schema: Optional[Schema] = None) -> ObjectCentricLog:
-    """Best-effort build from an OCPA-loaded OCEL object. The default reader for the
-    label side is ``from_ocel2_sqlite`` (it reads the OCEL 2.0 SQLite directly and
-    keeps E2O/O2O qualifiers). Implement this only if you prefer to reuse an
-    already-imported OCPA OCEL. VERIFY the OCPA accessors for your version."""
-    raise NotImplementedError(
-        "from_ocpa: use from_ocel2_sqlite (default) or from_pm4py (pm4py >= 2.7).")
+    """Build the neutral model from an OCPA OCEL 2.0 object (loaded via
+    ``ocpa.objects.log.importer.ocel2.sqlite.factory.apply``).
+
+    Sources used:
+    - ``ocel.log.log``        — event activity, timestamp, event attributes
+    - ``ocel.graph.eog``      — E2O qualifiers as node attributes {object_id: qualifier}
+    - ``ocel.change_table``   — object attributes (latest value per object per attribute)
+    - ``ocel.obj.raw.objects``— object types
+    - ``ocel.o2o_graph``      — O2O qualifiers as edge attributes
+    """
+    # Object attributes from change_table: keep the latest value per (object, attr).
+    ob_attrs: Dict[str, Dict] = {}
+    ob_attr_t: Dict[str, Dict] = {}
+    if ocpa_ocel.change_table is not None:
+        for _otype, df in ocpa_ocel.change_table.tables.items():
+            attr_cols = [c for c in df.columns
+                         if c not in ("object_id", "ocel_time", "ocel_changed_field")]
+            for _, row in df.iterrows():
+                oid = str(row["object_id"])
+                t = str(row.get("ocel_time") or "")
+                cur_a = ob_attrs.setdefault(oid, {})
+                cur_t = ob_attr_t.setdefault(oid, {})
+                for c in attr_cols:
+                    v = row[c]
+                    if v is None or (isinstance(v, float) and pd.isna(v)):
+                        continue
+                    if c not in cur_t or t >= cur_t[c]:
+                        cur_a[c] = v
+                        cur_t[c] = t
+
+    # O2O relations from o2o_graph (NetworkX DiGraph with qualifier edge attribute).
+    o2o_map: Dict[str, List[Tuple[str, str]]] = {}
+    if ocpa_ocel.o2o_graph is not None:
+        for src, tgt, data in ocpa_ocel.o2o_graph.graph.edges(data=True):
+            o2o_map.setdefault(str(src), []).append(
+                (str(tgt), str(data.get("qualifier", ""))))
+
+    raw = ocpa_ocel.obj.raw
+    objects: Dict[str, _Ob] = {
+        str(oid): _Ob(str(oid), str(obj.type),
+                      ob_attrs.get(str(oid), {}),
+                      o2o_map.get(str(oid), []))
+        for oid, obj in raw.objects.items()
+    }
+
+    # Events: activity/timestamp from log DataFrame; E2O qualifiers from EventGraph
+    # nodes, where nx.set_node_attributes stored them as {object_id: qualifier}.
+    # Column names for event attributes carry an "event_" prefix added by the OCPA
+    # importer; strip it to restore the original OCEL attribute names used in Schema.
+    log_df = ocpa_ocel.log.log   # indexed by original OCEL event ids
+    eog = ocpa_ocel.graph.eog
+    ot_set = set(ocpa_ocel.object_types)
+    ev_attr_cols = [c for c in log_df.columns
+                    if c.startswith("event_")
+                    and c not in ("event_id", "event_activity", "event_timestamp")]
+
+    events: List[_Ev] = []
+    for eid, row in log_df.iterrows():
+        eid_s = str(eid)
+        node_data = dict(eog.nodes[eid]) if eid in eog.nodes else {}
+        e2o = [(str(oid), str(q)) for oid, q in node_data.items()]
+        ts = pd.to_datetime(row["event_timestamp"]).to_pydatetime()
+        attrs = {}
+        for c in ev_attr_cols:
+            v = row[c]
+            if v is not None and not (isinstance(v, float) and pd.isna(v)):
+                attrs[c[len("event_"):]] = v   # strip "event_" prefix
+        events.append(_Ev(eid_s, str(row["event_activity"]), ts, attrs, e2o))
+
+    return build_from_relations(events, objects, schema)
 
 
 # --- OCEL 2.0 SQLite reader (stdlib sqlite3; version-independent) -------------
