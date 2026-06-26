@@ -5,7 +5,7 @@ collab_xes_to_ocel.py
 =====================================================================
 Model-to-model transformation mu: extended collaborative XES log
   -->  OCEL 2.0 log (conforming to Berti et al. 2023, Definition 2),
-exported to the .jsonocel format.
+exported to both .jsonocel and .sqlite formats.
 
 This implements rules M1-M8 and the consistency criteria P1.1-P1.5 of
 the mapping section. It is a transformation that produces an event log
@@ -48,8 +48,8 @@ Target side (OCEL 2.0):
 
 IMPORTANT VERIFICATION NOTES (read before running elsewhere):
   * Requires pm4py >= 2.7.16 (the SQLite timestamp fix in 2.7.16 also
-    hardened the OCEL2 exporters; the JSON exporter is available from
-    2.7.x). pandas is pulled in as a pm4py dependency.
+    hardened the OCEL2 exporters; both the JSON and SQLite exporters are
+    available from 2.7.x). pandas is pulled in as a pm4py dependency.
   * This script does not call pm4py at import time for anything other
     than the I/O endpoints, so the pure-Python transformation/checks
     can be unit-tested without a full pm4py install if desired.
