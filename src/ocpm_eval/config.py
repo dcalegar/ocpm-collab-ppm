@@ -14,15 +14,20 @@ from ocpm_tasks.catalog import RQ3_SUBSET
 @dataclass
 class LogSpec:
     name: str
-    ocel_path: str              # OCEL 2.0 SQLite (.sqlite), produced by the converter
+    ocel_path: str   # OCEL 2.0 SQLite (.sqlite), produced by the converter (R2)
+    xes_path: str    # extended collaborative XES (.xes), original source log (R1)
 
 
 def delgado_ocel_logs() -> List[LogSpec]:
     return [
-        LogSpec("Healthcare",  "data/logs/healthcare.sqlite"),
-        LogSpec("Artificial1", "data/logs/artificial1.sqlite"),
-        LogSpec("Artificial5", "data/logs/artificial5.sqlite"),
-        LogSpec("Real4",       "data/logs/real4.sqlite"),
+        LogSpec("Healthcare",  "data/logs/collectivelog_healthcare_collab.sqlite",
+                               "data/logs/collectivelog_healthcare_collab.xes"),
+        LogSpec("Artificial1", "data/logs/collectivelog_artificial1_collab.sqlite",
+                               "data/logs/collectivelog_artificial1_collab.xes"),
+        LogSpec("Artificial5", "data/logs/collectivelog_artificial5_collab.sqlite",
+                               "data/logs/collectivelog_artificial5_collab.xes"),
+        LogSpec("Real4",       "data/logs/collectivelog_real4_collab.sqlite",
+                               "data/logs/collectivelog_real4_collab.xes"),
     ]
 
 

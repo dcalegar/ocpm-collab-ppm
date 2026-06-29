@@ -240,7 +240,7 @@ def from_ocel2_sqlite(path: str, schema: "Schema | None" = None) -> ObjectCentri
         try:
             return datetime.fromisoformat(s)
         except ValueError:
-            return pd.to_datetime(v).to_pydatetime()
+            return pd.to_datetime(s, format="ISO8601").to_pydatetime()
 
     con = sqlite3.connect(path)
     con.row_factory = sqlite3.Row
