@@ -1,0 +1,4 @@
+operation,collaborative_xes,rich_ocel,ocel_relations
+Participant-local view,Attribute filtering,Direct navigation,"local, executed_by"
+Message lifecycle,Correlation required,Persistent object,"send, receive, from, to"
+Cross-case participant view,Additional indexing,Shared object,executed_by

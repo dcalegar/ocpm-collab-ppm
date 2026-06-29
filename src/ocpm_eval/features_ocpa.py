@@ -44,7 +44,7 @@ def build_feature_set(ocel, schema):
         (predictive_monitoring.EVENT_ELAPSED_TIME, ()),
         (predictive_monitoring.EVENT_PREVIOUS_TYPE_COUNT, (schema.ot_participant,)),
         (predictive_monitoring.EVENT_PREVIOUS_TYPE_COUNT, (schema.ot_message,)),
-    ] + [(predictive_monitoring.EVENT_PRECEDING_ACTIVITES, (a,)) for a in activities]
+    ] + [(predictive_monitoring.EVENT_PRECEDING_ACTIVITIES, (a,)) for a in activities]
 
 
 def _row_event_ids(feature_storage) -> List[str]:

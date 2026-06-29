@@ -22,11 +22,11 @@ def main(cfg: Optional[ExperimentConfig] = None):
     results = {}
     print("\n########## RQ2 — label fidelity ##########")
     results["rq2"] = run_rq2(cfg)
-    # print("\n########## RQ3 — end-to-end feasibility ##########")
-    # results["rq3"] = run_rq3(cfg)
-    # print("\n########## RQ4 — structural measures ##########")
-    # results["rq4"] = run_rq4_structure(cfg)
-    # print("\n[note] RQ1 (transformation + P1 + schema) is the converter's tool.")
+    print("\n########## RQ3 — end-to-end feasibility ##########")
+    results["rq3"] = run_rq3(cfg)
+    print("\n########## RQ4 — structural measures ##########")
+    results["rq4"] = run_rq4_structure(cfg)
+    print("\n[note] RQ1 (transformation + P1 + schema) is the converter's tool.")
     return results
 
 

@@ -19,6 +19,79 @@ from .model import Event, Execution, ObjectCentricLog
 from .schema import Schema
 
 
+def _normalize_ocel_sqlite_timestamps(path: str) -> str:
+    """Return a temp path to a copy of the SQLite file patched for OCPA compatibility:
+    (1) event timestamps without microseconds gain '.000000' — pandas 2.0+ infers the
+        format from the first N values and rejects mixed presence of .f;
+    (2) column names containing ':' are renamed (replacing ':' with '_') — pandas
+        itertuples() sanitizes ':' in namedtuple field names but OCPA still looks up
+        the original name, causing AttributeError.
+    Only copies the file when at least one of these conditions is detected."""
+    import sqlite3, os, shutil, tempfile
+
+    def _user_tables(cur):
+        return [r[0] for r in cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name NOT LIKE 'sqlite_%'"
+        )]
+
+    def _colon_cols(cur, tbl):
+        return [(r[1], r[1].replace(":", "_"))
+                for r in cur.execute(f'PRAGMA table_info("{tbl}")')
+                if ":" in r[1]]
+
+    con = sqlite3.connect(path)
+    cur = con.cursor()
+    needs_fix = False
+    try:
+        # Check for missing microseconds in event type tables.
+        suffixes = [r[0] for r in cur.execute("SELECT ocel_type_map FROM event_map_type")]
+        for suffix in suffixes:
+            row = cur.execute(
+                f'SELECT ocel_time FROM "event_{suffix}" '
+                f'WHERE ocel_time IS NOT NULL AND ocel_time NOT LIKE "%.%" LIMIT 1'
+            ).fetchone()
+            if row:
+                needs_fix = True
+                break
+        # Check for colon characters in any column name.
+        if not needs_fix:
+            for tbl in _user_tables(cur):
+                if _colon_cols(cur, tbl):
+                    needs_fix = True
+                    break
+    except Exception:
+        needs_fix = False
+    finally:
+        con.close()
+
+    if not needs_fix:
+        return path
+
+    fd, tmp = tempfile.mkstemp(suffix=".sqlite")
+    os.close(fd)
+    shutil.copy2(path, tmp)
+    con = sqlite3.connect(tmp)
+    cur = con.cursor()
+    try:
+        # (1) Pad missing microseconds.
+        suffixes = [r[0] for r in cur.execute("SELECT ocel_type_map FROM event_map_type")]
+        for suffix in suffixes:
+            cur.execute(
+                f'UPDATE "event_{suffix}" SET ocel_time = '
+                f'substr(ocel_time,1,19)||".000000"||substr(ocel_time,20) '
+                f'WHERE ocel_time IS NOT NULL AND ocel_time NOT LIKE "%.%"'
+            )
+        # (2) Rename colon-containing columns in all user tables.
+        for tbl in _user_tables(cur):
+            for old_col, new_col in _colon_cols(cur, tbl):
+                cur.execute(f'ALTER TABLE "{tbl}" RENAME COLUMN "{old_col}" TO "{new_col}"')
+        con.commit()
+    finally:
+        con.close()
+    return tmp
+
+
 # --- low-level neutral relation carriers (what the adapters fill) ------------
 @dataclass
 class _Ev:
