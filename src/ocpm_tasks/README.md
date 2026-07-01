@@ -107,6 +107,8 @@ feature_storage = predictive_monitoring.apply(ocpa_ocel, feature_set, [])
 table = tabular.construct_table(feature_storage)
 table["event_id"] = [str(n.event_id) for fg in feature_storage.feature_graphs
                       for n in fg.nodes]
+case_by_event_id = {str(e.event_id): ex.case_id for ex in log for e in ex.events}
+table["case_id"] = table["event_id"].map(case_by_event_id)
 
 # 4. Target (y): ocpm_tasks labels, joined by event_id.
 task = TASKS["NE-NMPr"]
@@ -116,10 +118,21 @@ table["y"] = table["event_id"].map(labels)
 table = table.dropna(subset=["y"])
 
 # 5. Any learner works from here -- table's feature columns are X,
-#    table["y"] is the target.
+#    table["y"] is the target. Split by case_id (not by row) so prefixes of
+#    the same collaboration instance don't leak across train/test.
 from sklearn.ensemble import RandomForestClassifier
-X = table.drop(columns=["event_id", "y"])
-clf = RandomForestClassifier().fit(X, table["y"])
+from sklearn.metrics import f1_score
+
+case_ids = table["case_id"].unique()
+train_cases = set(case_ids[: int(0.8 * len(case_ids))])
+train = table[table["case_id"].isin(train_cases)]
+test = table[~table["case_id"].isin(train_cases)]
+
+feature_cols = [c for c in table.columns if c not in ("event_id", "case_id", "y")]
+clf = RandomForestClassifier().fit(train[feature_cols], train["y"])
+
+pred = clf.predict(test[feature_cols])          # <-- the actual prediction
+print(f1_score(test["y"], pred, average="macro"))
 ```
 
 For a fuller worked version of this pattern — including the alignment
