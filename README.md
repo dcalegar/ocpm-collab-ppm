@@ -26,6 +26,18 @@ No OCEL 1.0 is used anywhere.
 
 ---
 
+## Documentation map
+
+Each package has its own README with the detail that belongs to it; this
+top-level file covers setup and how they fit together.
+
+| README | Covers |
+|---|---|
+| [README.md](README.md) | this file — tools, setup, repository structure, usage, design notes |
+| [src/mapping/README.md](src/mapping/README.md) | RQ1 — the XES→OCEL 2.0 converter: mapping rules M1–M8, consistency checks P1.1–P1.5, CLI usage |
+| [src/ocpm_tasks/README.md](src/ocpm_tasks/README.md) | the 16 prediction tasks, ground-truth label functions, the neutral object-centric model, and how to connect the library to a concrete OCPA-based prediction |
+| [src/ocpm_eval/README.md](src/ocpm_eval/README.md) | RQ2–RQ4 — the evaluation stages that consume `ocpm_tasks`: feature extraction, model fitting, fidelity/feasibility/structure metrics |
+
 ## Repository structure
 
 ```
@@ -35,13 +47,15 @@ ocpm-collab-ppm/
 ├── requirements.txt           # learner dep; OCPA installed separately
 ├── pyproject.toml             # makes src/ packages importable (pip install -e .)
 ├── src/
-│   ├── mapping/               # MAPPING TOOL — extended XES → OCEL 2.0
-│   │   ├── collab_xes_to_ocel.py  #   transformation + checks
-│   │   └── aux/               #   supporting files
-│   │       ├── collab.xesext  #     collaborative XES extension definition
+│   ├── mapping/                       # MAPPING TOOL — extended XES → OCEL 2.0 (RQ1)
+│   │   ├── README.md                  #   mapping rules M1-M8, checks P1.1-P1.5, usage
+│   │   ├── collab_xes_to_ocel.py      #   transformation + checks
+│   │   └── aux/                       #   supporting files
+│   │       ├── collab.xesext          #     collaborative XES extension definition
 │   │       ├── ocel20-schema-json.json  #   OCEL 2.0 JSON schema (draft-07)
-│   │       └── printOCEL.py   #     debug helper to inspect OCEL objects and print images
+│   │       └── printOCEL.py           #     debug helper to inspect OCEL objects and print images
 │   ├── ocpm_tasks/            # PREDICTION TASKS — reusable library (decoupled)
+│   │   ├── README.md          #   modules, usage, connecting to OCPA prediction
 │   │   ├── schema.py          #   mapping vocabulary (object types/qualifiers/attrs)
 │   │   ├── model.py           #   neutral object-centric model (Event/Execution/Log)
 │   │   ├── catalog.py         #   the 16 tasks + RQ2/RQ3 subsets
@@ -49,6 +63,7 @@ ocpm-collab-ppm/
 │   │   ├── fidelity.py        #   RQ2 comparators (equivalence; consistency)
 │   │   └── adapters.py        #   from_ocel2_sqlite (default) / from_pm4py / from_ocpa
 │   └── ocpm_eval/             # EXPERIMENTATION — evaluation stages (use ocpm_tasks)
+│       ├── README.md          #   modules, reading path, RQ2/RQ3 protocols, usage
 │       ├── config.py          #   log registry, CV/learner config
 │       ├── io_ocel.py         #   OCEL 2.0 SQLite -> neutral model (labels)
 │       ├── features_ocpa.py   #   native OCPA features + alignment oracle (RQ3)
@@ -63,7 +78,9 @@ ocpm-collab-ppm/
 ```
 
 The three directories the project revolves around: **example logs** (`data/logs/`),
-**prediction tasks** (`src/ocpm_tasks/`), and **experimentation** (`src/ocpm_eval/`).
+**prediction tasks** ([src/ocpm_tasks/](src/ocpm_tasks/README.md)), and
+**experimentation** ([src/ocpm_eval/](src/ocpm_eval/README.md)), fed by the
+**converter** ([src/mapping/](src/mapping/README.md)).
 
 ---
 
@@ -139,7 +156,11 @@ pip install -e .
 
 ## Usage
 
-### Evaluation (`ocpm_eval` + `ocpm_tasks`)
+Full details, module-by-module, live in each package's own README (see the
+[documentation map](#documentation-map) above); this section is the quick
+path to running things.
+
+### Evaluation ([`ocpm_eval`](src/ocpm_eval/README.md) + [`ocpm_tasks`](src/ocpm_tasks/README.md))
 
 ```bash
 # full evaluation (RQ2 + RQ3 + RQ4) — RQ3 requires OCPA installed; run from
@@ -155,7 +176,7 @@ change by running the evaluation above and inspecting the `results/*.csv` output
 Point the evaluation at your own logs by editing the registry in
 `src/ocpm_eval/config.py` (`LogSpec(name, ocel_path)` with OCEL 2.0 `.sqlite` files).
 
-### Mapping tool (`src/mapping/`)
+### Mapping tool ([`src/mapping/`](src/mapping/README.md))
 
 `collab_xes_to_ocel.py` implements the model-to-model transformation
 **μ: extended collaborative XES → OCEL 2.0** (mapping rules M1–M8), producing 
