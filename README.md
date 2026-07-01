@@ -36,7 +36,7 @@ top-level file covers setup and how they fit together.
 | [README.md](README.md) | this file — tools, setup, repository structure, usage, design notes |
 | [src/mapping/README.md](src/mapping/README.md) | RQ1 — the XES→OCEL 2.0 converter: mapping rules M1–M8, consistency checks P1.1–P1.5, CLI usage |
 | [src/ocpm_tasks/README.md](src/ocpm_tasks/README.md) | the 16 prediction tasks, ground-truth label functions, the neutral object-centric model, and how to connect the library to a concrete OCPA-based prediction |
-| [src/ocpm_eval/README.md](src/ocpm_eval/README.md) | RQ2–RQ4 — the evaluation stages that consume `ocpm_tasks`: feature extraction, model fitting, fidelity/feasibility/structure metrics |
+| [src/ocpm_eval/README.md](src/ocpm_eval/README.md) | RQ2–RQ3 — the evaluation stages that consume `ocpm_tasks`: feature extraction, model fitting, fidelity/feasibility/structure metrics |
 
 ## Repository structure
 
@@ -70,8 +70,7 @@ ocpm-collab-ppm/
 │       ├── models.py          #   per-fold training + descriptive metrics
 │       ├── rq2_fidelity.py    #   RQ2 — label fidelity
 │       ├── rq3_pipeline.py    #   RQ3 — end-to-end, 5-fold CV grouped by CI
-│       ├── rq4_structure.py   #   RQ4 — structural measures + expressiveness
-│       └── run_evaluation.py  #   orchestrator (RQ2/RQ3/RQ4)
+│       └── run_evaluation.py  #   orchestrator (RQ2/RQ3)
 ├── data/
 │   └── logs/                  # EXAMPLE LOGS (extended XES + converted OCEL 2.0 JSON)
 └── results/                   # evaluation outputs
@@ -163,7 +162,7 @@ path to running things.
 ### Evaluation ([`ocpm_eval`](src/ocpm_eval/README.md) + [`ocpm_tasks`](src/ocpm_tasks/README.md))
 
 ```bash
-# full evaluation (RQ2 + RQ3 + RQ4) — RQ3 requires OCPA installed; run from
+# full evaluation (RQ2 + RQ3) — RQ3 requires OCPA installed; run from
 # the repo root with .venv active. Writes CSVs to results/ (see table below).
 python -m ocpm_eval.run_evaluation
 ```
@@ -212,7 +211,6 @@ The extended XES source must use the `collab` extension attributes defined in
 | RQ1 | XES→OCEL transformation + checks | **converter (separate tool)** — out of scope here | — |
 | RQ2 | label fidelity (equivalence for the 14 tasks; consistency for X-PaL/X-MSt) | `ocpm_eval/rq2_fidelity.py` | `results/rq2_fidelity.csv` |
 | RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `ocpm_eval/rq3_pipeline.py` | `results/rq3_results.csv` |
-| RQ4 | structural measures + expressiveness matrix | `ocpm_eval/rq4_structure.py` | `results/rq4_structure.csv`, `results/rq4_expressiveness.csv` |
 
 RQ2 *equivalence* (the 14 tasks vs the original collaborative log, R1) needs the
 converter's R1 reader; pass `r1_logs={name: ObjectCentricLog}` to

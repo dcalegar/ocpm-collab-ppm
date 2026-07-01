@@ -1,6 +1,6 @@
 # ocpm_eval — evaluation stages
 
-Modular evaluation that answers RQ2–RQ4 of the study. Task definitions and
+Modular evaluation that answers RQ2–RQ3 of the study. Task definitions and
 ground-truth labels come from the decoupled
 [`ocpm_tasks`](../ocpm_tasks/README.md) library; `ocpm_eval` is a
 *consumer* of that library, not part of it — it adds feature extraction,
@@ -28,8 +28,7 @@ package is the fuller, cross-validated version of the same pattern.
 | `rq2_fidelity.py` | RQ2 — label-fidelity: R1 (source XES) vs R2 (OCEL) equivalence for the 14 single-case tasks; internal consistency for X-PaL/X-MSt |
 | `rq3_pipeline.py` | RQ3 — end-to-end feasibility: features + labels joined, 5-fold `GroupKFold` CV grouped by `CollaborationInstance` |
 | `rq3_extensions_example.py` | worked example for X-PaL/X-MSt (object-enabled extensions, no single-case counterpart) — exploratory, kept out of the core coverage claim |
-| `rq4_structure.py` | RQ4 — structural measures (object/relation counts, size, structural ratio) read directly via `sqlite3`, plus a fixed expressiveness matrix |
-| `run_evaluation.py` | orchestrator — runs RQ2 → RQ3 (subset + full catalog) → RQ4 and writes all CSVs |
+| `run_evaluation.py` | orchestrator — runs RQ2 → RQ3 (subset + full catalog) and writes all CSVs |
 
 | Stage | Module | Output |
 |---|---|---|
@@ -37,7 +36,6 @@ package is the fuller, cross-validated version of the same pattern.
 | **RQ3** end-to-end feasibility (representative subset, in-paper) | `rq3_pipeline.py` | `results/rq3_results.csv` |
 | **RQ3** full catalog (supplementary coverage, 14 tasks × 4 logs) | `rq3_pipeline.py` via `run_evaluation.py` | `results/rq3_results_full.csv` |
 | **RQ3** X-PaL/X-MSt worked example (exploratory) | `rq3_extensions_example.py` | `results/rq3_extensions_example.csv` |
-| **RQ4** structure & expressiveness | `rq4_structure.py` | `results/rq4_structure.csv`, `results/rq4_expressiveness.csv` |
 | RQ1 transformation + P1 | — | [`mapping`](../mapping/README.md) (separate tool) |
 
 ## Reading path
@@ -68,7 +66,7 @@ cannot read it:
 ## Usage
 
 ```bash
-# full evaluation (RQ2 + RQ3 + RQ4) — RQ3 requires OCPA installed; run from
+# full evaluation (RQ2 + RQ3) — RQ3 requires OCPA installed; run from
 # the repo root with .venv active. Writes CSVs to results/.
 python -m ocpm_eval.run_evaluation
 ```

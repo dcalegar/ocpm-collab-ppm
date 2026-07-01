@@ -3,7 +3,6 @@ Evaluation orchestrator. Runs the stages owned by the experimentation tool:
   * RQ2 — label fidelity (equivalence: R1 and R2 both read from the OCEL logs;
           consistency for X-PaL/X-MSt),
   * RQ3 — end-to-end feasibility + descriptive metrics on the representative subset,
-  * RQ4 — structural measures + expressiveness matrix.
 
 RQ1 (XES->OCEL transformation, properties P1.1-P1.5, OCEL 2.0 schema validation) is
 produced by the CONVERTER (a separate tool) and is therefore out of scope here.
@@ -22,7 +21,6 @@ from ocpm_tasks.catalog import EQUIVALENCE_TASKS
 from .config import ExperimentConfig
 from .rq2_fidelity import run_rq2
 from .rq3_pipeline import run_rq3
-from .rq4_structure import run_rq4_structure
 
 
 def main(cfg: Optional[ExperimentConfig] = None):
@@ -35,8 +33,6 @@ def main(cfg: Optional[ExperimentConfig] = None):
     print("\n########## RQ3 — full catalog (supplementary coverage) ##########")
     full_cfg = replace(cfg, rq3_tasks=list(EQUIVALENCE_TASKS))
     results["rq3_full"] = run_rq3(full_cfg, out_name="rq3_results_full.csv")
-    print("\n########## RQ4 — structural measures ##########")
-    results["rq4"] = run_rq4_structure(cfg)
     print("\n[note] RQ1 (transformation + P1 + schema) is the converter's tool.")
     print("[note] X-PaL/X-MSt (object-enabled extensions) are demonstrated in "
           "rq3_extensions_example.py, not included above.")
