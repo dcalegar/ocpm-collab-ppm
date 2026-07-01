@@ -1,0 +1,9 @@
+log,task,anchor,problem_type,samples,ran_end_to_end,participant,metric_name,metric_mean,metric_sd,baseline_mean,folds
+Healthcare,X-PaL,Participant,Count regression,1350,True,Gynecologist,mae,0.0,0.0,0.0,5
+Healthcare,X-MSt,Message,Regression (time),1201,True,,mae,3.2100980826559296,0.12069971374605111,3.07853138335735,5
+Artificial1,X-PaL,Participant,Count regression,700,True,PartyA,mae,0.0,0.0,0.0,5
+Artificial1,X-MSt,Message,Regression (time),329,True,,mae,5.342835855752979,0.6242459871315806,5.071249883449884,5
+Artificial5,X-PaL,Participant,Count regression,2260,True,PartyB,mae,0.0,0.0,0.0,5
+Artificial5,X-MSt,Message,Regression (time),1473,True,,mae,15.097340344174295,1.6423701377880955,18.924975494062032,5
+Real4,X-PaL,Participant,Count regression,1700,True,Zoo,mae,0.0,0.0,0.0,5
+Real4,X-MSt,Message,Regression (time),1499,True,,mae,3.9145468445710905,0.18666851914075056,3.5320387313266437,5

@@ -1,4 +1,4 @@
-# ocpm_eval — evaluation stages (V4 profile)
+# ocpm_eval — evaluation stages
 
 Modular evaluation that answers RQ2–RQ4 of the study. Task definitions and
 ground-truth labels come from the decoupled
@@ -27,13 +27,16 @@ package is the fuller, cross-validated version of the same pattern.
 | `models.py` | `fit_and_score_fold` — one fixed RandomForest per problem type, fit + **predict** + score, plus a trivial baseline |
 | `rq2_fidelity.py` | RQ2 — label-fidelity: R1 (source XES) vs R2 (OCEL) equivalence for the 14 single-case tasks; internal consistency for X-PaL/X-MSt |
 | `rq3_pipeline.py` | RQ3 — end-to-end feasibility: features + labels joined, 5-fold `GroupKFold` CV grouped by `CollaborationInstance` |
+| `rq3_extensions_example.py` | worked example for X-PaL/X-MSt (object-enabled extensions, no single-case counterpart) — exploratory, kept out of the core coverage claim |
 | `rq4_structure.py` | RQ4 — structural measures (object/relation counts, size, structural ratio) read directly via `sqlite3`, plus a fixed expressiveness matrix |
-| `run_evaluation.py` | orchestrator — runs RQ2 → RQ3 → RQ4 and writes all CSVs |
+| `run_evaluation.py` | orchestrator — runs RQ2 → RQ3 (subset + full catalog) → RQ4 and writes all CSVs |
 
 | Stage | Module | Output |
 |---|---|---|
 | **RQ2** label fidelity | `rq2_fidelity.py` | `results/rq2_fidelity.csv` |
-| **RQ3** end-to-end feasibility | `rq3_pipeline.py` | `results/rq3_results.csv` |
+| **RQ3** end-to-end feasibility (representative subset, in-paper) | `rq3_pipeline.py` | `results/rq3_results.csv` |
+| **RQ3** full catalog (supplementary coverage, 14 tasks × 4 logs) | `rq3_pipeline.py` via `run_evaluation.py` | `results/rq3_results_full.csv` |
+| **RQ3** X-PaL/X-MSt worked example (exploratory) | `rq3_extensions_example.py` | `results/rq3_extensions_example.csv` |
 | **RQ4** structure & expressiveness | `rq4_structure.py` | `results/rq4_structure.csv`, `results/rq4_expressiveness.csv` |
 | RQ1 transformation + P1 | — | [`mapping`](../mapping/README.md) (separate tool) |
 
@@ -101,6 +104,23 @@ single fold, so no prefix leaks between train and test). Reports macro-F1
 (classification) or MAE (regression) as mean ± sd over folds, alongside a
 trivial baseline (majority class / median) computed on the same folds. No
 computation times are reported (V4 profile).
+
+`run_rq3` is task-agnostic (it just loops `cfg.rq3_tasks`), so the same
+protocol extends to the full catalog without any pipeline changes —
+`run_evaluation.main` also runs it over `ocpm_tasks.catalog.EQUIVALENCE_TASKS`
+(the 14 single-case-counterpart tasks) and writes `rq3_results_full.csv`,
+intended as supplementary material rather than an in-paper table: it
+confirms all (task, log) combinations run end-to-end, but a few of the
+non-curated tasks (e.g. `NV-TNE`, `NV-TNM`) land close to or slightly worse
+than their trivial baseline in some logs — unlike the subset, which was
+picked to show clear separation, the full catalog is a coverage check, not
+a predictive-quality claim. The two object-enabled extensions (`X-PaL`,
+`X-MSt`, no single-case counterpart) are deliberately left out of this run
+and demonstrated separately in `rq3_extensions_example.py`, since the
+bundled logs barely exercise asynchrony and would make `X-MSt` (and
+especially `X-PaL`, which came out exactly `0.00±0.00` MAE in all four
+logs — no cross-instance participant overlap in these logs) close to
+degenerate.
 
 ## RQ2 protocol
 
