@@ -11,6 +11,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import f1_score, mean_absolute_error
 
+from ocpa.util.util import LinearRegression as OcpaLinearRegression
 from ocpm_tasks.catalog import Task
 
 
@@ -50,6 +51,33 @@ def fit_and_score_fold(table: pd.DataFrame, feature_cols: List[str], y_col: str,
         random_state=cfg.random_state, n_jobs=-1)
     reg.fit(X_tr, y_tr.astype(float))
     pred = reg.predict(X_te)
+    median = float(np.median(y_tr.astype(float)))
+    return {
+        "metric": float(mean_absolute_error(y_te.astype(float), pred)),
+        "baseline": float(mean_absolute_error(y_te.astype(float),
+                                              [median] * len(y_te))),
+        "n_test": int(len(y_te)),
+    }
+
+
+def fit_and_score_fold_ocpa_lr(table: pd.DataFrame, feature_cols: List[str], y_col: str,
+                               task: Task, train_mask, test_mask, cfg) -> Dict[str, float]:
+    """Same protocol as fit_and_score_fold, but with OCPA's own regressor
+    (ocpa.util.util.LinearRegression) in place of the RandomForest, for comparison.
+    OCPA ships no classifier, so categorical/binary tasks are skipped (empty dict)."""
+    if task.kind in ("categorical", "binary"):
+        return {}
+    X, y = _xy(table, feature_cols, y_col)
+    X_tr, X_te, y_tr, y_te = X[train_mask], X[test_mask], y[train_mask], y[test_mask]
+    if len(y_tr) == 0 or len(y_te) == 0:
+        return {}
+    reg = OcpaLinearRegression()
+    try:
+        reg.fit(X_tr.to_numpy(dtype=float), y_tr.astype(float).to_numpy())
+    except np.linalg.LinAlgError:
+        # normal-equation solve is singular (e.g. collinear/constant feature columns)
+        return {}
+    pred = reg.predict(X_te.to_numpy(dtype=float))
     median = float(np.median(y_tr.astype(float)))
     return {
         "metric": float(mean_absolute_error(y_te.astype(float), pred)),
