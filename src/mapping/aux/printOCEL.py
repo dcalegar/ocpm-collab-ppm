@@ -7,7 +7,7 @@ from pm4py.ocel import (
 )
 from pm4py.vis import view_ocpn, save_vis_ocpn, save_vis_ocdfg
 
-modelname = "collectivelog_real4_collab"
+modelname = "collectivelog_healthcare_collab"
 
 # 1. Load OCEL 2.0 JSON
 ocel = read_ocel2_json(modelname + ".jsonocel")

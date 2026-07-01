@@ -80,6 +80,17 @@ must run in **separate virtual environments**:
 Recommended Python: **3.10**. Optional system dependency for OCPA visualization
 (not used by this pipeline): `brew install graphviz`.
 
+> **Apple Silicon (arm64) note.** Both venvs must be built with an **arm64-native**
+> Python 3.10 (e.g. `brew install python@3.10` under an arm64 Homebrew at
+> `/opt/homebrew`, or `python.org`'s universal installer invoked as
+> `arch -arm64 python3.10 -m venv .venv`). If `python3.10 -m venv` picks up an
+> Intel-only interpreter (e.g. one under `/usr/local/bin`, the Intel Homebrew
+> prefix), every `numpy`/`pandas`/`pm4py` import fails with the misleading error
+> `ImportError: ... you should not try to import numpy from its source
+> directory`. Check with `file "$(readlink -f .venv/bin/python3.10)"`; if it says
+> `x86_64` only, recreate the venv with an arm64 interpreter, or always invoke it
+> as `arch -x86_64 .venv/bin/python ...` (Rosetta) instead.
+
 ### Environment 1 — evaluation (`ocpm_eval` + `ocpm_tasks`)
 
 ```bash
@@ -120,7 +131,7 @@ pip install -e .
 
 `src/` is on the analysis path. Recommended extensions: Python + Pylance.
 
-- For `ocpm_eval` / `ocpm_tasks` files → select the `.venv` interpreter.
+- For `src/ocpm_eval` / `src/ocpm_tasks` files → select the `.venv` interpreter.
 - For `src/mapping/` files → select `.venv-mapping` interpreter
   (use **Python: Select Interpreter** per file, or set it per workspace folder).
 
@@ -131,14 +142,15 @@ pip install -e .
 ### Evaluation (`ocpm_eval` + `ocpm_tasks`)
 
 ```bash
-export PYTHONPATH=src   # or rely on `pip install -e .`
-
-# A) full evaluation — RQ3 requires OCPA installed
-python scripts/run_evaluation.py
-
-# B) run the offline task tests
-pytest -q
+# full evaluation (RQ2 + RQ3 + RQ4) — RQ3 requires OCPA installed; run from
+# the repo root with .venv active. Writes CSVs to results/ (see table below).
+python -m ocpm_eval.run_evaluation
 ```
+
+There is currently no automated test suite for `ocpm_tasks`/`ocpm_eval`; validate a
+change by running the evaluation above and inspecting the `results/*.csv` outputs
+(RQ2 fidelity should be ~1.0 on the consistency checks; RQ3 rows should have
+`ran_end_to_end=True`).
 
 Point the evaluation at your own logs by editing the registry in
 `src/ocpm_eval/config.py` (`LogSpec(name, ocel_path)` with OCEL 2.0 `.sqlite` files).

@@ -39,12 +39,24 @@ Target side (OCEL 2.0):
                    within one global case; it is a distinct object,
                    linked to its Participant by the O2O qualifier
                    executed_by.
-    E2O qualifiers: within, local, send, receive
-                   (there is no direct event->Participant relation: the
-                   participant of an event is reached via
-                   local -> executed_by, so the orchestration is never
-                   confused with its own per-case projection).
+    E2O qualifiers: within, local, send, receive, actor
+                   (conceptually, the participant of an event is reached
+                   via local -> executed_by, keeping the orchestration
+                   distinct from its own per-case projection; the extra
+                   `actor` E2O edge added below is a redundant,
+                   export-compatibility edge only -- see NOTE below).
     O2O qualifiers: part_of, executed_by, from, to, exchanged_in
+
+    NOTE on the `actor` E2O edge: pm4py's OCEL 2.0 exporters (JSON and
+    SQLite) call filtering_utils.propagate_relations_filtering(), which
+    keeps only the objects that appear in the E2O relations table --
+    silently dropping any object reachable only via O2O. Since Participant
+    is by design an O2O-only object (no direct event edge), it and every
+    O2O edge that targets it (executed_by, from, to) would otherwise be
+    lost on export. To keep the exported .jsonocel/.sqlite lossless, each
+    event also gets a redundant E2O edge to its executing Participant
+    (qualifier `actor`); this is a workaround for the exporter's behaviour,
+    not a change to the conceptual model.
 
 IMPORTANT VERIFICATION NOTES (read before running elsewhere):
   * Requires pm4py >= 2.7.16 (the SQLite timestamp fix in 2.7.16 also
@@ -109,14 +121,14 @@ OT_LOCALCASE = "LocalCase"
 OT_MESSAGE = "Message"
 
 # --- E2O qualifiers (rule M6) ---------------------------------------
-# No 'actor' qualifier: an event does not relate directly to a
-# Participant (orchestration). The participant is reached through
-# local -> executed_by, keeping the orchestration distinct from its
-# per-case execution (LocalCase).
 Q_WITHIN = "within"
 Q_LOCAL = "local"
 Q_SEND = "send"
 Q_RECEIVE = "receive"
+# Redundant event->Participant edge, added purely so pm4py's OCEL 2.0
+# exporters (which drop O2O-only objects) keep Participant on export;
+# see the module docstring NOTE above. Not part of the conceptual model.
+Q_ACTOR = "actor"
 
 # --- O2O qualifiers (rule M7) ---------------------------------------
 Q_PART_OF = "part_of"
@@ -645,13 +657,17 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
 
             # ---- M6: structural E2O relations -----------------------
             # within (-> CollaborationInstance) and local (-> LocalCase).
-            # There is NO direct actor edge to the Participant: the
-            # orchestration is reached via local -> executed_by (O2O).
+            # Conceptually, the orchestration is reached via
+            # local -> executed_by (O2O); the `actor` edge below is a
+            # redundant export-compatibility edge (see module docstring).
             e2o_rows.append({COL_EID: ev["eid"], COL_OID: ci_oid,
                              COL_OTYPE: OT_CI, COL_QUALIFIER: Q_WITHIN})
             if lc_oid is not None:
                 e2o_rows.append({COL_EID: ev["eid"], COL_OID: lc_oid,
                                  COL_OTYPE: OT_LOCALCASE, COL_QUALIFIER: Q_LOCAL})
+            if p is not None:
+                e2o_rows.append({COL_EID: ev["eid"], COL_OID: _participant_id(p),
+                                 COL_OTYPE: OT_PARTICIPANT, COL_QUALIFIER: Q_ACTOR})
 
             # ---- M6: send E2O ---------------------------------------
             if ev["elem"] == ELEM_SEND:
