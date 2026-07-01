@@ -16,6 +16,29 @@ this repo and import it as `ocpm_tasks`.
 pip install pandas
 ```
 
+## What this library does (and does not)
+
+`ocpm_tasks` only supplies the **ground-truth / task-definition side** of a
+prediction pipeline — it never trains or runs a model:
+
+* `catalog.TASKS` — metadata for each of the 16 tasks (anchor object,
+  problem type, value kind, parameterization).
+* `labels.compute_label_rows` — for every cut point `k` in a collaboration
+  instance, deterministically derives the target value `y` by looking
+  *forward* from that cut point (next activity, time to next message,
+  message count, etc.). Pure functions: no ML, no I/O, no OCEL library.
+* `fidelity` — RQ2-style label-fidelity checks (agreement with a
+  single-case reference; internal well-definedness of the object-enabled
+  tasks).
+
+There is no notion here of a feature vector, a training loop, or a model.
+To actually predict something you still need, from elsewhere: (1) a
+**feature extractor** that turns the observable prefix at each cut point
+into `X` (e.g. OCPA's `predictive_monitoring` module, pm4py, or your own),
+and (2) a **learner** (e.g. scikit-learn) that fits `X -> y` and evaluates
+it. See "Connecting to a concrete prediction with OCPA" below for how the
+pieces line up.
+
 ## Modules
 
 | Module | Purpose |
@@ -50,6 +73,62 @@ rows = compute_label_rows(log, task, ctx=ctx)
 
 If your OCEL uses different object-type/qualifier names, pass a custom
 `Schema(...)` to the adapter instead of editing this library.
+
+## Connecting to a concrete prediction with OCPA
+
+`ocpm_tasks` produces the target `y`; OCPA can supply both the parsed log
+and the per-cut-point feature vector `X`. The two line up on `event_id`:
+
+```python
+from ocpa.objects.log.importer.ocel2.sqlite import factory as ocel_import
+from ocpa.algo.predictive_monitoring import factory as predictive_monitoring, tabular
+
+from ocpm_tasks.adapters import from_ocpa
+from ocpm_tasks.catalog import TASKS
+from ocpm_tasks.labels import build_context, compute_label_rows
+
+# 1. Parse once with OCPA (native OCEL 2.0 import).
+ocpa_ocel = ocel_import.apply("my_log.sqlite")
+
+# 2. Build the neutral ocpm_tasks model from the SAME parsed log, so
+#    case/event ids line up with OCPA's.
+log = from_ocpa(ocpa_ocel)
+ctx = build_context(log)
+
+# 3. Features (X): OCPA's predictive_monitoring computes one row per event.
+#    Use only PAST-relative features (elapsed time, preceding activities,
+#    previously-seen object counts) -- anything execution-based would leak
+#    the future past the cut point.
+feature_set = [
+    (predictive_monitoring.EVENT_ELAPSED_TIME, ()),
+    (predictive_monitoring.EVENT_PRECEDING_ACTIVITIES, ("Send",)),
+]
+feature_storage = predictive_monitoring.apply(ocpa_ocel, feature_set, [])
+table = tabular.construct_table(feature_storage)
+table["event_id"] = [str(n.event_id) for fg in feature_storage.feature_graphs
+                      for n in fg.nodes]
+
+# 4. Target (y): ocpm_tasks labels, joined by event_id.
+task = TASKS["NE-NMPr"]
+labels = {str(eid): y for (_case, eid, _k, y)
+          in compute_label_rows(log, task, ctx=ctx)}
+table["y"] = table["event_id"].map(labels)
+table = table.dropna(subset=["y"])
+
+# 5. Any learner works from here -- table's feature columns are X,
+#    table["y"] is the target.
+from sklearn.ensemble import RandomForestClassifier
+X = table.drop(columns=["event_id", "y"])
+clf = RandomForestClassifier().fit(X, table["y"])
+```
+
+For a fuller worked version of this pattern — including the alignment
+oracle (checking OCPA's own remaining-time feature against the NV-PrT
+label to catch id/partitioning mismatches), grouped cross-validation by
+collaboration instance, and a trivial baseline — see
+`ocpm_eval/features_ocpa.py`, `ocpm_eval/models.py` and
+`ocpm_eval/rq3_pipeline.py` in this repo. They are *consumers* of
+`ocpm_tasks` (not part of it) and show the full RQ3 pipeline end to end.
 
 ## Bringing your own OCEL
 
