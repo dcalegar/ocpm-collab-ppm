@@ -7,7 +7,7 @@ Model-to-model transformation mu: extended collaborative XES log
   -->  OCEL 2.0 log (conforming to Berti et al. 2023, Definition 2),
 exported to the .jsonocel and .sqlite formats.
 
-This implements rules M1-M8 and the consistency criteria P1.1-P1.5 of
+This implements rules M1-M8 and the consistency criteria P1.1-P1.6 of
 the mapping section. It is a transformation that produces an event log
 CONFORMING to the OCEL 2.0 metamodel; it does NOT define a new
 metamodel.
@@ -20,13 +20,18 @@ extension, carries these event-level string attributes:
     collab:toParticipant   receiver (defined on Send/Receive events)
 plus the XES keys for activity, timestamp, and global case id.
 
-The Message object is characterized by its sender, its receiver, and
-the send/receive events that reference it; collab:elemType already
-distinguishes task / SendTask / ReceiveTask, so no separate message-type
-attribute is read or stored.
+The Message object represents a single communication OBSERVATION, not a
+correlated message instance: rule M4 mints one Message per send event and
+one Message per receive event, each related to exactly its own event (by
+`send` or `receive`) and carrying that event's recorded sender/receiver.
+Because the source logs do not guarantee message identifiers or other
+reliable correlation information, the core mapping does NOT infer any
+correspondence between a send observation and a receive observation.
+collab:elemType already distinguishes task / SendTask / ReceiveTask, so no
+separate message-type attribute is read or stored.
 
 Target side (OCEL 2.0):
-    Object types : CollaborationInstance, Participant, LocalCase,
+    Object types : CollaborationCase, Participant, ParticipantProjection,
                    Message.
                    NOTE on Participant: in the collaborative source
                    process (BPMN 2.0 terminology) a participant is an
@@ -35,28 +40,35 @@ Target side (OCEL 2.0):
                    type keeps the name "Participant" for traceability
                    with the collaborative process, but it represents the
                    orchestration: a global object, reused across cases.
-                   LocalCase is the execution of that orchestration
-                   within one global case; it is a distinct object,
-                   linked to its Participant by the O2O qualifier
-                   executed_by.
-    E2O qualifiers: within, local, send, receive, actor
-                   (conceptually, the participant of an event is reached
-                   via local -> executed_by, keeping the orchestration
-                   distinct from its own per-case projection; the extra
-                   `actor` E2O edge added below is a redundant,
-                   export-compatibility edge only -- see NOTE below).
-    O2O qualifiers: part_of, executed_by, from, to, exchanged_in
+                   ParticipantProjection is the execution of that
+                   orchestration within one collaboration case; it is a
+                   distinct object, linked to its Participant by the O2O
+                   qualifier for_participant.
+    E2O qualifiers: within, in_projection, send, receive, participant
+                   (M6). The participant of an event is reachable two
+                   ways: directly, via the `participant` edge below, and
+                   indirectly via in_projection -> for_participant,
+                   keeping the orchestration distinct from its own
+                   per-case projection. Both are part of the conceptual
+                   model -- the direct edge keeps Participant objects
+                   reachable at the event-to-object level for
+                   serialization and downstream feature extraction (see
+                   NOTE below); their agreement is machine-checked by
+                   P1.6. `send`/`receive` each relate a communication
+                   event to its OWN Message observation object; no
+                   relation between distinct send and receive events is
+                   inferred (M4).
+    O2O qualifiers: projection_of, for_participant, from, to, exchanged_in
 
-    NOTE on the `actor` E2O edge: pm4py's OCEL 2.0 exporters (JSON and
-    SQLite) call filtering_utils.propagate_relations_filtering(), which
-    keeps only the objects that appear in the E2O relations table --
-    silently dropping any object reachable only via O2O. Since Participant
-    is by design an O2O-only object (no direct event edge), it and every
-    O2O edge that targets it (executed_by, from, to) would otherwise be
-    lost on export. To keep the exported .jsonocel/.sqlite lossless, each
-    event also gets a redundant E2O edge to its executing Participant
-    (qualifier `actor`); this is a workaround for the exporter's behaviour,
-    not a change to the conceptual model.
+    NOTE on the `participant` E2O edge: pm4py's OCEL 2.0 exporters (JSON
+    and SQLite) call filtering_utils.propagate_relations_filtering(),
+    which keeps only the objects that appear in the E2O relations table
+    -- silently dropping any object reachable only via O2O. Since
+    Participant would otherwise be reached only via O2O (for_participant,
+    from, to), it and those edges would be lost on export without a
+    direct event edge. Rule M6 keeps the direct `participant` edge for
+    exactly this reason, so the exported .jsonocel/.sqlite stays
+    lossless.
 
 IMPORTANT VERIFICATION NOTES (read before running elsewhere):
   * Requires pm4py >= 2.7.16 (the SQLite timestamp fix in 2.7.16 also
@@ -115,24 +127,24 @@ ELEM_SEND = "SendTask"
 ELEM_RECEIVE = "ReceiveTask"
 
 # --- OCEL 2.0 object types ------------------------------------------
-OT_CI = "CollaborationInstance"
+OT_CC = "CollaborationCase"
 OT_PARTICIPANT = "Participant"
-OT_LOCALCASE = "LocalCase"
+OT_PP = "ParticipantProjection"
 OT_MESSAGE = "Message"
 
 # --- E2O qualifiers (rule M6) ---------------------------------------
 Q_WITHIN = "within"
-Q_LOCAL = "local"
+Q_IN_PROJECTION = "in_projection"
 Q_SEND = "send"
 Q_RECEIVE = "receive"
-# Redundant event->Participant edge, added purely so pm4py's OCEL 2.0
-# exporters (which drop O2O-only objects) keep Participant on export;
-# see the module docstring NOTE above. Not part of the conceptual model.
-Q_ACTOR = "actor"
+# Direct event->Participant edge (M6). Also reachable indirectly via
+# in_projection -> for_participant; P1.6 checks the two agree. See the
+# module docstring NOTE above for why the direct edge is kept.
+Q_PARTICIPANT = "participant"
 
 # --- O2O qualifiers (rule M7) ---------------------------------------
-Q_PART_OF = "part_of"
-Q_EXECUTED_BY = "executed_by"
+Q_PROJECTION_OF = "projection_of"
+Q_FOR_PARTICIPANT = "for_participant"
 Q_FROM = "from"
 Q_TO = "to"
 Q_EXCHANGED_IN = "exchanged_in"
@@ -184,18 +196,20 @@ class MappingConfig:
 # object ids (U_obj and U_val are disjoint in OCEL 2.0). We therefore
 # mint type-prefixed object ids.
 
-def _ci_id(case: str) -> str:
-    return f"ci::{case}"
+def _cc_id(case: str) -> str:
+    return f"cc::{case}"
 
 def _participant_id(p: str) -> str:
     return f"part::{p}"
 
-def _localcase_id(case: str, p: str) -> str:
-    return f"lc::{case}::{p}"
+def _pp_id(case: str, p: str) -> str:
+    return f"pp::{case}::{p}"
 
-def _message_id(send_eid: str) -> str:
-    # One Message per send event (M4); the send event id makes it unique.
-    return f"msg::{send_eid}"
+def _message_id(eid: str) -> str:
+    # One Message per send OR receive event (M4, m_e for e in S_L u R_L);
+    # the event id makes it unique. No correlation between a send Message
+    # and a receive Message is inferred.
+    return f"msg::{eid}"
 
 def _event_id(case: str, idx: int) -> str:
     # Stable per-case event id. idx is the within-case source order.
@@ -494,62 +508,6 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
 
 
 # =====================================================================
-# Rule M4 - send/receive correlation (declared ETL heuristic)
-# =====================================================================
-
-def _correlate_messages(case_events: List[Dict[str, Any]]
-                        ) -> Tuple[Dict[str, str], List[str], List[str]]:
-    """For one case, pair each SendTask with the earliest subsequent
-    unpaired ReceiveTask whose (from,to) mirror the send's (participant,to).
-
-    Returns:
-      rho        : map send_eid -> receive_eid (only for matched sends)
-      send_eids  : all send event ids (each mints a Message)
-      unmatched_recv : receive event ids never matched (reported)
-    """
-    rho: Dict[str, str] = {}
-    send_eids: List[str] = []
-    receive_events = [e for e in case_events if e["elem"] == ELEM_RECEIVE]
-    matched_recv: set = set()
-
-    for ev in case_events:
-        if ev["elem"] != ELEM_SEND:
-            continue
-        send_eids.append(ev["eid"])
-        # candidate receives: later-or-equal timestamp, mirrored parties
-        sender = ev["participant"]
-        receiver = ev["to"]
-        best = None
-        for rv in receive_events:
-            if rv["eid"] in matched_recv:
-                continue
-            # time order: receive not earlier than send
-            if pd.notna(ev["timestamp"]) and pd.notna(rv["timestamp"]):
-                if rv["timestamp"] < ev["timestamp"]:
-                    continue
-            elif rv["idx"] < ev["idx"]:
-                # if timestamps missing, fall back to within-case order
-                continue
-            # mirrored parties: receive.from == send.participant
-            #                   receive.to   == send.to
-            if rv["from"] is not None and sender is not None and rv["from"] != sender:
-                continue
-            if rv["to"] is not None and receiver is not None and rv["to"] != receiver:
-                continue
-            # earliest by (timestamp, idx)
-            key = (rv["timestamp"], rv["idx"])
-            if best is None or key < (best["timestamp"], best["idx"]):
-                best = rv
-        if best is not None:
-            rho[ev["eid"]] = best["eid"]
-            matched_recv.add(best["eid"])
-
-    unmatched_recv = [rv["eid"] for rv in receive_events
-                      if rv["eid"] not in matched_recv]
-    return rho, send_eids, unmatched_recv
-
-
-# =====================================================================
 # The transformation mu (rules M1-M8)
 # =====================================================================
 
@@ -578,14 +536,16 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
     e2o_rows: List[Dict[str, Any]] = []
     o2o_rows: List[Dict[str, Any]] = []
 
-    # Residual (M8) event-attribute keys: every column not consumed.
+    # Residual (M8) event-attribute keys: every column not consumed. The
+    # consumed keys (participant/from/to/elemType) are still preserved as
+    # event attributes below, but under fixed, explicit names (M8), so
+    # they are excluded here to avoid emitting them twice.
     residual_keys = [c for c in df.columns
                      if c not in cfg.consumed_keys
                      and c not in (cfg.elemtype_key,)  # elemType handled by M5
                      and not c.startswith("__")]
 
     participant_seen: set = set()
-    n_unmatched_recv = 0
     n_messages = 0
 
     def _ensure_object(oid: str, otype: str, attrs: Dict[str, Any]) -> None:
@@ -595,27 +555,25 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
             object_rows[oid] = row
 
     for case, evlist in cases.items():
-        # ---- M1: CollaborationInstance object -----------------------
-        ci_oid = _ci_id(case)
-        _ensure_object(ci_oid, OT_CI, {"caseId": case})
+        # ---- M1: CollaborationCase object -----------------------
+        cc_oid = _cc_id(case)
+        _ensure_object(cc_oid, OT_CC, {"caseId": case})
 
-        # ---- M4 (correlation) before emitting message E2O/O2O -------
-        rho, send_eids, unmatched_recv = _correlate_messages(evlist)
-        n_unmatched_recv += len(unmatched_recv)
-
-        # index events by eid for receive lookups
-        by_eid = {e["eid"]: e for e in evlist}
-
-        # ---- M4: Message objects (one per send) ---------------------
-        # built here so attributes are available; E2O/O2O below.
-        send_to_msg: Dict[str, str] = {}
+        # ---- M4: Message objects (one per send OR receive event) ----
+        # Each communication event mints its OWN Message observation
+        # object (m_e for e in S_L u R_L); the core mapping does not
+        # infer any correspondence between a send and a receive
+        # observation, since the source logs do not guarantee message
+        # identifiers or other reliable correlation information.
+        # Built here so attributes are available; E2O/O2O below.
+        msg_by_eid: Dict[str, str] = {}
         for ev in evlist:
-            if ev["elem"] != ELEM_SEND:
+            if ev["elem"] not in (ELEM_SEND, ELEM_RECEIVE):
                 continue
             msg_oid = _message_id(ev["eid"])
-            send_to_msg[ev["eid"]] = msg_oid
+            msg_by_eid[ev["eid"]] = msg_oid
             _ensure_object(msg_oid, OT_MESSAGE, {
-                "sender": ev["participant"],
+                "sender": ev["from"],
                 "receiver": ev["to"],
             })
             n_messages += 1
@@ -633,12 +591,12 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
                     _ensure_object(_participant_id(pid), OT_PARTICIPANT, {"name": pid})
                     participant_seen.add(pid)
 
-            # ---- M3: LocalCase object (execution of the orchestration
-            #          within this global case) -----------------------
-            lc_oid = None
+            # ---- M3: ParticipantProjection object (execution of the
+            #          orchestration within this collaboration case) ---
+            pp_oid = None
             if p is not None:
-                lc_oid = _localcase_id(case, p)
-                _ensure_object(lc_oid, OT_LOCALCASE,
+                pp_oid = _pp_id(case, p)
+                _ensure_object(pp_oid, OT_PP,
                                {"caseId": case, "participant": p})
 
             # ---- M5: Event (evtype = activity; elemType attribute) --
@@ -648,6 +606,18 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
                 COL_TIMESTAMP: ev["timestamp"],
                 "elemType": ev["elem"],
             }
+            # ---- M8: structural attribute preservation ---------------
+            # collab:participant, collab:elemType, fromParticipant, and
+            # toParticipant are retained as event attributes even though
+            # the corresponding participant/endpoints are also
+            # materialized by E2O/O2O relations (M6/M7).
+            if p is not None:
+                ev_row["participant"] = p
+            if ev["elem"] in (ELEM_SEND, ELEM_RECEIVE):
+                if ev["from"] is not None:
+                    ev_row["fromParticipant"] = ev["from"]
+                if ev["to"] is not None:
+                    ev_row["toParticipant"] = ev["to"]
             # ---- M8: residual source attributes (unchanged) ---------
             for k in residual_keys:
                 val = ev["row"].get(k)
@@ -656,55 +626,53 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
             event_rows.append(ev_row)
 
             # ---- M6: structural E2O relations -----------------------
-            # within (-> CollaborationInstance) and local (-> LocalCase).
-            # Conceptually, the orchestration is reached via
-            # local -> executed_by (O2O); the `actor` edge below is a
-            # redundant export-compatibility edge (see module docstring).
-            e2o_rows.append({COL_EID: ev["eid"], COL_OID: ci_oid,
-                             COL_OTYPE: OT_CI, COL_QUALIFIER: Q_WITHIN})
-            if lc_oid is not None:
-                e2o_rows.append({COL_EID: ev["eid"], COL_OID: lc_oid,
-                                 COL_OTYPE: OT_LOCALCASE, COL_QUALIFIER: Q_LOCAL})
+            # within (-> CollaborationCase), in_projection (-> Participant-
+            # Projection), and the direct participant edge (-> Participant),
+            # whose agreement with in_projection -> for_participant is
+            # checked by P1.6 (see module docstring).
+            e2o_rows.append({COL_EID: ev["eid"], COL_OID: cc_oid,
+                             COL_OTYPE: OT_CC, COL_QUALIFIER: Q_WITHIN})
+            if pp_oid is not None:
+                e2o_rows.append({COL_EID: ev["eid"], COL_OID: pp_oid,
+                                 COL_OTYPE: OT_PP, COL_QUALIFIER: Q_IN_PROJECTION})
             if p is not None:
                 e2o_rows.append({COL_EID: ev["eid"], COL_OID: _participant_id(p),
-                                 COL_OTYPE: OT_PARTICIPANT, COL_QUALIFIER: Q_ACTOR})
+                                 COL_OTYPE: OT_PARTICIPANT, COL_QUALIFIER: Q_PARTICIPANT})
 
-            # ---- M6: send E2O ---------------------------------------
-            if ev["elem"] == ELEM_SEND:
-                msg_oid = send_to_msg[ev["eid"]]
+            # ---- M6: send/receive E2O --------------------------------
+            # Each communication event is related only to its OWN Message
+            # observation object; no send/receive correlation is made.
+            if ev["elem"] in (ELEM_SEND, ELEM_RECEIVE):
+                msg_oid = msg_by_eid[ev["eid"]]
+                msg_qualifier = Q_SEND if ev["elem"] == ELEM_SEND else Q_RECEIVE
                 e2o_rows.append({COL_EID: ev["eid"], COL_OID: msg_oid,
-                                 COL_OTYPE: OT_MESSAGE, COL_QUALIFIER: Q_SEND})
+                                 COL_OTYPE: OT_MESSAGE, COL_QUALIFIER: msg_qualifier})
 
                 # ---- M7: O2O relations for this Message -------------
-                o2o_rows.append({COL_OID: msg_oid, COL_OID2: _participant_id(ev["participant"]),
-                                 COL_QUALIFIER: Q_FROM})
+                if ev["from"] is not None:
+                    o2o_rows.append({COL_OID: msg_oid, COL_OID2: _participant_id(ev["from"]),
+                                     COL_QUALIFIER: Q_FROM})
                 if ev["to"] is not None:
                     o2o_rows.append({COL_OID: msg_oid, COL_OID2: _participant_id(ev["to"]),
                                      COL_QUALIFIER: Q_TO})
-                o2o_rows.append({COL_OID: msg_oid, COL_OID2: ci_oid,
+                o2o_rows.append({COL_OID: msg_oid, COL_OID2: cc_oid,
                                  COL_QUALIFIER: Q_EXCHANGED_IN})
 
-        # ---- M6: receive E2O (only matched receives) ----------------
-        for send_eid, recv_eid in rho.items():
-            msg_oid = send_to_msg[send_eid]
-            e2o_rows.append({COL_EID: recv_eid, COL_OID: msg_oid,
-                             COL_OTYPE: OT_MESSAGE, COL_QUALIFIER: Q_RECEIVE})
-
-        # ---- M7: LocalCase O2O relations ----------------------------
+        # ---- M7: ParticipantProjection O2O relations ----------------
         # one per (case, participant) seen in this case
-        seen_lc: set = set()
+        seen_pp: set = set()
         for ev in evlist:
             p = ev["participant"]
             if p is None:
                 continue
-            lc_oid = _localcase_id(case, p)
-            if lc_oid in seen_lc:
+            pp_oid = _pp_id(case, p)
+            if pp_oid in seen_pp:
                 continue
-            seen_lc.add(lc_oid)
-            o2o_rows.append({COL_OID: lc_oid, COL_OID2: ci_oid,
-                             COL_QUALIFIER: Q_PART_OF})
-            o2o_rows.append({COL_OID: lc_oid, COL_OID2: _participant_id(p),
-                             COL_QUALIFIER: Q_EXECUTED_BY})
+            seen_pp.add(pp_oid)
+            o2o_rows.append({COL_OID: pp_oid, COL_OID2: cc_oid,
+                             COL_QUALIFIER: Q_PROJECTION_OF})
+            o2o_rows.append({COL_OID: pp_oid, COL_OID2: _participant_id(p),
+                             COL_QUALIFIER: Q_FOR_PARTICIPANT})
 
     # ---- assemble DataFrames ----------------------------------------
     events_df = pd.DataFrame(event_rows)
@@ -728,14 +696,13 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
         "n_e2o": len(relations_df),
         "n_o2o": len(o2o_df),
         "n_messages": n_messages,
-        "n_unmatched_receives": n_unmatched_recv,
         "n_cases": len(cases),
     }
     return TransformResult(events_df, objects_df, relations_df, o2o_df, stats)
 
 
 # =====================================================================
-# Consistency checks P1.1 - P1.5
+# Consistency checks P1.1 - P1.6
 # =====================================================================
 
 @dataclass
@@ -748,7 +715,7 @@ class CheckResult:
 def run_consistency_checks(src_df: pd.DataFrame,
                            res: TransformResult,
                            cfg: Optional[MappingConfig] = None) -> List[CheckResult]:
-    """Machine-check P1.1-P1.5 against the constructed DataFrames.
+    """Machine-check P1.1-P1.6 against the constructed DataFrames.
 
     These guard against implementation defects; they are independent of
     the by-construction argument in the appendix.
@@ -772,58 +739,71 @@ def run_consistency_checks(src_df: pd.DataFrame,
         f"source events={n_src}, ocel events={n_ev}; "
         f"timestamps preserved (non-null parity checked)."))
 
-    # ---- P1.2 Per-case partition: within-image of each ci == case set
-    # Build, per CI object, the set of event ids related by 'within';
+    # ---- P1.2 Per-case partition: within-image of each cc == case set
+    # Build, per CC object, the set of event ids related by 'within';
     # compare its size to the number of source events of that case.
     if not rel.empty:
-        within = rel[(rel[COL_QUALIFIER] == Q_WITHIN) & (rel[COL_OTYPE] == OT_CI)]
+        within = rel[(rel[COL_QUALIFIER] == Q_WITHIN) & (rel[COL_OTYPE] == OT_CC)]
         within_counts = within.groupby(COL_OID)[COL_EID].nunique().to_dict()
     else:
         within_counts = {}
     # expected per-case counts from source
     if cfg.case_key in src_df.columns:
         src_case_counts = src_df.groupby(cfg.case_key).size().to_dict()
-        expected = {_ci_id(str(c)): n for c, n in src_case_counts.items()}
+        expected = {_cc_id(str(c)): n for c, n in src_case_counts.items()}
     else:
         expected = {}
     mismatches = {k: (within_counts.get(k, 0), v)
                   for k, v in expected.items() if within_counts.get(k, 0) != v}
-    # also: every within edge points at an existing CI object
-    ci_ids = set(obj[obj[COL_OTYPE] == OT_CI][COL_OID]) if not obj.empty else set()
-    dangling = set(within_counts) - ci_ids
+    # also: every within edge points at an existing CC object
+    cc_ids = set(obj[obj[COL_OTYPE] == OT_CC][COL_OID]) if not obj.empty else set()
+    dangling = set(within_counts) - cc_ids
     p12 = (len(mismatches) == 0) and (len(dangling) == 0)
     out.append(CheckResult(
         "P1.2 Per-case partition",
         bool(p12),
-        f"CI objects={len(ci_ids)}; count mismatches={len(mismatches)}; "
+        f"CC objects={len(cc_ids)}; count mismatches={len(mismatches)}; "
         f"dangling within-targets={len(dangling)}."
         + ("" if p12 else f" first mismatches={dict(list(mismatches.items())[:5])}")))
 
     # ---- P1.3 Message well-formedness ------------------------------
-    # exactly one send, at most one receive per Message; from/to agree
-    # with sender/receiver attributes; receive ts >= send ts.
+    # Every Message is related to exactly one communication event, either
+    # by 'send' or by 'receive', but not both (M4: no send/receive
+    # correlation is inferred). Its from/to O2O relations agree with its
+    # sender/receiver object attributes and with the preserved
+    # fromParticipant/toParticipant attributes of that single related
+    # event. For a send observation the event participant is the sender;
+    # for a receive observation it is the receiver.
     p13_ok = True
     p13_detail_bits: List[str] = []
     if not rel.empty:
         msg_rel = rel[rel[COL_OTYPE] == OT_MESSAGE]
-        send_counts = msg_rel[msg_rel[COL_QUALIFIER] == Q_SEND].groupby(COL_OID).size()
-        recv_counts = msg_rel[msg_rel[COL_QUALIFIER] == Q_RECEIVE].groupby(COL_OID).size()
+        send_edges = msg_rel[msg_rel[COL_QUALIFIER] == Q_SEND][[COL_OID, COL_EID]]
+        recv_edges = msg_rel[msg_rel[COL_QUALIFIER] == Q_RECEIVE][[COL_OID, COL_EID]]
+        send_counts = send_edges.groupby(COL_OID).size()
+        recv_counts = recv_edges.groupby(COL_OID).size()
         msg_ids = set(obj[obj[COL_OTYPE] == OT_MESSAGE][COL_OID]) if not obj.empty else set()
 
-        bad_send = [m for m in msg_ids if int(send_counts.get(m, 0)) != 1]
-        bad_recv = [m for m in msg_ids if int(recv_counts.get(m, 0)) > 1]
+        bad_xor = [m for m in msg_ids
+                  if int(send_counts.get(m, 0)) + int(recv_counts.get(m, 0)) != 1]
         p13_detail_bits.append(f"messages={len(msg_ids)}")
-        p13_detail_bits.append(f"!=1 send: {len(bad_send)}")
-        p13_detail_bits.append(f">1 receive: {len(bad_recv)}")
-        if bad_send or bad_recv:
+        p13_detail_bits.append(f"not exactly-one send-xor-receive: {len(bad_xor)}")
+        if bad_xor:
             p13_ok = False
 
-        # from/to O2O agreement with sender/receiver object attributes
+        # the single (event, qualifier) related to each Message
+        msg_event: Dict[str, Tuple[str, str]] = {
+            oid: (eid, Q_SEND) for oid, eid in zip(send_edges[COL_OID], send_edges[COL_EID])}
+        msg_event.update({oid: (eid, Q_RECEIVE)
+                          for oid, eid in zip(recv_edges[COL_OID], recv_edges[COL_EID])})
+
         if not o2o.empty and not obj.empty:
             obj_idx = obj.set_index(COL_OID)
+            ev_idx = ev.set_index(COL_EID) if not ev.empty else None
             o2o_msg = o2o[o2o[COL_QUALIFIER].isin([Q_FROM, Q_TO])]
-            disagreements = 0
-            ts_violations = 0
+            oa_disagreements = 0
+            ea_disagreements = 0
+            participant_disagreements = 0
             for m in msg_ids:
                 if m not in obj_idx.index:
                     continue
@@ -832,82 +812,85 @@ def run_consistency_checks(src_df: pd.DataFrame,
                 froms = o2o_msg[(o2o_msg[COL_OID] == m) & (o2o_msg[COL_QUALIFIER] == Q_FROM)][COL_OID2].tolist()
                 tos = o2o_msg[(o2o_msg[COL_OID] == m) & (o2o_msg[COL_QUALIFIER] == Q_TO)][COL_OID2].tolist()
                 if sender is not None and froms and froms[0] != _participant_id(str(sender)):
-                    disagreements += 1
+                    oa_disagreements += 1
                 if receiver is not None and tos and tos[0] != _participant_id(str(receiver)):
-                    disagreements += 1
-            p13_detail_bits.append(f"from/to disagreements: {disagreements}")
-            if disagreements:
-                p13_ok = False
+                    oa_disagreements += 1
 
-            # receive ts >= send ts
-            if not ev.empty:
-                ev_ts = ev.set_index(COL_EID)[COL_TIMESTAMP].to_dict()
-                send_edges = msg_rel[msg_rel[COL_QUALIFIER] == Q_SEND][[COL_OID, COL_EID]]
-                recv_edges = msg_rel[msg_rel[COL_QUALIFIER] == Q_RECEIVE][[COL_OID, COL_EID]]
-                send_eid_by_msg = dict(zip(send_edges[COL_OID], send_edges[COL_EID]))
-                for _, r in recv_edges.iterrows():
-                    s_eid = send_eid_by_msg.get(r[COL_OID])
-                    if s_eid is None:
-                        continue
-                    t_send = ev_ts.get(s_eid)
-                    t_recv = ev_ts.get(r[COL_EID])
-                    if pd.notna(t_send) and pd.notna(t_recv) and t_recv < t_send:
-                        ts_violations += 1
-                p13_detail_bits.append(f"receive<send ts: {ts_violations}")
-                if ts_violations:
-                    p13_ok = False
+                eid_qual = msg_event.get(m)
+                if eid_qual is None or ev_idx is None or eid_qual[0] not in ev_idx.index:
+                    continue
+                eid, qual = eid_qual
+                ev_from = ev_idx.at[eid, "fromParticipant"] if "fromParticipant" in ev_idx.columns else None
+                ev_to = ev_idx.at[eid, "toParticipant"] if "toParticipant" in ev_idx.columns else None
+                ev_participant = ev_idx.at[eid, "participant"] if "participant" in ev_idx.columns else None
+                if sender is not None and pd.notna(ev_from) and str(ev_from) != str(sender):
+                    ea_disagreements += 1
+                if receiver is not None and pd.notna(ev_to) and str(ev_to) != str(receiver):
+                    ea_disagreements += 1
+                if pd.notna(ev_participant):
+                    expected = sender if qual == Q_SEND else receiver
+                    if expected is not None and str(ev_participant) != str(expected):
+                        participant_disagreements += 1
+
+            p13_detail_bits.append(f"from/to O2O vs sender/receiver: {oa_disagreements}")
+            p13_detail_bits.append(
+                f"sender/receiver vs event fromParticipant/toParticipant: {ea_disagreements}")
+            p13_detail_bits.append(f"event participant disagreements: {participant_disagreements}")
+            if oa_disagreements or ea_disagreements or participant_disagreements:
+                p13_ok = False
     out.append(CheckResult("P1.3 Message well-formedness", bool(p13_ok),
                            "; ".join(p13_detail_bits) or "no messages"))
 
-    # ---- P1.4 Local-case coherence ---------------------------------
-    # Without a direct actor edge, coherence is checked in two parts:
-    #  (a) for every event with a 'local' object lc, lc is 'part_of' the
-    #      event's 'within' object (the global instance);
-    #  (b) every LocalCase is 'executed_by' exactly one Participant, and
-    #      that Participant's name equals the LocalCase's 'participant'
-    #      attribute.
+    # ---- P1.4 Participant-projection coherence ----------------------
+    # Checked in two parts:
+    #  (a) for every event with an 'in_projection' object pp, pp is
+    #      'projection_of' the event's 'within' object (the collaboration
+    #      case);
+    #  (b) every ParticipantProjection is 'for_participant' exactly one
+    #      Participant, and that Participant's name equals the
+    #      ParticipantProjection's 'participant' attribute.
     p14_ok = True
     p14_detail = ""
     if not rel.empty and not o2o.empty:
-        ev_local = rel[(rel[COL_QUALIFIER] == Q_LOCAL)][[COL_EID, COL_OID]]
+        ev_inproj = rel[(rel[COL_QUALIFIER] == Q_IN_PROJECTION)][[COL_EID, COL_OID]]
         ev_within = dict(zip(
             rel[rel[COL_QUALIFIER] == Q_WITHIN][COL_EID],
             rel[rel[COL_QUALIFIER] == Q_WITHIN][COL_OID]))
-        part_of = {(r[COL_OID]): r[COL_OID2] for _, r in
-                   o2o[o2o[COL_QUALIFIER] == Q_PART_OF].iterrows()}
+        projection_of = {(r[COL_OID]): r[COL_OID2] for _, r in
+                         o2o[o2o[COL_QUALIFIER] == Q_PROJECTION_OF].iterrows()}
 
-        # (a) local/within coherence
-        bad_partof = 0
-        for _, r in ev_local.iterrows():
-            eid, lc = r[COL_EID], r[COL_OID]
-            if part_of.get(lc) != ev_within.get(eid):
-                bad_partof += 1
+        # (a) in_projection/within coherence
+        bad_projof = 0
+        for _, r in ev_inproj.iterrows():
+            eid, pp = r[COL_EID], r[COL_OID]
+            if projection_of.get(pp) != ev_within.get(eid):
+                bad_projof += 1
 
-        # (b) executed_by well-formedness, per LocalCase
-        lc_ids = set(obj[obj[COL_OTYPE] == OT_LOCALCASE][COL_OID]) if not obj.empty else set()
-        exec_edges = o2o[o2o[COL_QUALIFIER] == Q_EXECUTED_BY]
-        exec_counts = exec_edges.groupby(COL_OID).size().to_dict()
-        exec_target = dict(zip(exec_edges[COL_OID], exec_edges[COL_OID2]))
+        # (b) for_participant well-formedness, per ParticipantProjection
+        pp_ids = set(obj[obj[COL_OTYPE] == OT_PP][COL_OID]) if not obj.empty else set()
+        forpart_edges = o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT]
+        forpart_counts = forpart_edges.groupby(COL_OID).size().to_dict()
+        forpart_target = dict(zip(forpart_edges[COL_OID], forpart_edges[COL_OID2]))
         obj_idx = obj.set_index(COL_OID) if not obj.empty else None
-        bad_exec = 0
+        bad_forpart = 0
         bad_name = 0
-        for lc in lc_ids:
-            if int(exec_counts.get(lc, 0)) != 1:
-                bad_exec += 1
+        for pp in pp_ids:
+            if int(forpart_counts.get(pp, 0)) != 1:
+                bad_forpart += 1
                 continue
-            # name agreement: executed_by target's 'name' == lc.participant
-            tgt = exec_target.get(lc)
+            # name agreement: for_participant target's 'name' == pp.participant
+            tgt = forpart_target.get(pp)
             if obj_idx is not None and tgt in obj_idx.index:
                 tgt_name = obj_idx.at[tgt, "name"] if "name" in obj_idx.columns else None
-                lc_part = obj_idx.at[lc, "participant"] if "participant" in obj_idx.columns else None
-                if tgt_name is not None and lc_part is not None and str(tgt_name) != str(lc_part):
+                pp_part = obj_idx.at[pp, "participant"] if "participant" in obj_idx.columns else None
+                if tgt_name is not None and pp_part is not None and str(tgt_name) != str(pp_part):
                     bad_name += 1
 
-        p14_ok = (bad_partof == 0) and (bad_exec == 0) and (bad_name == 0)
-        p14_detail = (f"local/within mismatches={bad_partof}; "
-                      f"local cases !=1 executed_by={bad_exec}; "
-                      f"executed_by name disagreements={bad_name}")
-    out.append(CheckResult("P1.4 Local-case coherence", bool(p14_ok), p14_detail))
+        p14_ok = (bad_projof == 0) and (bad_forpart == 0) and (bad_name == 0)
+        p14_detail = (f"in_projection/within mismatches={bad_projof}; "
+                      f"projections !=1 for_participant={bad_forpart}; "
+                      f"for_participant name disagreements={bad_name}")
+    out.append(CheckResult("P1.4 Participant-projection coherence", bool(p14_ok), p14_detail))
 
     # ---- P1.5 No orphan objects ------------------------------------
     related_oids = set()
@@ -920,6 +903,41 @@ def run_consistency_checks(src_df: pd.DataFrame,
     out.append(CheckResult("P1.5 No orphan objects", len(orphans) == 0,
                            f"objects={len(all_oids)}; orphans={len(orphans)}"
                            + ("" if not orphans else f"; e.g. {list(orphans)[:5]}")))
+
+    # ---- P1.6 Participant coherence ---------------------------------
+    # For every event, the Participant reached by the direct 'participant'
+    # E2O edge must equal the Participant reached via the two-step
+    # 'in_projection' -> 'for_participant' path.
+    p16_ok = True
+    p16_detail = ""
+    if not rel.empty:
+        ev_participant = dict(zip(
+            rel[(rel[COL_QUALIFIER] == Q_PARTICIPANT) & (rel[COL_OTYPE] == OT_PARTICIPANT)][COL_EID],
+            rel[(rel[COL_QUALIFIER] == Q_PARTICIPANT) & (rel[COL_OTYPE] == OT_PARTICIPANT)][COL_OID]))
+        ev_inproj = dict(zip(
+            rel[rel[COL_QUALIFIER] == Q_IN_PROJECTION][COL_EID],
+            rel[rel[COL_QUALIFIER] == Q_IN_PROJECTION][COL_OID]))
+        forpart_target = (dict(zip(o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT][COL_OID],
+                                   o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT][COL_OID2]))
+                          if not o2o.empty else {})
+        all_eids = set(ev_participant) | set(ev_inproj)
+        mismatches6 = 0
+        missing_one_side = 0
+        for eid in all_eids:
+            direct = ev_participant.get(eid)
+            pp_oid = ev_inproj.get(eid)
+            indirect = forpart_target.get(pp_oid) if pp_oid is not None else None
+            if direct is None or indirect is None:
+                missing_one_side += 1
+                continue
+            if direct != indirect:
+                mismatches6 += 1
+        p16_ok = (mismatches6 == 0) and (missing_one_side == 0)
+        p16_detail = (f"events checked={len(all_eids)}; "
+                      f"direct/indirect mismatches={mismatches6}; "
+                      f"missing one side={missing_one_side}")
+    out.append(CheckResult("P1.6 Participant coherence", bool(p16_ok), p16_detail))
+
     return out
 
 
@@ -927,7 +945,7 @@ def print_check_report(checks: List[CheckResult], stats: Dict[str, Any]) -> bool
     logger.info("---- transformation stats ----")
     for k, v in stats.items():
         logger.info("  %-22s %s", k, v)
-    logger.info("---- consistency checks (P1.1-P1.5) ----")
+    logger.info("---- consistency checks (P1.1-P1.6) ----")
     all_ok = True
     for c in checks:
         status = "PASS" if c.passed else "FAIL"

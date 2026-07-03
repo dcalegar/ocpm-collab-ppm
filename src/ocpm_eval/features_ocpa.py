@@ -5,7 +5,7 @@ Follows the official OCPA usage (github.com/ocpm/ocpa, ocpa.readthedocs.io):
   * OCEL 2.0 is imported NATIVELY (no OCEL 1.0 anywhere):
         from ocpa.objects.log.importer.ocel2.sqlite import factory
         ocel = factory.apply(path)
-  * process executions must be one per CollaborationInstance: with the default
+  * process executions must be one per CollaborationCase: with the default
     "connected components" the shared Participant objects would merge all instances,
     so leading-type extraction is required. The OCEL-1.0 jsonocel importer documents
     a ``parameters={"execution_extraction":"leading_type","leading_type":...}`` dict;

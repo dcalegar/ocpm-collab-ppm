@@ -34,7 +34,7 @@ top-level file covers setup and how they fit together.
 | README | Covers |
 |---|---|
 | [README.md](README.md) | this file — tools, setup, repository structure, usage, design notes |
-| [src/mapping/README.md](src/mapping/README.md) | RQ1 — the XES→OCEL 2.0 converter: mapping rules M1–M8, consistency checks P1.1–P1.5, CLI usage |
+| [src/mapping/README.md](src/mapping/README.md) | RQ1 — the XES→OCEL 2.0 converter: mapping rules M1–M8, consistency checks P1.1–P1.6, CLI usage |
 | [src/ocpm_tasks/README.md](src/ocpm_tasks/README.md) | the 16 prediction tasks, ground-truth label functions, the neutral object-centric model, and how to connect the library to a concrete OCPA-based prediction |
 | [src/ocpm_eval/README.md](src/ocpm_eval/README.md) | RQ2–RQ3 — the evaluation stages that consume `ocpm_tasks`: feature extraction, model fitting, fidelity/feasibility/structure metrics |
 
@@ -48,7 +48,7 @@ ocpm-collab-ppm/
 ├── pyproject.toml             # makes src/ packages importable (pip install -e .)
 ├── src/
 │   ├── mapping/                       # MAPPING TOOL — extended XES → OCEL 2.0 (RQ1)
-│   │   ├── README.md                  #   mapping rules M1-M8, checks P1.1-P1.5, usage
+│   │   ├── README.md                  #   mapping rules M1-M8, checks P1.1-P1.6, usage
 │   │   ├── collab_xes_to_ocel.py      #   transformation + checks
 │   │   └── aux/                       #   supporting files
 │   │       ├── collab.xesext          #     collaborative XES extension definition

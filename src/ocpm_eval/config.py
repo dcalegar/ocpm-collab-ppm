@@ -38,7 +38,7 @@ class ExperimentConfig:
 
     rq3_tasks: List[str] = field(default_factory=lambda: list(RQ3_SUBSET))
 
-    # RQ3 protocol: 5-fold CV grouped by CollaborationInstance, fixed RandomForest.
+    # RQ3 protocol: 5-fold CV grouped by CollaborationCase, fixed RandomForest.
     n_folds: int = 5
     random_state: int = 3395
     rf_n_estimators: int = 200

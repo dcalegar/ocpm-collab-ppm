@@ -3,7 +3,7 @@ Neutral object-centric model that the prediction tasks operate on. It is indepen
 of any concrete OCEL library: adapters (see ``adapters.py``) build it from a pm4py or
 an OCPA OCEL. A task definition reads only this model, never the underlying log.
 
-One ``Execution`` corresponds to one collaboration instance (the CollaborationInstance
+One ``Execution`` corresponds to one collaboration case (the CollaborationCase
 viewpoint). The "kind" of a message is the activity (event type) of its event (M4).
 """
 from dataclasses import dataclass
@@ -16,7 +16,7 @@ class Event:
     event_id: str
     activity: str
     timestamp: datetime
-    actor: str                       # participant (R2: local -> executed_by)
+    actor: str                       # participant (R2: in_projection -> for_participant; direct participant edge, P1.6)
     is_send: bool = False
     is_receive: bool = False
     msg_id: Optional[str] = None     # shared Message identity (send/receive)
@@ -31,7 +31,7 @@ class Event:
 
 @dataclass
 class Execution:
-    """A collaboration instance under the *global-trace viewpoint*: its events as a
+    """A collaboration case under the *global-trace viewpoint*: its events as a
     linear sequence ordered by (timestamp, event_id). This linear order is the basis
     on which the paper defines prefixes hd^k and the prediction targets (it mirrors
     the case-centric baseline). It does NOT constrain how the observable prefix is
@@ -57,7 +57,7 @@ class Execution:
 
 
 class ObjectCentricLog:
-    """A collection of collaboration-instance executions."""
+    """A collection of collaboration-case executions."""
     def __init__(self, executions: List[Execution]):
         self.executions = executions
         self._by_id: Dict[str, Execution] = {e.case_id: e for e in executions}

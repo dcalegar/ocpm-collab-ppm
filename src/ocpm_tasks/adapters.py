@@ -131,31 +131,31 @@ def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
                 return tgt
         return None
 
-    def participant_of(lc_oid, pa_direct):
+    def participant_of(pp_oid, pa_direct):
         if pa_direct is not None:
             return str(oattr(pa_direct, sch.oa_name) or pa_direct)
-        pa = o2o_target(lc_oid, sch.q_executed_by, sch.ot_participant)
+        pa = o2o_target(pp_oid, sch.q_for_participant, sch.ot_participant)
         if pa is not None:
             return str(oattr(pa, sch.oa_name) or pa)
-        v = oattr(lc_oid, sch.oa_participant)
+        v = oattr(pp_oid, sch.oa_participant)
         return str(v) if v is not None else ""
 
     def msg_party(msg_oid, qualifier):
         p = o2o_target(msg_oid, qualifier, sch.ot_participant)
         return str(oattr(p, sch.oa_name) or p) if p is not None else None
 
-    by_ci: Dict[str, List[Event]] = {}
-    ci_caseid: Dict[str, str] = {}
+    by_cc: Dict[str, List[Event]] = {}
+    cc_caseid: Dict[str, str] = {}
 
     for ev in events:
-        ci_oid = lc_oid = msg_oid = pa_oid = None
+        cc_oid = pp_oid = msg_oid = pa_oid = None
         is_send = is_recv = False
         for oid, q in ev.e2o:
             t = otype(oid)
-            if q == sch.q_within and t == sch.ot_ci:
-                ci_oid = oid
-            elif q == sch.q_local and t == sch.ot_lc:
-                lc_oid = oid
+            if q == sch.q_within and t == sch.ot_cc:
+                cc_oid = oid
+            elif q == sch.q_in_projection and t == sch.ot_pp:
+                pp_oid = oid
             elif q == sch.q_send and t == sch.ot_message:
                 is_send, msg_oid = True, oid
             elif q == sch.q_receive and t == sch.ot_message:
@@ -168,22 +168,22 @@ def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
                 is_send = True
             elif elem == sch.elem_receive:
                 is_recv = True
-        if ci_oid is None:
+        if cc_oid is None:
             continue
-        if ci_oid not in ci_caseid:
-            ci_caseid[ci_oid] = str(oattr(ci_oid, sch.oa_caseid) or ci_oid)
+        if cc_oid not in cc_caseid:
+            cc_caseid[cc_oid] = str(oattr(cc_oid, sch.oa_caseid) or cc_oid)
         is_msg = is_send or is_recv
-        by_ci.setdefault(ci_oid, []).append(Event(
+        by_cc.setdefault(cc_oid, []).append(Event(
             event_id=str(ev.id), activity=str(ev.activity), timestamp=ev.time,
-            actor=participant_of(lc_oid, pa_oid),
+            actor=participant_of(pp_oid, pa_oid),
             is_send=is_send, is_receive=is_recv,
             msg_id=str(msg_oid) if (is_msg and msg_oid is not None) else None,
             msg_type=(str(ev.activity) if is_msg else None),
             msg_from=msg_party(msg_oid, sch.q_from) if is_msg else None,
             msg_to=msg_party(msg_oid, sch.q_to) if is_msg else None))
 
-    return ObjectCentricLog([Execution(ci_caseid[c], evs)
-                             for c, evs in by_ci.items()])
+    return ObjectCentricLog([Execution(cc_caseid[c], evs)
+                             for c, evs in by_cc.items()])
 
 
 # pm4py standard OCEL column names (VERIFY against your pm4py version).

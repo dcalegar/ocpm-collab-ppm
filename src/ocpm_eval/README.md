@@ -26,7 +26,7 @@ package is the fuller, cross-validated version of the same pattern.
 | `features_ocpa.py` | `extract_feature_table` — native OCPA past-relative features (RQ3), with the event-id alignment oracle |
 | `models.py` | `fit_and_score_fold` — one fixed RandomForest per problem type, fit + **predict** + score, plus a trivial baseline |
 | `rq2_fidelity.py` | RQ2 — label-fidelity: R1 (source XES) vs R2 (OCEL) equivalence for the 14 single-case tasks; internal consistency for X-PaL/X-MSt |
-| `rq3_pipeline.py` | RQ3 — end-to-end feasibility: features + labels joined, 5-fold `GroupKFold` CV grouped by `CollaborationInstance` |
+| `rq3_pipeline.py` | RQ3 — end-to-end feasibility: features + labels joined, 5-fold `GroupKFold` CV grouped by `CollaborationCase` |
 | `rq3_extensions_example.py` | worked example for X-PaL/X-MSt (object-enabled extensions, no single-case counterpart) — exploratory, kept out of the core coverage claim |
 | `run_evaluation.py` | orchestrator — runs RQ2 → RQ3 (subset + full catalog) and writes all CSVs |
 
@@ -49,14 +49,15 @@ cannot read it:
   an already-loaded OCPA object is passed in (to avoid re-parsing).
 - **Feature side** (`io_ocel.load_ocpa_ocel`): OCPA's native
   `ocpa.objects.log.importer.ocel2.sqlite` importer, with **leading-type**
-  process-execution extraction (`leading_type=CollaborationInstance`) so
-  each execution is one collaboration instance — the default
+  process-execution extraction (`leading_type=CollaborationCase`) so
+  each execution is one collaboration case — the default
   "connected components" extraction would merge instances that share a
   `Participant` object. Before handing the file to OCPA,
-  `_strip_actor_e2o` removes the redundant `actor` E2O edge that the
-  `mapping` converter adds for export-compatibility (see
+  `_strip_participant_e2o` removes the direct `participant` E2O edge that
+  the `mapping` converter adds (a genuine M6 relation, see
   [mapping's README](../mapping/README.md#mapping-rules-m1m8)); left in
-  place, that edge would merge nearly every execution in the log.
+  place, OCPA's pairwise E2O connection would merge nearly every
+  execution in the log.
 - **Alignment**: OCPA feature rows are matched to `ocpm_tasks` label rows
   by `event_id` (`feature_storage.feature_graphs → node.event_id`),
   validated by a remaining-time oracle (OCPA's own remaining-time feature
@@ -97,7 +98,7 @@ Representative subset (`ocpm_tasks.catalog.RQ3_SUBSET`): `NE-NPaA`,
 `NE-NMPr`, `NV-PrT`, `NV-PaT`, `NV-NMPr`, `OB-M` — one task per anchor ×
 problem-type combination. For each log × task: extract OCPA features,
 compute R2 labels, join by `event_id`, then 5-fold `GroupKFold` CV
-**grouped by `CollaborationInstance`** (all prefixes of one case stay in a
+**grouped by `CollaborationCase`** (all prefixes of one case stay in a
 single fold, so no prefix leaks between train and test). Reports macro-F1
 (classification) or MAE (regression) as mean ± sd over folds, alongside a
 trivial baseline (majority class / median) computed on the same folds. No

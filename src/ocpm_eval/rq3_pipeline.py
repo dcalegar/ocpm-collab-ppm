@@ -4,7 +4,7 @@ RQ3 — end-to-end feasibility on a native OCPA pipeline.
 For each log and each task in the representative subset: build the object-centric log
 (via ocpm_tasks adapters), extract OCPA features, compute ℓ^R2 labels (ocpm_tasks),
 join them by (case_id, k), and run 5-fold cross-validation GROUPED BY
-CollaborationInstance (all prefixes of a case stay in one fold). Reports the
+CollaborationCase (all prefixes of a case stay in one fold). Reports the
 descriptive metric (macro F1 / MAE) as mean +/- sd over folds, plus a trivial
 baseline. No computation times are reported (V4).
 """

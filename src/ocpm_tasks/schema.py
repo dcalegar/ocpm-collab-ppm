@@ -10,21 +10,22 @@ from dataclasses import dataclass
 @dataclass
 class Schema:
     # Object types (M1).
-    ot_ci: str = "CollaborationInstance"
-    ot_lc: str = "LocalCase"
+    ot_cc: str = "CollaborationCase"
+    ot_pp: str = "ParticipantProjection"
     ot_participant: str = "Participant"
     ot_message: str = "Message"
     ot_artifact: str = "BusinessArtifact"
 
-    # E2O qualifiers (M7): within, local, send, receive. (No `actor`.)
+    # E2O qualifiers (M6): within, in_projection, send, receive, participant.
     q_within: str = "within"
-    q_local: str = "local"
+    q_in_projection: str = "in_projection"
     q_send: str = "send"
     q_receive: str = "receive"
+    q_participant: str = "participant"
 
-    # O2O qualifiers (M8): part_of, executed_by, from, to, exchanged_in.
-    q_part_of: str = "part_of"
-    q_executed_by: str = "executed_by"
+    # O2O qualifiers (M7): projection_of, for_participant, from, to, exchanged_in.
+    q_projection_of: str = "projection_of"
+    q_for_participant: str = "for_participant"
     q_from: str = "from"
     q_to: str = "to"
     q_exchanged_in: str = "exchanged_in"
@@ -32,7 +33,7 @@ class Schema:
     # Object attributes.
     oa_caseid: str = "caseId"
     oa_name: str = "name"                 # Participant
-    oa_participant: str = "participant"   # LocalCase (= participant name, P1.4)
+    oa_participant: str = "participant"   # ParticipantProjection (= participant name, P1.4)
     oa_sender: str = "sender"             # Message (M4)
     oa_receiver: str = "receiver"         # Message (M4)
 

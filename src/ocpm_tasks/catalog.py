@@ -10,9 +10,9 @@ from dataclasses import dataclass
 from typing import Optional, Dict, List
 
 # Anchor object types.
-CI = "CollaborationInstance"
+CC = "CollaborationCase"
 PARTICIPANT = "Participant"
-LOCALCASE = "LocalCase"
+PARTICIPANT_PROJECTION = "ParticipantProjection"
 MESSAGE = "Message"
 
 # Problem types (as in the evaluation's RQ3 subset table).
@@ -35,22 +35,22 @@ class Task:
 
 TASKS: Dict[str, Task] = {
     # --- Next event (categorical) ---
-    "NE-NEPr": Task("NE-NEPr", CI,          MULTICLASS, "categorical"),
+    "NE-NEPr": Task("NE-NEPr", CC,          MULTICLASS, "categorical"),
     "NE-NPaA": Task("NE-NPaA", PARTICIPANT, MULTICLASS, "categorical"),
     "NE-NEPa": Task("NE-NEPa", PARTICIPANT, MULTICLASS, "categorical"),
     "NE-NPaM": Task("NE-NPaM", PARTICIPANT, MULTICLASS, "categorical"),
-    "NE-NMPa": Task("NE-NMPa", LOCALCASE,   MULTICLASS, "categorical", param="participant"),
+    "NE-NMPa": Task("NE-NMPa", PARTICIPANT_PROJECTION, MULTICLASS, "categorical", param="participant"),
     "NE-NMPr": Task("NE-NMPr", MESSAGE,     MULTICLASS, "categorical"),
     # --- Numeric value ---
-    "NV-PrT":  Task("NV-PrT",  CI,          REG_TIME, "numeric"),
-    "NV-PaT":  Task("NV-PaT",  LOCALCASE,   REG_TIME, "numeric", param="participant"),
-    "NV-TNE":  Task("NV-TNE",  CI,          REG_TIME, "numeric"),
+    "NV-PrT":  Task("NV-PrT",  CC,          REG_TIME, "numeric"),
+    "NV-PaT":  Task("NV-PaT",  PARTICIPANT_PROJECTION, REG_TIME, "numeric", param="participant"),
+    "NV-TNE":  Task("NV-TNE",  CC,          REG_TIME, "numeric"),
     "NV-TNM":  Task("NV-TNM",  MESSAGE,     REG_TIME, "numeric"),
-    "NV-NMPr": Task("NV-NMPr", CI,          COUNT, "numeric", object_enabled=True),
+    "NV-NMPr": Task("NV-NMPr", CC,          COUNT, "numeric", object_enabled=True),
     "NV-NMPa": Task("NV-NMPa", MESSAGE,     COUNT, "numeric", object_enabled=True,
                     param="participant"),
     # --- Outcome-based ---
-    "OB-P":    Task("OB-P",    LOCALCASE,   BINARY, "binary", param="participant"),
+    "OB-P":    Task("OB-P",    PARTICIPANT_PROJECTION, BINARY, "binary", param="participant"),
     "OB-M":    Task("OB-M",    MESSAGE,     BINARY, "binary", object_enabled=True,
                     param="activity"),
     # --- Object-enabled extensions (no single-case counterpart) ---
