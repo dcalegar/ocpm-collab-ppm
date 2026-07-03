@@ -71,9 +71,9 @@ ocpm-collab-ppm/
 │       ├── rq2_fidelity.py    #   RQ2 — label fidelity
 │       ├── rq3_pipeline.py    #   RQ3 — end-to-end, 5-fold CV grouped by CI
 │       └── run_evaluation.py  #   orchestrator (RQ2/RQ3)
-├── data/
-│   └── logs/                  # EXAMPLE LOGS (extended XES + converted OCEL 2.0 JSON)
-└── results/                   # evaluation outputs
+└── data/
+    └── logs/                   # EXAMPLE LOGS (extended XES + converted OCEL 2.0 JSON)
+    └── results/                # evaluation outputs
 ```
 
 The three directories the project revolves around: **example logs** (`data/logs/`),
