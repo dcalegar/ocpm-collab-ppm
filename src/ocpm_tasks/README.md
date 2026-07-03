@@ -1,10 +1,17 @@
 # ocpm_tasks — object-centric collaborative prediction-task library
 
-Standalone library for the 16 reformulated prediction tasks over collaborative
+Standalone library for the 14 reformulated prediction tasks over collaborative
 process logs: task definitions, ground-truth label functions, and a neutral
 object-centric model they operate on. It has **no dependency on `mapping` or
 `ocpm_eval`** — only `pandas` at import time (`pm4py`/`ocpa` are imported lazily,
 only if you use the corresponding adapter).
+
+`tasks.tex` also outlines further exploratory extensions beyond this taxonomy
+(`X-PaL`, `X-Inf`, `X-Cmp`, `X-MSt`, `X-Lag`) as "a promising avenue ... rather
+than ... contributions evaluated in this work"; none are implemented here.
+`X-MSt` in particular presupposes a correspondence between individual send and
+receive observations that the core mapping (rule M4) deliberately does not
+establish — recovering it needs an enrichment step beyond the current converter.
 
 ## Install
 
@@ -21,15 +28,14 @@ pip install pandas
 `ocpm_tasks` only supplies the **ground-truth / task-definition side** of a
 prediction pipeline — it never trains or runs a model:
 
-* `catalog.TASKS` — metadata for each of the 16 tasks (anchor object,
+* `catalog.TASKS` — metadata for each of the 14 tasks (anchor object,
   problem type, value kind, parameterization).
 * `labels.compute_label_rows` — for every cut point `k` in a collaboration
   instance, deterministically derives the target value `y` by looking
   *forward* from that cut point (next activity, time to next message,
   message count, etc.). Pure functions: no ML, no I/O, no OCEL library.
-* `fidelity` — RQ2-style label-fidelity checks (agreement with a
-  single-case reference; internal well-definedness of the object-enabled
-  tasks).
+* `fidelity` — RQ2-style label-equivalence check (agreement with a
+  single-case reference).
 
 There is no notion here of a feature vector, a training loop, or a model.
 To actually predict something you still need, from elsewhere: (1) a
@@ -45,9 +51,9 @@ pieces line up.
 |---|---|
 | `schema` | `Schema` — object types / E2O / O2O qualifier names, overridable if your OCEL uses different vocabulary |
 | `model` | Neutral structures the tasks read: `Event`, `Execution`, `ObjectCentricLog` |
-| `catalog` | `TASKS` — the 16 `Task` definitions (anchor object, problem type, value kind) |
+| `catalog` | `TASKS` — the 14 `Task` definitions (anchor object, problem type, value kind) |
 | `labels` | `LabelContext`, `build_context`, `compute_label_rows` — ground-truth label computation |
-| `fidelity` | `compare_equivalence` / `check_consistency` — label-fidelity comparators (optional, for validating a mapping) |
+| `fidelity` | `compare_equivalence` — label-equivalence comparator (optional, for validating a mapping) |
 | `adapters` | `from_pm4py`, `from_ocpa`, `from_ocel2_sqlite`, `build_from_relations` — build an `ObjectCentricLog` from a concrete OCEL |
 
 ## Usage
@@ -68,7 +74,7 @@ rows = compute_label_rows(log, task, ctx=ctx)
 ```
 
 `param` (participant name or activity label) is required by parameterized tasks
-(`NE-NMPa`, `NV-PaT`, `NV-NMPa`, `OB-P`, `OB-M`, `X-PaL`); pass it via
+(`NE-NMPa`, `NV-PaT`, `NV-NMPa`, `OB-P`, `OB-M`); pass it via
 `compute_label_rows(log, task, param=..., ctx=ctx)`.
 
 If your OCEL uses different object-type/qualifier names, pass a custom

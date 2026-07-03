@@ -7,7 +7,7 @@ per evaluation stage:
   io_ocel         read OCEL 2.0 SQLite into the neutral model (stdlib sqlite3)
   features_ocpa   native OCPA features + self-verified alignment (RQ3)
   models          per-fold training + descriptive metrics
-  rq2_fidelity    RQ2 — label equivalence (vs converter R1) + X-* consistency
+  rq2_fidelity    RQ2 — label equivalence (vs converter R1)
   rq3_pipeline    RQ3 — end-to-end feasibility, 5-fold CV grouped by CI
   run_evaluation  orchestrator (RQ2/RQ3; RQ1 is the converter's)
 """

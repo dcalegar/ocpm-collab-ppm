@@ -25,9 +25,8 @@ package is the fuller, cross-validated version of the same pattern.
 | `io_ocel.py` | `load_ocpa_ocel` / `read_ocel2_labels` — OCEL 2.0 SQLite → OCPA object (features) and → neutral model (labels), sharing one read path |
 | `features_ocpa.py` | `extract_feature_table` — native OCPA past-relative features (RQ3), with the event-id alignment oracle |
 | `models.py` | `fit_and_score_fold` — one fixed RandomForest per problem type, fit + **predict** + score, plus a trivial baseline |
-| `rq2_fidelity.py` | RQ2 — label-fidelity: R1 (source XES) vs R2 (OCEL) equivalence for the 14 single-case tasks; internal consistency for X-PaL/X-MSt |
+| `rq2_fidelity.py` | RQ2 — label-fidelity: R1 (source XES) vs R2 (OCEL) equivalence for the 14 tasks |
 | `rq3_pipeline.py` | RQ3 — end-to-end feasibility: features + labels joined, 5-fold `GroupKFold` CV grouped by `CollaborationCase` |
-| `rq3_extensions_example.py` | worked example for X-PaL/X-MSt (object-enabled extensions, no single-case counterpart) — exploratory, kept out of the core coverage claim |
 | `run_evaluation.py` | orchestrator — runs RQ2 → RQ3 (subset + full catalog) and writes all CSVs |
 
 | Stage | Module | Output |
@@ -35,7 +34,6 @@ package is the fuller, cross-validated version of the same pattern.
 | **RQ2** label fidelity | `rq2_fidelity.py` | `results/rq2_fidelity.csv` |
 | **RQ3** end-to-end feasibility (representative subset, in-paper) | `rq3_pipeline.py` | `results/rq3_results.csv` |
 | **RQ3** full catalog (supplementary coverage, 14 tasks × 4 logs) | `rq3_pipeline.py` via `run_evaluation.py` | `results/rq3_results_full.csv` |
-| **RQ3** X-PaL/X-MSt worked example (exploratory) | `rq3_extensions_example.py` | `results/rq3_extensions_example.csv` |
 | RQ1 transformation + P1 | — | [`mapping`](../mapping/README.md) (separate tool) |
 
 ## Reading path
@@ -84,7 +82,7 @@ df = run_rq3(cfg)                 # -> pandas.DataFrame, also written to results
 
 There is currently no automated test suite for `ocpm_tasks`/`ocpm_eval`; validate a
 change by running the evaluation above and inspecting the `results/*.csv` outputs
-(RQ2 fidelity should be ~1.0 on the consistency checks; RQ3 rows should have
+(RQ2 fidelity's `agreement` column should be ~1.0; RQ3 rows should have
 `ran_end_to_end=True`).
 
 Point the evaluation at your own logs by editing the registry in
@@ -107,31 +105,27 @@ computation times are reported (V4 profile).
 `run_rq3` is task-agnostic (it just loops `cfg.rq3_tasks`), so the same
 protocol extends to the full catalog without any pipeline changes —
 `run_evaluation.main` also runs it over `ocpm_tasks.catalog.EQUIVALENCE_TASKS`
-(the 14 single-case-counterpart tasks) and writes `rq3_results_full.csv`,
-intended as supplementary material rather than an in-paper table: it
-confirms all (task, log) combinations run end-to-end, but a few of the
-non-curated tasks (e.g. `NV-TNE`, `NV-TNM`) land close to or slightly worse
-than their trivial baseline in some logs — unlike the subset, which was
-picked to show clear separation, the full catalog is a coverage check, not
-a predictive-quality claim. The two object-enabled extensions (`X-PaL`,
-`X-MSt`, no single-case counterpart) are deliberately left out of this run
-and demonstrated separately in `rq3_extensions_example.py`, since the
-bundled logs barely exercise asynchrony and would make `X-MSt` (and
-especially `X-PaL`, which came out exactly `0.00±0.00` MAE in all four
-logs — no cross-instance participant overlap in these logs) close to
-degenerate.
+(all 14 tasks) and writes `rq3_results_full.csv`, intended as supplementary
+material rather than an in-paper table: it confirms all (task, log)
+combinations run end-to-end, but a few of the non-curated tasks (e.g.
+`NV-TNE`, `NV-TNM`) land close to or slightly worse than their trivial
+baseline in some logs — unlike the subset, which was picked to show clear
+separation, the full catalog is a coverage check, not a predictive-quality
+claim. tasks.tex outlines further exploratory extensions beyond the
+taxonomy (X-PaL, X-Inf, X-Cmp, X-MSt, X-Lag) as "a promising avenue ...
+rather than ... contributions evaluated in this work"; none are
+implemented here — X-MSt in particular presupposes a send/receive
+correspondence that the core mapping (rule M4) deliberately does not
+establish, so it needs an enrichment step beyond the current converter.
 
 ## RQ2 protocol
 
-For the 14 single-case-counterpart tasks: compare Θ_τ^L (labels computed
-directly from the source XES via `rq2_fidelity._src_label`, no
-intermediate object-centric model) against Θ_τ (labels computed from the
-OCEL 2.0 log via `ocpm_tasks.labels.compute_label_rows`), row-aligned by
-`(case_id, k)`. Proposition P2 (see the paper) guarantees these are equal;
-empirical agreement ≈ 1.0 is the expected/verifying outcome, not a
-tunable metric. For X-PaL/X-MSt (no single-case counterpart) the check is
-internal well-definedness of the OCEL-side labels only (non-negative
-counts/times, BOTTOM only where the definition allows it).
+For the 14 tasks: compare Θ_τ^L (labels computed directly from the source
+XES via `rq2_fidelity._src_label`, no intermediate object-centric model)
+against Θ_τ (labels computed from the OCEL 2.0 log via
+`ocpm_tasks.labels.compute_label_rows`), row-aligned by `(case_id, k)`.
+Proposition P2 (see the paper) guarantees these are equal; empirical
+agreement ≈ 1.0 is the expected/verifying outcome, not a tunable metric.
 
 RQ2 *equivalence* needs the original XES (R1); pass `xes_path` in each
 `LogSpec`. The bundled example logs in `data/logs/` include both the

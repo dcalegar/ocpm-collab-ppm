@@ -35,7 +35,7 @@ top-level file covers setup and how they fit together.
 |---|---|
 | [README.md](README.md) | this file — tools, setup, repository structure, usage, design notes |
 | [src/mapping/README.md](src/mapping/README.md) | RQ1 — the XES→OCEL 2.0 converter: mapping rules M1–M8, consistency checks P1.1–P1.6, CLI usage |
-| [src/ocpm_tasks/README.md](src/ocpm_tasks/README.md) | the 16 prediction tasks, ground-truth label functions, the neutral object-centric model, and how to connect the library to a concrete OCPA-based prediction |
+| [src/ocpm_tasks/README.md](src/ocpm_tasks/README.md) | the 14 prediction tasks, ground-truth label functions, the neutral object-centric model, and how to connect the library to a concrete OCPA-based prediction |
 | [src/ocpm_eval/README.md](src/ocpm_eval/README.md) | RQ2–RQ3 — the evaluation stages that consume `ocpm_tasks`: feature extraction, model fitting, fidelity/feasibility/structure metrics |
 
 ## Repository structure
@@ -58,9 +58,9 @@ ocpm-collab-ppm/
 │   │   ├── README.md          #   modules, usage, connecting to OCPA prediction
 │   │   ├── schema.py          #   mapping vocabulary (object types/qualifiers/attrs)
 │   │   ├── model.py           #   neutral object-centric model (Event/Execution/Log)
-│   │   ├── catalog.py         #   the 16 tasks + RQ2/RQ3 subsets
-│   │   ├── labels.py          #   label functions ℓ (incl. cross-case X-PaL, X-MSt)
-│   │   ├── fidelity.py        #   RQ2 comparators (equivalence; consistency)
+│   │   ├── catalog.py         #   the 14 tasks + RQ2/RQ3 subsets
+│   │   ├── labels.py          #   label functions ℓ
+│   │   ├── fidelity.py        #   RQ2 comparator (label equivalence)
 │   │   └── adapters.py        #   from_ocel2_sqlite (default) / from_pm4py / from_ocpa
 │   └── ocpm_eval/             # EXPERIMENTATION — evaluation stages (use ocpm_tasks)
 │       ├── README.md          #   modules, reading path, RQ2/RQ3 protocols, usage
@@ -169,7 +169,7 @@ python -m ocpm_eval.run_evaluation
 
 There is currently no automated test suite for `ocpm_tasks`/`ocpm_eval`; validate a
 change by running the evaluation above and inspecting the `results/*.csv` outputs
-(RQ2 fidelity should be ~1.0 on the consistency checks; RQ3 rows should have
+(RQ2 fidelity's `agreement` column should be ~1.0; RQ3 rows should have
 `ran_end_to_end=True`).
 
 Point the evaluation at your own logs by editing the registry in
@@ -209,13 +209,12 @@ The extended XES source must use the `collab` extension attributes defined in
 | RQ | What | Where | Output |
 |---|---|---|---|
 | RQ1 | XES→OCEL transformation + checks | **converter (separate tool)** — out of scope here | — |
-| RQ2 | label fidelity (equivalence for the 14 tasks; consistency for X-PaL/X-MSt) | `ocpm_eval/rq2_fidelity.py` | `results/rq2_fidelity.csv` |
+| RQ2 | label fidelity (equivalence for the 14 tasks) | `ocpm_eval/rq2_fidelity.py` | `results/rq2_fidelity.csv` |
 | RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `ocpm_eval/rq3_pipeline.py` | `results/rq3_results.csv` |
 
 RQ2 *equivalence* (the 14 tasks vs the original collaborative log, R1) needs the
 converter's R1 reader; pass `r1_logs={name: ObjectCentricLog}` to
-`ocpm_eval.run_evaluation.main`. The included toy only exercises the *consistency*
-side (X-PaL, X-MSt).
+`ocpm_eval.run_evaluation.main`.
 
 ---
 
@@ -225,9 +224,16 @@ side (X-PaL, X-MSt).
   experimentation and can be used inside an OCPA- or pm4py-based pipeline: build the
   neutral model with an adapter, then call the label functions. It depends only on
   pandas (OCPA/pm4py are optional, lazy).
-- **16 tasks** = the 14 of the collaborative baseline + two object-enabled extensions
-  (X-PaL cross-case participant load; X-MSt message synchronization time). The RQ3
-  representative subset is six tasks covering the anchor × problem-type combinations.
+- **14 tasks** = the object-centric reformulation of the 14 tasks of the
+  collaborative baseline (tasks.tex). The RQ3 representative subset is six tasks
+  covering the anchor × problem-type combinations.
+- **Exploratory extensions left for future work.** tasks.tex outlines further
+  directions beyond the taxonomy (X-PaL, X-Inf, X-Cmp, X-MSt, X-Lag) that are "a
+  promising avenue ... rather than ... contributions evaluated in this work"; none
+  are implemented here. X-MSt (message synchronization time) in particular
+  presupposes a correspondence between individual send and receive observations
+  that the core mapping (rule M4) deliberately does not establish; recovering it
+  needs an enrichment step beyond the current converter.
 - **Targets vs features.** Targets are defined over each collaboration instance's
   global trace (linear cut points, deterministic order); features are object-centric
   and past-relative (prefix-respecting) so per-event rows do not leak the future.

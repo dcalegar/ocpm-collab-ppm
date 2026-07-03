@@ -1,7 +1,7 @@
 """
 RQ2 — label fidelity of the reformulated tasks (predictor-independent).
 
-For the 14 single-case-counterpart tasks the check is label EQUIVALENCE between:
+For the 14 tasks the check is label EQUIVALENCE between:
   R1 — Θ_τ^L: labels computed directly from the collaborative XES log using the
        source accessors act/time_L/part/elem (Definition 1 of the appendix). No
        intermediate ObjectCentricLog is built; each task definition is evaluated
@@ -9,15 +9,13 @@ For the 14 single-case-counterpart tasks the check is label EQUIVALENCE between:
   R2 — Θ_τ: labels computed from the OCEL 2.0 SQLite via the OCEL accessors
        evtype/time/pa/snd/rcv/msg/Msgs/pos, using labels.compute_label_rows.
 Proposition P2 guarantees Θ_τ = Θ_τ^L; empirical agreement=1.0 is expected.
-For X-PaL and X-MSt the check is INTERNAL CONSISTENCY of R2 only (no R1
-counterpart exists per the remark following Proposition P2).
 """
 import os
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple
 import pandas as pd
 
-from ocpm_tasks.catalog import TASKS, EQUIVALENCE_TASKS, CONSISTENCY_TASKS
+from ocpm_tasks.catalog import TASKS, EQUIVALENCE_TASKS
 from ocpm_tasks import labels as TL
 from ocpm_tasks import fidelity as FID
 from ocpm_tasks.fidelity import Row
@@ -216,14 +214,6 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
             r1_rows = _compute_source_rows(spec.xes_path, task, param, cfg.bottom)
             r2_rows = TL.compute_label_rows(r2_log, task, param, ctx2, drop_bottom=False)
             res = FID.compare_equivalence(r1_rows, r2_rows, task, cfg.bottom, cfg.numeric_tol)
-            res.update({"log": spec.name, "param": param})
-            out.append(res)
-
-    for key in CONSISTENCY_TASKS:
-        task = TASKS[key]
-        for param in _params_for(task, r2_log, cfg):
-            rows = TL.compute_label_rows(r2_log, task, param, ctx2, drop_bottom=False)
-            res = FID.check_consistency(rows, task, cfg.bottom)
             res.update({"log": spec.name, "param": param})
             out.append(res)
     return out

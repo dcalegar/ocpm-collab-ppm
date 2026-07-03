@@ -1,0 +1,25 @@
+log,task,anchor,problem_type,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity
+Healthcare,NE-NPaA,Participant,Multiclass classification,1350,True,f1_macro,0.8193079517816875,0.03285857654642488,0.17073170731707318,5,,
+Healthcare,NE-NMPr,CollaborationCase,Multiclass classification,1350,True,f1_macro,0.6811441678259905,0.037515520864822786,0.022628291336380665,5,,
+Healthcare,NV-PrT,CollaborationCase,Regression (time),1350,True,mae,15.33314161430495,1.2174675412863678,17.312128148148147,5,,
+Healthcare,NV-PaT,ParticipantProjection,Regression (time),1350,True,mae,9.178627142561188,1.076355065755389,12.90978518518519,5,Gynecologist,
+Healthcare,NV-NMPr,Message,Count regression,1350,True,mae,1.1889968342611978,0.04805211771608131,1.5644444444444443,5,,
+Healthcare,OB-M,Message,Binary classification,1350,True,f1_macro,1.0,0.0,1.0,5,,Communicate disease
+Artificial1,NE-NPaA,Participant,Multiclass classification,700,True,f1_macro,0.7435375599276826,0.018341973947980993,0.339569571644256,5,,
+Artificial1,NE-NMPr,CollaborationCase,Multiclass classification,549,True,f1_macro,0.571590909155903,0.021896676125345682,0.10670752944360515,5,,
+Artificial1,NV-PrT,CollaborationCase,Regression (time),700,True,mae,4.573574147955712,0.4121683233737555,8.586565714285715,5,,
+Artificial1,NV-PaT,ParticipantProjection,Regression (time),700,True,mae,4.55894623824898,0.43642888245866485,8.565135714285713,5,PartyA,
+Artificial1,NV-NMPr,Message,Count regression,700,True,mae,0.009778571428571428,0.005375558822398023,0.7342857142857142,5,,
+Artificial1,OB-M,Message,Binary classification,700,True,f1_macro,0.9122035770199783,0.011818990774606764,0.3937451238730011,5,,Activity CZ
+Artificial5,NE-NPaA,Participant,Multiclass classification,2260,True,f1_macro,0.5257794046740536,0.03630566798240729,0.17750789872409373,5,,
+Artificial5,NE-NMPr,CollaborationCase,Multiclass classification,2068,True,f1_macro,0.6328947187838405,0.027999591659955816,0.020988211964413327,5,,
+Artificial5,NV-PrT,CollaborationCase,Regression (time),2260,True,mae,11.351797015897997,1.6065950744487187,33.56038407079646,5,,
+Artificial5,NV-PaT,ParticipantProjection,Regression (time),2260,True,mae,10.742080979809774,1.4449830969770436,33.493553539823004,5,PartyB,
+Artificial5,NV-NMPr,Message,Count regression,2260,True,mae,0.4102190914948842,0.011992308093307745,1.4048672566371683,5,,
+Artificial5,OB-M,Message,Binary classification,2260,True,f1_macro,1.0,0.0,0.4940608544269865,5,,Activity AA
+Real4,NE-NPaA,Participant,Multiclass classification,1700,True,f1_macro,0.8564953328228878,0.005269459614157011,0.23076923076923075,5,,
+Real4,NE-NMPr,CollaborationCase,Multiclass classification,1600,True,f1_macro,0.9979738476365357,0.0025659498000156706,0.06574749669947269,5,,
+Real4,NV-PrT,CollaborationCase,Regression (time),1700,True,mae,7.591735996843707,0.7858374083725795,19.395287647058822,5,,
+Real4,NV-PaT,ParticipantProjection,Regression (time),1700,True,mae,6.74164793490719,0.5484484226806908,18.973931764705885,5,Zoo,
+Real4,NV-NMPr,Message,Count regression,1700,True,mae,0.0,0.0,0.9423529411764706,5,,
+Real4,OB-M,Message,Binary classification,1700,True,f1_macro,1.0,0.0,0.46875,5,,Send information to the ZooClub department

@@ -1,17 +1,17 @@
 """
 Evaluation orchestrator. Runs the stages owned by the experimentation tool:
-  * RQ2 — label fidelity (equivalence: R1 and R2 both read from the OCEL logs;
-          consistency for X-PaL/X-MSt),
+  * RQ2 — label fidelity (equivalence: R1 and R2 both read from the OCEL logs),
   * RQ3 — end-to-end feasibility + descriptive metrics on the representative subset,
 
 RQ1 (XES->OCEL transformation, properties P1.1-P1.5, OCEL 2.0 schema validation) is
 produced by the CONVERTER (a separate tool) and is therefore out of scope here.
 
 RQ3 is run twice: once on the representative subset (paper Table tab:rq3subset,
-`rq3_results.csv`) and once on the full catalog of single-case-counterpart tasks
-(`rq3_results_full.csv`), intended as supplementary material rather than an
-in-paper table. The two object-enabled extensions (X-PaL, X-MSt) are demonstrated
-separately in `rq3_extensions_example.py`.
+`rq3_results.csv`) and once on the full catalog of 14 tasks (`rq3_results_full.csv`),
+intended as supplementary material rather than an in-paper table. tasks.tex outlines
+further exploratory extensions (X-PaL, X-Inf, X-Cmp, X-MSt, X-Lag) as "a promising
+avenue ... rather than ... contributions evaluated in this work"; none are
+implemented here.
 
 Usage: python -m ocpm_eval.run_evaluation   (adjust paths in config.py)
 """
@@ -34,8 +34,6 @@ def main(cfg: Optional[ExperimentConfig] = None):
     full_cfg = replace(cfg, rq3_tasks=list(EQUIVALENCE_TASKS))
     results["rq3_full"] = run_rq3(full_cfg, out_name="rq3_results_full.csv")
     print("\n[note] RQ1 (transformation + P1 + schema) is the converter's tool.")
-    print("[note] X-PaL/X-MSt (object-enabled extensions) are demonstrated in "
-          "rq3_extensions_example.py, not included above.")
     return results
 
 
