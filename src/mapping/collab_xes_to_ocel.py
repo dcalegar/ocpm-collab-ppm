@@ -4,7 +4,7 @@
 collab_xes_to_ocel.py
 =====================================================================
 Model-to-model transformation mu: extended collaborative XES log
-  -->  OCEL 2.0 log (conforming to Berti et al. 2023, Definition 2),
+  -->  OCEL 2.0 log (conforming to Berti et al. 2024, Definition 2),
 exported to the .jsonocel and .sqlite formats.
 
 This implements rules M1-M8 and the consistency criteria P1.1-P1.6 of
@@ -458,7 +458,12 @@ def _require_columns(df: pd.DataFrame, cfg: MappingConfig) -> None:
 def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
                         ) -> Dict[str, List[Dict[str, Any]]]:
     """Group events by global case and order each trace by timestamp,
-    breaking ties by the original source order (Definition 1).
+    breaking ties by the original source appearance order (the per-case
+    order prec_L of Definition 1). Ordering by timestamp with a stable
+    tie-break guarantees the trace order is preserved before and after
+    the mapping; event ids are minted in this order, so reconstruction
+    (P1.2) reads the event-identifier order without re-sorting by
+    timestamp.
     Returns, per case, a list of event dicts enriched with a minted eid
     and the within-case index.
     """
@@ -484,6 +489,9 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
 
     cases: Dict[str, List[Dict[str, Any]]] = {}
     for case_val, grp in work.groupby(cfg.case_key, sort=False):
+        # prec_L: order by timestamp, ties broken by original source
+        # appearance (__src_order__); a stable sort keeps the trace order
+        # identical before and after the mapping (M5).
         grp = grp.sort_values(by=[cfg.timestamp_key, "__src_order__"],
                               kind="mergesort")  # stable
         evlist: List[Dict[str, Any]] = []
