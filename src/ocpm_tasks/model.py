@@ -19,10 +19,13 @@ class Event:
     actor: str                       # participant (R2: in_projection -> for_participant; direct participant edge, P1.6)
     is_send: bool = False
     is_receive: bool = False
-    msg_id: Optional[str] = None     # shared Message identity (send/receive)
+    msg_id: Optional[str] = None     # Message OBSERVATION identity (unique per send/receive; M4, no correlation)
     msg_type: Optional[str] = None   # = activity of the message event
     msg_from: Optional[str] = None   # sender (from relation)
     msg_to: Optional[str] = None     # receiver (to relation)
+    corr_id: Optional[str] = None    # native correlation id pairing a send with its receive;
+                                     # populated only by an ENRICHMENT step (not by the core
+                                     # mapping M4). Used by the X-MSt extension task.
 
     @property
     def is_msg(self) -> bool:

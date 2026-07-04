@@ -111,7 +111,15 @@ class _Ob:
 
 
 def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
-                         schema: Optional[Schema] = None) -> ObjectCentricLog:
+                         schema: Optional[Schema] = None,
+                         corr_attr: Optional[str] = None) -> ObjectCentricLog:
+    """``corr_attr``: OPT-IN ENRICHMENT, not part of the core mapping (M1-M8). If
+    given, the named residual event attribute (M8) is read off each send/receive
+    event into ``Event.corr_id`` -- a native message-correlation id the source log
+    may carry (e.g. "msgId"), which the core mapping deliberately does not infer on
+    its own (M4/P1.3: independent Message observations). Used only by the X-MSt
+    extension task (ocpm_tasks/extensions.py); left None (default) this is a no-op
+    and every Event.corr_id stays None, exactly as in the unenriched core model."""
     sch = schema or Schema()
 
     def otype(oid):
@@ -173,6 +181,10 @@ def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
         if cc_oid not in cc_caseid:
             cc_caseid[cc_oid] = str(oattr(cc_oid, sch.oa_caseid) or cc_oid)
         is_msg = is_send or is_recv
+        corr_id = None
+        if corr_attr and is_msg:
+            v = ev.attrs.get(corr_attr)
+            corr_id = str(v) if v is not None else None
         by_cc.setdefault(cc_oid, []).append(Event(
             event_id=str(ev.id), activity=str(ev.activity), timestamp=ev.time,
             actor=participant_of(pp_oid, pa_oid),
@@ -180,7 +192,8 @@ def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
             msg_id=str(msg_oid) if (is_msg and msg_oid is not None) else None,
             msg_type=(str(ev.activity) if is_msg else None),
             msg_from=msg_party(msg_oid, sch.q_from) if is_msg else None,
-            msg_to=msg_party(msg_oid, sch.q_to) if is_msg else None))
+            msg_to=msg_party(msg_oid, sch.q_to) if is_msg else None,
+            corr_id=corr_id))
 
     return ObjectCentricLog([Execution(cc_caseid[c], evs)
                              for c, evs in by_cc.items()])
@@ -222,7 +235,8 @@ def from_pm4py(pm4py_ocel, schema: Optional[Schema] = None) -> ObjectCentricLog:
     return build_from_relations(events, objects, schema)
 
 
-def from_ocpa(ocpa_ocel, schema: Optional[Schema] = None) -> ObjectCentricLog:
+def from_ocpa(ocpa_ocel, schema: Optional[Schema] = None,
+             corr_attr: Optional[str] = None) -> ObjectCentricLog:
     """Build the neutral model from an OCPA OCEL 2.0 object (loaded via
     ``ocpa.objects.log.importer.ocel2.sqlite.factory.apply``).
 
@@ -292,7 +306,7 @@ def from_ocpa(ocpa_ocel, schema: Optional[Schema] = None) -> ObjectCentricLog:
                 attrs[c[len("event_"):]] = v   # strip "event_" prefix
         events.append(_Ev(eid_s, str(row["event_activity"]), ts, attrs, e2o))
 
-    return build_from_relations(events, objects, schema)
+    return build_from_relations(events, objects, schema, corr_attr=corr_attr)
 
 
 # --- OCEL 2.0 SQLite reader (stdlib sqlite3; version-independent) -------------
@@ -302,7 +316,8 @@ def from_ocpa(ocpa_ocel, schema: Optional[Schema] = None) -> ObjectCentricLog:
 # tables event_<map>/object_<map> carrying ocel_time and attributes). This avoids a
 # pm4py dependency for reading (OCPA pins an old pm4py that cannot read OCEL 2.0) and
 # exposes E2O/O2O qualifiers needed to derive the collaborative roles.
-def from_ocel2_sqlite(path: str, schema: "Schema | None" = None) -> ObjectCentricLog:
+def from_ocel2_sqlite(path: str, schema: "Schema | None" = None,
+                      corr_attr: Optional[str] = None) -> ObjectCentricLog:
     import sqlite3
     from datetime import datetime
 
@@ -378,4 +393,4 @@ def from_ocel2_sqlite(path: str, schema: "Schema | None" = None) -> ObjectCentri
     events = [_Ev(eid, ev_type[eid], ev_time.get(eid),
                   ev_attrs.get(eid, {}), e2o.get(eid, []))
               for eid in ev_type]
-    return build_from_relations(events, objects, schema)
+    return build_from_relations(events, objects, schema, corr_attr=corr_attr)

@@ -8,10 +8,13 @@ only if you use the corresponding adapter).
 
 `tasks.tex` also outlines further exploratory extensions beyond this taxonomy
 (`X-PaL`, `X-Inf`, `X-Cmp`, `X-MSt`, `X-Lag`) as "a promising avenue ... rather
-than ... contributions evaluated in this work"; none are implemented here.
-`X-MSt` in particular presupposes a correspondence between individual send and
-receive observations that the core mapping (rule M4) deliberately does not
-establish — recovering it needs an enrichment step beyond the current converter.
+than ... contributions evaluated in this work". Two of them, **`X-Inf`** (in-flight
+message backlog) and **`X-MSt`** (message synchronization time), are formalized in
+`extensions.py` — see "Object-enabled extension tasks" below. `X-PaL`, `X-Cmp`, and
+`X-Lag` remain unimplemented. `X-MSt` presupposes a correspondence between individual
+send and receive observations that the core mapping (rule M4) deliberately does not
+establish; `extensions.py`/`adapters.py` recover it via an explicit, opt-in
+enrichment step, not a change to the core mapping.
 
 ## Install
 
@@ -53,8 +56,9 @@ pieces line up.
 | `model` | Neutral structures the tasks read: `Event`, `Execution`, `ObjectCentricLog` |
 | `catalog` | `TASKS` — the 14 `Task` definitions (anchor object, problem type, value kind) |
 | `labels` | `LabelContext`, `build_context`, `compute_label_rows` — ground-truth label computation |
+| `extensions` | `EXT_TASKS` (`X-Inf`, `X-MSt`), `compute_ext_label_rows` — object-enabled extension tasks, kept out of `catalog.TASKS`/`EQUIVALENCE_TASKS`/`RQ3_SUBSET` |
 | `fidelity` | `compare_equivalence` — label-equivalence comparator (optional, for validating a mapping) |
-| `adapters` | `from_pm4py`, `from_ocpa`, `from_ocel2_sqlite`, `build_from_relations` — build an `ObjectCentricLog` from a concrete OCEL |
+| `adapters` | `from_pm4py`, `from_ocpa`, `from_ocel2_sqlite`, `build_from_relations` — build an `ObjectCentricLog` from a concrete OCEL; optional `corr_attr` enrichment for `X-MSt` |
 
 ## Usage
 
@@ -155,3 +159,45 @@ No adapter fits your source? Build a `ObjectCentricLog` directly with
 `adapters.build_from_relations`, or construct `model.Event`/`model.Execution`
 objects yourself — the label functions only depend on the `model` module, not
 on any OCEL library.
+
+## Object-enabled extension tasks (`extensions.py`)
+
+`X-Inf` and `X-MSt` — two of the "object-enabled" targets outlined in
+tasks.tex/discussion.tex — are formalized here as label functions over the same
+`model.Execution`, using the same `LabelContext`/BOTTOM convention as `labels.py`.
+They are deliberately **not** part of `catalog.TASKS`/`EQUIVALENCE_TASKS`/
+`RQ3_SUBSET`, so importing/using them never mixes into the 14-task RQ2/RQ3
+evaluation:
+
+* **`X-Inf`** (`CollaborationCase` anchor, count regression) — the peak in-flight
+  backlog (`#send − #receive` observations) over the case's remainder after the
+  cut. Needs **no** send/receive correlation.
+* **`X-MSt`** (`Message` anchor, time regression) — the latency between the next
+  send after the cut and its matching receive; BOTTOM if that send is unmatched
+  (still in flight) or if no correlation id is available. Needs `Event.corr_id`,
+  which only an explicit **enrichment** populates (see `adapters.corr_attr`
+  below) — the core mapping (M4) never infers it.
+
+```python
+from ocpm_tasks.adapters import from_ocel2_sqlite
+from ocpm_tasks.extensions import EXT_TASKS, compute_ext_label_rows
+
+# corr_attr: opt-in enrichment. A residual event attribute (e.g. "msgId") that
+# carries a native message-correlation id; None (default) leaves every
+# Event.corr_id unset, exactly like the unenriched core mapping.
+log = from_ocel2_sqlite("toy_collab.sqlite", corr_attr="msgId")
+
+for key in ("X-Inf", "X-MSt"):
+    rows = compute_ext_label_rows(log, EXT_TASKS[key])
+    # rows: List[(case_id, event_id, k, y)], BOTTOM rows dropped by default
+```
+
+Both extensions are demonstrated end to end — including the same OCPA feature
+extraction and grouped cross-validation used for the 14 reformulated tasks — on a
+**Healthcare log variant with message-correlation ids** (`src/mapping/aux/build_healthcare_extended.py`
+→ `data/logs/healthcare_extended.xes`: 100 cases, 1450 events, converted with
+the same `collab_xes_to_ocel.py` converter as the four study logs), via
+`ocpm_eval/rq_ext_pipeline.py` (results in `data/results/rq_ext_results_toy.csv`).
+A dedicated pure-Python unit test, `tests/test_extensions_toy.py`, verifies the
+label logic by hand against a small synthetic case with intentional in-flight and
+unmatched sends — complementary to the realistic end-to-end demo.

@@ -60,6 +60,7 @@ ocpm-collab-ppm/
 │   │   ├── model.py           #   neutral object-centric model (Event/Execution/Log)
 │   │   ├── catalog.py         #   the 14 tasks + RQ2/RQ3 subsets
 │   │   ├── labels.py          #   label functions ℓ
+│   │   ├── extensions.py      #   object-enabled EXTENSION tasks (X-Inf, X-MSt) — not in catalog.TASKS
 │   │   ├── fidelity.py        #   RQ2 comparator (label equivalence)
 │   │   └── adapters.py        #   from_ocel2_sqlite (default) / from_pm4py / from_ocpa
 │   └── ocpm_eval/             # EXPERIMENTATION — evaluation stages (use ocpm_tasks)
@@ -70,10 +71,11 @@ ocpm-collab-ppm/
 │       ├── models.py          #   per-fold training + descriptive metrics
 │       ├── rq2_fidelity.py    #   RQ2 — label fidelity
 │       ├── rq3_pipeline.py    #   RQ3 — end-to-end, 5-fold CV grouped by CI
-│       └── run_evaluation.py  #   orchestrator (RQ2/RQ3)
+│       ├── rq_ext_pipeline.py #   RQ-EXT — X-Inf/X-MSt demo on the TOY log only
+│       └── run_evaluation.py  #   orchestrator (RQ2/RQ3/RQ-EXT)
 └── data/
-    └── logs/                   # EXAMPLE LOGS (extended XES + converted OCEL 2.0 JSON)
-    └── results/                # evaluation outputs
+    ├── logs/                    # the four study logs, PLUS toy_collab.* (X-Inf/X-MSt demo log)
+    └── results/                 # evaluation outputs, incl. rq_ext_results_toy.csv (RQ-EXT demo)
 ```
 
 The three directories the project revolves around: **example logs** (`data/logs/`),
@@ -211,10 +213,38 @@ The extended XES source must use the `collab` extension attributes defined in
 | RQ1 | XES→OCEL transformation + checks | **converter (separate tool)** — out of scope here | — |
 | RQ2 | label fidelity (equivalence for the 14 tasks) | `ocpm_eval/rq2_fidelity.py` | `results/rq2_fidelity.csv` |
 | RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `ocpm_eval/rq3_pipeline.py` | `results/rq3_results.csv` |
+| RQ-EXT | object-enabled EXTENSION tasks (X-Inf, X-MSt) — **feasibility demo on a Healthcare variant**, not one of the four study logs; not part of the paper's evaluated RQ2/RQ3 | `ocpm_eval/rq_ext_pipeline.py` | `results/rq_ext_results_toy.csv` |
 
 RQ2 *equivalence* (the 14 tasks vs the original collaborative log, R1) needs the
 converter's R1 reader; pass `r1_logs={name: ObjectCentricLog}` to
 `ocpm_eval.run_evaluation.main`.
+
+### RQ-EXT — object-enabled extensions (X-Inf, X-MSt)
+
+`ocpm_tasks/extensions.py` formalizes two of the "object-enabled" targets outlined in
+tasks.tex/discussion.tex as label functions over the same neutral model as the 14
+reformulated tasks, but keeps them **out of `catalog.TASKS`/`EQUIVALENCE_TASKS`/
+`RQ3_SUBSET`** so they never mix into RQ2/RQ3:
+
+- **X-Inf** (in-flight backlog, `CollaborationCase` anchor, count regression) — peak
+  `#send − #receive` observations over the case's remainder after the cut. Needs **no**
+  send/receive correlation.
+- **X-MSt** (message synchronization time, `Message` anchor, time regression) —
+  latency of the next send's matching receive after the cut. Needs a native
+  correlation id, which the core mapping (M4) deliberately does not infer; an opt-in
+  `corr_attr` enrichment (`ocpm_tasks/adapters.py`, default `None`) supplies it from a
+  residual event attribute (e.g. `"msgId"`) without changing the core mapping.
+
+Both are demonstrated on a **Healthcare log variant with message-correlation ids**
+(`src/mapping/aux/build_healthcare_extended.py` → `data/logs/healthcare_extended.xes`:
+100 cases, 1450 events, same structure as the original healthcare log but with `msgId`
+attributes added to sends for explicit X-MSt correlation). This is converted with
+the same `collab_xes_to_ocel.py` converter as the study logs and run through the
+*same* OCPA feature-extraction/CV/RandomForest machinery as RQ3
+(`ocpm_eval/rq_ext_pipeline.py`), demonstrating that the extensions work on realistic
+data, not just the hand-built toy case. A dedicated pure-Python test
+(`tests/test_extensions_toy.py`) remains as a unit test, verifying label logic by
+hand on a small synthetic case with intentional in-flight/unmatched sends.
 
 ---
 

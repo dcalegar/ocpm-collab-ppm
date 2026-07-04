@@ -54,10 +54,6 @@
           "type": "string"
         },
         {
-          "name": "sequenceNumber",
-          "type": "string"
-        },
-        {
           "name": "participant",
           "type": "string"
         }
@@ -68,10 +64,6 @@
       "attributes": [
         {
           "name": "elemType",
-          "type": "string"
-        },
-        {
-          "name": "sequenceNumber",
           "type": "string"
         },
         {
@@ -88,10 +80,6 @@
           "type": "string"
         },
         {
-          "name": "sequenceNumber",
-          "type": "string"
-        },
-        {
           "name": "participant",
           "type": "string"
         }
@@ -102,10 +90,6 @@
       "attributes": [
         {
           "name": "elemType",
-          "type": "string"
-        },
-        {
-          "name": "sequenceNumber",
           "type": "string"
         },
         {
@@ -134,10 +118,6 @@
           "type": "string"
         },
         {
-          "name": "sequenceNumber",
-          "type": "string"
-        },
-        {
           "name": "participant",
           "type": "string"
         },
@@ -160,10 +140,6 @@
       "attributes": [
         {
           "name": "elemType",
-          "type": "string"
-        },
-        {
-          "name": "sequenceNumber",
           "type": "string"
         },
         {
@@ -192,10 +168,6 @@
           "type": "string"
         },
         {
-          "name": "sequenceNumber",
-          "type": "string"
-        },
-        {
           "name": "participant",
           "type": "string"
         },
@@ -218,10 +190,6 @@
       "attributes": [
         {
           "name": "elemType",
-          "type": "string"
-        },
-        {
-          "name": "sequenceNumber",
           "type": "string"
         },
         {
@@ -250,10 +218,6 @@
           "type": "string"
         },
         {
-          "name": "sequenceNumber",
-          "type": "string"
-        },
-        {
           "name": "participant",
           "type": "string"
         },
@@ -279,10 +243,6 @@
           "type": "string"
         },
         {
-          "name": "sequenceNumber",
-          "type": "string"
-        },
-        {
           "name": "participant",
           "type": "string"
         }
@@ -293,10 +253,6 @@
       "attributes": [
         {
           "name": "elemType",
-          "type": "string"
-        },
-        {
-          "name": "sequenceNumber",
           "type": "string"
         },
         {
@@ -325,10 +281,6 @@
           "type": "string"
         },
         {
-          "name": "sequenceNumber",
-          "type": "string"
-        },
-        {
           "name": "participant",
           "type": "string"
         },
@@ -351,10 +303,6 @@
       "attributes": [
         {
           "name": "elemType",
-          "type": "string"
-        },
-        {
-          "name": "sequenceNumber",
           "type": "string"
         },
         {
@@ -383,10 +331,6 @@
           "type": "string"
         },
         {
-          "name": "sequenceNumber",
-          "type": "string"
-        },
-        {
           "name": "participant",
           "type": "string"
         },
@@ -409,10 +353,6 @@
       "attributes": [
         {
           "name": "elemType",
-          "type": "string"
-        },
-        {
-          "name": "sequenceNumber",
           "type": "string"
         },
         {
@@ -441,10 +381,6 @@
           "type": "string"
         },
         {
-          "name": "sequenceNumber",
-          "type": "string"
-        },
-        {
           "name": "participant",
           "type": "string"
         },
@@ -467,10 +403,6 @@
       "attributes": [
         {
           "name": "elemType",
-          "type": "string"
-        },
-        {
-          "name": "sequenceNumber",
           "type": "string"
         },
         {
@@ -499,10 +431,6 @@
           "type": "string"
         },
         {
-          "name": "sequenceNumber",
-          "type": "string"
-        },
-        {
           "name": "participant",
           "type": "string"
         },
@@ -528,10 +456,6 @@
           "type": "string"
         },
         {
-          "name": "sequenceNumber",
-          "type": "string"
-        },
-        {
           "name": "participant",
           "type": "string"
         }
@@ -542,10 +466,6 @@
       "attributes": [
         {
           "name": "elemType",
-          "type": "string"
-        },
-        {
-          "name": "sequenceNumber",
           "type": "string"
         },
         {
@@ -1199,10 +1119,6 @@
           "value": "task"
         },
         {
-          "name": "sequenceNumber",
-          "value": "0"
-        },
-        {
           "name": "participant",
           "value": "PartyA"
         }
@@ -1230,10 +1146,6 @@
         {
           "name": "elemType",
           "value": "SendTask"
-        },
-        {
-          "name": "sequenceNumber",
-          "value": "1"
         },
         {
           "name": "participant",
@@ -1281,10 +1193,6 @@
           "value": "ReceiveTask"
         },
         {
-          "name": "sequenceNumber",
-          "value": "2"
-        },
-        {
           "name": "participant",
           "value": "PartyB"
         },
@@ -1330,10 +1238,6 @@
           "value": "task"
         },
         {
-          "name": "sequenceNumber",
-          "value": "3"
-        },
-        {
           "name": "participant",
           "value": "PartyB"
         }
@@ -1361,10 +1265,6 @@
         {
           "name": "elemType",
           "value": "SendTask"
-        },
-        {
-          "name": "sequenceNumber",
-          "value": "4"
         },
         {
           "name": "participant",
@@ -1412,10 +1312,6 @@
           "value": "ReceiveTask"
         },
         {
-          "name": "sequenceNumber",
-          "value": "5"
-        },
-        {
           "name": "participant",
           "value": "PartyA"
         },
@@ -1459,10 +1355,6 @@
         {
           "name": "elemType",
           "value": "SendTask"
-        },
-        {
-          "name": "sequenceNumber",
-          "value": "6"
         },
         {
           "name": "participant",
@@ -1510,10 +1402,6 @@
           "value": "task"
         },
         {
-          "name": "sequenceNumber",
-          "value": "7"
-        },
-        {
           "name": "participant",
           "value": "PartyA"
         }
@@ -1541,10 +1429,6 @@
         {
           "name": "elemType",
           "value": "task"
-        },
-        {
-          "name": "sequenceNumber",
-          "value": "8"
         },
         {
           "name": "participant",
@@ -1576,10 +1460,6 @@
           "value": "task"
         },
         {
-          "name": "sequenceNumber",
-          "value": "0"
-        },
-        {
           "name": "participant",
           "value": "PartyA"
         }
@@ -1607,10 +1487,6 @@
         {
           "name": "elemType",
           "value": "SendTask"
-        },
-        {
-          "name": "sequenceNumber",
-          "value": "1"
         },
         {
           "name": "participant",
@@ -1658,10 +1534,6 @@
           "value": "SendTask"
         },
         {
-          "name": "sequenceNumber",
-          "value": "2"
-        },
-        {
           "name": "participant",
           "value": "PartyA"
         },
@@ -1705,10 +1577,6 @@
         {
           "name": "elemType",
           "value": "ReceiveTask"
-        },
-        {
-          "name": "sequenceNumber",
-          "value": "3"
         },
         {
           "name": "participant",
@@ -1756,10 +1624,6 @@
           "value": "ReceiveTask"
         },
         {
-          "name": "sequenceNumber",
-          "value": "4"
-        },
-        {
           "name": "participant",
           "value": "PartyB"
         },
@@ -1803,10 +1667,6 @@
         {
           "name": "elemType",
           "value": "SendTask"
-        },
-        {
-          "name": "sequenceNumber",
-          "value": "5"
         },
         {
           "name": "participant",
@@ -1854,10 +1714,6 @@
           "value": "task"
         },
         {
-          "name": "sequenceNumber",
-          "value": "6"
-        },
-        {
           "name": "participant",
           "value": "PartyB"
         }
@@ -1885,10 +1741,6 @@
         {
           "name": "elemType",
           "value": "task"
-        },
-        {
-          "name": "sequenceNumber",
-          "value": "7"
         },
         {
           "name": "participant",
@@ -1920,10 +1772,6 @@
           "value": "task"
         },
         {
-          "name": "sequenceNumber",
-          "value": "0"
-        },
-        {
           "name": "participant",
           "value": "PartyA"
         }
@@ -1951,10 +1799,6 @@
         {
           "name": "elemType",
           "value": "SendTask"
-        },
-        {
-          "name": "sequenceNumber",
-          "value": "1"
         },
         {
           "name": "participant",
@@ -2002,10 +1846,6 @@
           "value": "ReceiveTask"
         },
         {
-          "name": "sequenceNumber",
-          "value": "2"
-        },
-        {
           "name": "participant",
           "value": "PartyB"
         },
@@ -2049,10 +1889,6 @@
         {
           "name": "elemType",
           "value": "SendTask"
-        },
-        {
-          "name": "sequenceNumber",
-          "value": "3"
         },
         {
           "name": "participant",
@@ -2100,10 +1936,6 @@
           "value": "ReceiveTask"
         },
         {
-          "name": "sequenceNumber",
-          "value": "4"
-        },
-        {
           "name": "participant",
           "value": "PartyA"
         },
@@ -2147,10 +1979,6 @@
         {
           "name": "elemType",
           "value": "task"
-        },
-        {
-          "name": "sequenceNumber",
-          "value": "5"
         },
         {
           "name": "participant",

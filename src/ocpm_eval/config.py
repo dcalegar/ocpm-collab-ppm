@@ -51,3 +51,38 @@ class ExperimentConfig:
     out_dir: str = "results"
     bottom: str = "__BOTTOM__"
     numeric_tol: float = 1.0     # seconds, for RQ2 temporal equivalence
+
+
+# ---------------------------------------------------------------------------
+# Object-enabled EXTENSION tasks (X-Inf, X-MSt) -- demo config, kept separate
+# from ExperimentConfig/delgado_ocel_logs so it never mixes into RQ2/RQ3.
+# ---------------------------------------------------------------------------
+def toy_ext_log() -> LogSpec:
+    """Small hand-built toy log (src/mapping/aux/build_toy_collab_log.py) for
+    testing X-Inf and X-MSt extensions; NOT one of the four study logs. 3 cases,
+    23 events, designed to exercise both targets: variable in-flight backlogs
+    (X-Inf) and send/receive pairs with explicit msgId correlation (X-MSt).
+    Demonstrates that both extensions are functionally correct when data has
+    the needed semantic properties (send/receive events + correlation ids)."""
+    return LogSpec("ToyCollab", "data/logs/toy_collab.sqlite",
+                                "data/logs/toy_collab.xes")
+
+
+@dataclass
+class ExtExperimentConfig:
+    logs: List[LogSpec] = field(default_factory=lambda: [toy_ext_log()])
+    schema: Schema = field(default_factory=Schema)
+
+    ext_tasks: List[str] = field(default_factory=lambda: ["X-Inf", "X-MSt"])
+    # Residual event attribute carrying a native message-correlation id
+    # (see build_toy_collab_log.py); enables X-MSt. None would leave X-MSt
+    # undefined everywhere, as in the core (unenriched) mapping.
+    corr_attr: Optional[str] = "msgId"
+
+    n_folds: int = 2            # the toy log has only 3 collaboration cases
+    random_state: int = 3395
+    rf_n_estimators: int = 200
+    rf_max_depth: Optional[int] = None
+
+    out_dir: str = "data/results"
+    bottom: str = "__BOTTOM__"

@@ -77,12 +77,15 @@ def load_ocpa_ocel(schema, path: str):
 
 
 def read_ocel2_labels(path: str, schema,
-                      ocpa_ocel=None) -> ObjectCentricLog:
+                      ocpa_ocel=None, corr_attr=None) -> ObjectCentricLog:
     """Build the neutral ObjectCentricLog from an OCEL 2.0 SQLite file.
     If ``ocpa_ocel`` is provided it is used via from_ocpa; otherwise the
     stdlib sqlite3 reader is used to avoid OCPA's itertuples/getattr path
     which breaks on attribute names containing non-identifier characters
-    (e.g. 'org:group' → 'event_org:group')."""
+    (e.g. 'org:group' → 'event_org:group').
+    ``corr_attr``: optional enrichment attribute name for Event.corr_id
+    (X-MSt only; see ocpm_tasks.adapters.build_from_relations). None for
+    the four study logs (unchanged core-mapping behaviour)."""
     if ocpa_ocel is not None:
-        return from_ocpa(ocpa_ocel, schema)
-    return from_ocel2_sqlite(path, schema)
+        return from_ocpa(ocpa_ocel, schema, corr_attr=corr_attr)
+    return from_ocel2_sqlite(path, schema, corr_attr=corr_attr)

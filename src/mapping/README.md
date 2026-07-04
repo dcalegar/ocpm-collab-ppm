@@ -54,6 +54,17 @@ E2O-related objects of an event pairwise and this edge would merge every
 `CollaborationCase` that shares a `Participant`; see
 `ocpm_eval/io_ocel.py`'s `_strip_participant_e2o`.
 
+## Event order preservation (criterion P1.2)
+
+The per-case event order of the source XES log is preserved during transformation through **insertion order**: events are emitted in source order (sorted by timestamp, ties broken by appearance order), and both OCEL 2.0 serializations (JSON and SQLite) maintain this insertion order. 
+
+**Important precondition for trace reconstruction:**
+- Consumers reading the OCEL output must preserve insertion order when accessing events
+- Any reordering, sorting, or manipulation of events will lose the original trace order
+- The mapping does not emit an explicit order attribute; order is an implicit property of the serialization
+
+This design keeps the transformation lightweight while relying on standard serialization semantics. Tools like OCPA that read OCEL from SQLite in insertion order will reconstruct traces correctly; tools that reorder events (e.g., by timestamp, activity, or ID) may produce different outputs.
+
 ## Consistency checks (P1.1–P1.6)
 
 Machine-checked guards against implementation defects (the mapping's
