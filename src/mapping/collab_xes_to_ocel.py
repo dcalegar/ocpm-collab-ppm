@@ -613,6 +613,7 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
                 COL_ACTIVITY: ev["activity"],
                 COL_TIMESTAMP: ev["timestamp"],
                 "elemType": ev["elem"],
+                "sequenceNumber": ev["idx"],  # within-case source order (0-based)
             }
             # ---- M8: structural attribute preservation ---------------
             # collab:participant, collab:elemType, fromParticipant, and

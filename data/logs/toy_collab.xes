@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<log xes.version="1849-2016" xes.features="nested-attributes" xmlns="http://www.xes-standard.org/">
+	<trace>
+		<string key="concept:name" value="T1" />
+		<event>
+			<string key="concept:name" value="Start" />
+			<date key="time:timestamp" value="2024-01-01T00:00:01+00:00" />
+			<string key="collab:elemType" value="task" />
+			<string key="collab:participant" value="PartyA" />
+		</event>
+		<event>
+			<string key="concept:name" value="SendOrder" />
+			<date key="time:timestamp" value="2024-01-01T00:00:02+00:00" />
+			<string key="collab:elemType" value="SendTask" />
+			<string key="collab:participant" value="PartyA" />
+			<string key="collab:fromParticipant" value="PartyA" />
+			<string key="collab:toParticipant" value="PartyB" />
+			<string key="msgId" value="T1-m1" />
+		</event>
+		<event>
+			<string key="concept:name" value="RecvOrder" />
+			<date key="time:timestamp" value="2024-01-01T00:00:03+00:00" />
+			<string key="collab:elemType" value="ReceiveTask" />
+			<string key="collab:participant" value="PartyB" />
+			<string key="collab:fromParticipant" value="PartyA" />
+			<string key="collab:toParticipant" value="PartyB" />
+			<string key="msgId" value="T1-m1" />
+		</event>
+		<event>
+			<string key="concept:name" value="Prepare" />
+			<date key="time:timestamp" value="2024-01-01T00:00:04+00:00" />
+			<string key="collab:elemType" value="task" />
+			<string key="collab:participant" value="PartyB" />
+		</event>
+		<event>
+			<string key="concept:name" value="SendAck" />
+			<date key="time:timestamp" value="2024-01-01T00:00:05+00:00" />
+			<string key="collab:elemType" value="SendTask" />
+			<string key="collab:participant" value="PartyB" />
+			<string key="collab:fromParticipant" value="PartyB" />
+			<string key="collab:toParticipant" value="PartyA" />
+			<string key="msgId" value="T1-m2" />
+		</event>
+		<event>
+			<string key="concept:name" value="RecvAck" />
+			<date key="time:timestamp" value="2024-01-01T00:00:06+00:00" />
+			<string key="collab:elemType" value="ReceiveTask" />
+			<string key="collab:participant" value="PartyA" />
+			<string key="collab:fromParticipant" value="PartyB" />
+			<string key="collab:toParticipant" value="PartyA" />
+			<string key="msgId" value="T1-m2" />
+		</event>
+		<event>
+			<string key="concept:name" value="SendUpdate" />
+			<date key="time:timestamp" value="2024-01-01T00:00:07+00:00" />
+			<string key="collab:elemType" value="SendTask" />
+			<string key="collab:participant" value="PartyA" />
+			<string key="collab:fromParticipant" value="PartyA" />
+			<string key="collab:toParticipant" value="PartyB" />
+			<string key="msgId" value="T1-m3" />
+		</event>
+		<event>
+			<string key="concept:name" value="Review" />
+			<date key="time:timestamp" value="2024-01-01T00:00:08+00:00" />
+			<string key="collab:elemType" value="task" />
+			<string key="collab:participant" value="PartyA" />
+		</event>
+		<event>
+			<string key="concept:name" value="Close" />
+			<date key="time:timestamp" value="2024-01-01T00:00:09+00:00" />
+			<string key="collab:elemType" value="task" />
+			<string key="collab:participant" value="PartyB" />
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="T2" />
+		<event>
+			<string key="concept:name" value="Start" />
+			<date key="time:timestamp" value="2024-01-01T00:00:01+00:00" />
+			<string key="collab:elemType" value="task" />
+			<string key="collab:participant" value="PartyA" />
+		</event>
+		<event>
+			<string key="concept:name" value="SendX" />
+			<date key="time:timestamp" value="2024-01-01T00:00:02+00:00" />
+			<string key="collab:elemType" value="SendTask" />
+			<string key="collab:participant" value="PartyA" />
+			<string key="collab:fromParticipant" value="PartyA" />
+			<string key="collab:toParticipant" value="PartyB" />
+			<string key="msgId" value="T2-m1" />
+		</event>
+		<event>
+			<string key="concept:name" value="SendY" />
+			<date key="time:timestamp" value="2024-01-01T00:00:03+00:00" />
+			<string key="collab:elemType" value="SendTask" />
+			<string key="collab:participant" value="PartyA" />
+			<string key="collab:fromParticipant" value="PartyA" />
+			<string key="collab:toParticipant" value="PartyB" />
+			<string key="msgId" value="T2-m2" />
+		</event>
+		<event>
+			<string key="concept:name" value="RecvX" />
+			<date key="time:timestamp" value="2024-01-01T00:00:04+00:00" />
+			<string key="collab:elemType" value="ReceiveTask" />
+			<string key="collab:participant" value="PartyB" />
+			<string key="collab:fromParticipant" value="PartyA" />
+			<string key="collab:toParticipant" value="PartyB" />
+			<string key="msgId" value="T2-m1" />
+		</event>
+		<event>
+			<string key="concept:name" value="RecvY" />
+			<date key="time:timestamp" value="2024-01-01T00:00:05+00:00" />
+			<string key="collab:elemType" value="ReceiveTask" />
+			<string key="collab:participant" value="PartyB" />
+			<string key="collab:fromParticipant" value="PartyA" />
+			<string key="collab:toParticipant" value="PartyB" />
+			<string key="msgId" value="T2-m2" />
+		</event>
+		<event>
+			<string key="concept:name" value="SendZ" />
+			<date key="time:timestamp" value="2024-01-01T00:00:06+00:00" />
+			<string key="collab:elemType" value="SendTask" />
+			<string key="collab:participant" value="PartyB" />
+			<string key="collab:fromParticipant" value="PartyB" />
+			<string key="collab:toParticipant" value="PartyA" />
+			<string key="msgId" value="T2-m3" />
+		</event>
+		<event>
+			<string key="concept:name" value="Wrapup" />
+			<date key="time:timestamp" value="2024-01-01T00:00:07+00:00" />
+			<string key="collab:elemType" value="task" />
+			<string key="collab:participant" value="PartyB" />
+		</event>
+		<event>
+			<string key="concept:name" value="End" />
+			<date key="time:timestamp" value="2024-01-01T00:00:08+00:00" />
+			<string key="collab:elemType" value="task" />
+			<string key="collab:participant" value="PartyA" />
+		</event>
+	</trace>
+	<trace>
+		<string key="concept:name" value="T3" />
+		<event>
+			<string key="concept:name" value="Start" />
+			<date key="time:timestamp" value="2024-01-01T00:00:01+00:00" />
+			<string key="collab:elemType" value="task" />
+			<string key="collab:participant" value="PartyA" />
+		</event>
+		<event>
+			<string key="concept:name" value="SendP" />
+			<date key="time:timestamp" value="2024-01-01T00:00:02+00:00" />
+			<string key="collab:elemType" value="SendTask" />
+			<string key="collab:participant" value="PartyA" />
+			<string key="collab:fromParticipant" value="PartyA" />
+			<string key="collab:toParticipant" value="PartyB" />
+			<string key="msgId" value="T3-m1" />
+		</event>
+		<event>
+			<string key="concept:name" value="RecvP" />
+			<date key="time:timestamp" value="2024-01-01T00:00:03+00:00" />
+			<string key="collab:elemType" value="ReceiveTask" />
+			<string key="collab:participant" value="PartyB" />
+			<string key="collab:fromParticipant" value="PartyA" />
+			<string key="collab:toParticipant" value="PartyB" />
+			<string key="msgId" value="T3-m1" />
+		</event>
+		<event>
+			<string key="concept:name" value="SendQ" />
+			<date key="time:timestamp" value="2024-01-01T00:00:04+00:00" />
+			<string key="collab:elemType" value="SendTask" />
+			<string key="collab:participant" value="PartyB" />
+			<string key="collab:fromParticipant" value="PartyB" />
+			<string key="collab:toParticipant" value="PartyA" />
+			<string key="msgId" value="T3-m2" />
+		</event>
+		<event>
+			<string key="concept:name" value="RecvQ" />
+			<date key="time:timestamp" value="2024-01-01T00:00:05+00:00" />
+			<string key="collab:elemType" value="ReceiveTask" />
+			<string key="collab:participant" value="PartyA" />
+			<string key="collab:fromParticipant" value="PartyB" />
+			<string key="collab:toParticipant" value="PartyA" />
+			<string key="msgId" value="T3-m2" />
+		</event>
+		<event>
+			<string key="concept:name" value="End" />
+			<date key="time:timestamp" value="2024-01-01T00:00:06+00:00" />
+			<string key="collab:elemType" value="task" />
+			<string key="collab:participant" value="PartyB" />
+		</event>
+	</trace>
+</log>

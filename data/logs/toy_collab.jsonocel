@@ -1,0 +1,2176 @@
+{
+  "objectTypes": [
+    {
+      "name": "CollaborationCase",
+      "attributes": [
+        {
+          "name": "caseId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "type": "string"
+        },
+        {
+          "name": "receiver",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "Participant",
+      "attributes": [
+        {
+          "name": "name",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "ParticipantProjection",
+      "attributes": [
+        {
+          "name": "caseId",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "eventTypes": [
+    {
+      "name": "Close",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "End",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "Prepare",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "RecvAck",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "RecvOrder",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "RecvP",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "RecvQ",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "RecvX",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "RecvY",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "Review",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "SendAck",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "SendOrder",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "SendP",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "SendQ",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "SendUpdate",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "SendX",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "SendY",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "SendZ",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        },
+        {
+          "name": "fromParticipant",
+          "type": "string"
+        },
+        {
+          "name": "toParticipant",
+          "type": "string"
+        },
+        {
+          "name": "msgId",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "Start",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "Wrapup",
+      "attributes": [
+        {
+          "name": "elemType",
+          "type": "string"
+        },
+        {
+          "name": "sequenceNumber",
+          "type": "string"
+        },
+        {
+          "name": "participant",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "cc::T1",
+      "type": "CollaborationCase",
+      "attributes": [
+        {
+          "name": "caseId",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "T1"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T1::1",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T1",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T1::2",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T1",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T1::4",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T1",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T1::5",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T1",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T1::6",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T1",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "part::PartyA",
+      "type": "Participant",
+      "attributes": [
+        {
+          "name": "name",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        }
+      ]
+    },
+    {
+      "id": "pp::T1::PartyA",
+      "type": "ParticipantProjection",
+      "attributes": [
+        {
+          "name": "caseId",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "T1"
+        },
+        {
+          "name": "participant",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T1",
+          "qualifier": "projection_of"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "for_participant"
+        }
+      ]
+    },
+    {
+      "id": "part::PartyB",
+      "type": "Participant",
+      "attributes": [
+        {
+          "name": "name",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ]
+    },
+    {
+      "id": "pp::T1::PartyB",
+      "type": "ParticipantProjection",
+      "attributes": [
+        {
+          "name": "caseId",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "T1"
+        },
+        {
+          "name": "participant",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T1",
+          "qualifier": "projection_of"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "for_participant"
+        }
+      ]
+    },
+    {
+      "id": "cc::T2",
+      "type": "CollaborationCase",
+      "attributes": [
+        {
+          "name": "caseId",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "T2"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T2::1",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T2",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T2::2",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T2",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T2::3",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T2",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T2::4",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T2",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T2::5",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T2",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "pp::T2::PartyA",
+      "type": "ParticipantProjection",
+      "attributes": [
+        {
+          "name": "caseId",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "T2"
+        },
+        {
+          "name": "participant",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T2",
+          "qualifier": "projection_of"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "for_participant"
+        }
+      ]
+    },
+    {
+      "id": "pp::T2::PartyB",
+      "type": "ParticipantProjection",
+      "attributes": [
+        {
+          "name": "caseId",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "T2"
+        },
+        {
+          "name": "participant",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T2",
+          "qualifier": "projection_of"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "for_participant"
+        }
+      ]
+    },
+    {
+      "id": "cc::T3",
+      "type": "CollaborationCase",
+      "attributes": [
+        {
+          "name": "caseId",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "T3"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T3::1",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T3",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T3::2",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T3",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T3::3",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T3",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "msg::e::T3::4",
+      "type": "Message",
+      "attributes": [
+        {
+          "name": "sender",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        },
+        {
+          "name": "receiver",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "from"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "to"
+        },
+        {
+          "objectId": "cc::T3",
+          "qualifier": "exchanged_in"
+        }
+      ]
+    },
+    {
+      "id": "pp::T3::PartyA",
+      "type": "ParticipantProjection",
+      "attributes": [
+        {
+          "name": "caseId",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "T3"
+        },
+        {
+          "name": "participant",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T3",
+          "qualifier": "projection_of"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "for_participant"
+        }
+      ]
+    },
+    {
+      "id": "pp::T3::PartyB",
+      "type": "ParticipantProjection",
+      "attributes": [
+        {
+          "name": "caseId",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "T3"
+        },
+        {
+          "name": "participant",
+          "time": "1970-01-01T00:00:00Z",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T3",
+          "qualifier": "projection_of"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "for_participant"
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "e::T1::0",
+      "type": "Start",
+      "time": "2024-01-01T00:00:01Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "task"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "0"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T1",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T1::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        }
+      ]
+    },
+    {
+      "id": "e::T1::1",
+      "type": "SendOrder",
+      "time": "2024-01-01T00:00:02Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "SendTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "1"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "msgId",
+          "value": "T1-m1"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T1",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T1::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T1::1",
+          "qualifier": "send"
+        }
+      ]
+    },
+    {
+      "id": "e::T1::2",
+      "type": "RecvOrder",
+      "time": "2024-01-01T00:00:03Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "ReceiveTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "2"
+        },
+        {
+          "name": "participant",
+          "value": "PartyB"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "msgId",
+          "value": "T1-m1"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T1",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T1::PartyB",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T1::2",
+          "qualifier": "receive"
+        }
+      ]
+    },
+    {
+      "id": "e::T1::3",
+      "type": "Prepare",
+      "time": "2024-01-01T00:00:04Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "task"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "3"
+        },
+        {
+          "name": "participant",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T1",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T1::PartyB",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "participant"
+        }
+      ]
+    },
+    {
+      "id": "e::T1::4",
+      "type": "SendAck",
+      "time": "2024-01-01T00:00:05Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "SendTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "4"
+        },
+        {
+          "name": "participant",
+          "value": "PartyB"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "msgId",
+          "value": "T1-m2"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T1",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T1::PartyB",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T1::4",
+          "qualifier": "send"
+        }
+      ]
+    },
+    {
+      "id": "e::T1::5",
+      "type": "RecvAck",
+      "time": "2024-01-01T00:00:06Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "ReceiveTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "5"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "msgId",
+          "value": "T1-m2"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T1",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T1::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T1::5",
+          "qualifier": "receive"
+        }
+      ]
+    },
+    {
+      "id": "e::T1::6",
+      "type": "SendUpdate",
+      "time": "2024-01-01T00:00:07Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "SendTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "6"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "msgId",
+          "value": "T1-m3"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T1",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T1::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T1::6",
+          "qualifier": "send"
+        }
+      ]
+    },
+    {
+      "id": "e::T1::7",
+      "type": "Review",
+      "time": "2024-01-01T00:00:08Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "task"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "7"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T1",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T1::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        }
+      ]
+    },
+    {
+      "id": "e::T1::8",
+      "type": "Close",
+      "time": "2024-01-01T00:00:09Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "task"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "8"
+        },
+        {
+          "name": "participant",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T1",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T1::PartyB",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "participant"
+        }
+      ]
+    },
+    {
+      "id": "e::T2::0",
+      "type": "Start",
+      "time": "2024-01-01T00:00:01Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "task"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "0"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T2",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T2::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        }
+      ]
+    },
+    {
+      "id": "e::T2::1",
+      "type": "SendX",
+      "time": "2024-01-01T00:00:02Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "SendTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "1"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "msgId",
+          "value": "T2-m1"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T2",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T2::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T2::1",
+          "qualifier": "send"
+        }
+      ]
+    },
+    {
+      "id": "e::T2::2",
+      "type": "SendY",
+      "time": "2024-01-01T00:00:03Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "SendTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "2"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "msgId",
+          "value": "T2-m2"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T2",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T2::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T2::2",
+          "qualifier": "send"
+        }
+      ]
+    },
+    {
+      "id": "e::T2::3",
+      "type": "RecvX",
+      "time": "2024-01-01T00:00:04Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "ReceiveTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "3"
+        },
+        {
+          "name": "participant",
+          "value": "PartyB"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "msgId",
+          "value": "T2-m1"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T2",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T2::PartyB",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T2::3",
+          "qualifier": "receive"
+        }
+      ]
+    },
+    {
+      "id": "e::T2::4",
+      "type": "RecvY",
+      "time": "2024-01-01T00:00:05Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "ReceiveTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "4"
+        },
+        {
+          "name": "participant",
+          "value": "PartyB"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "msgId",
+          "value": "T2-m2"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T2",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T2::PartyB",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T2::4",
+          "qualifier": "receive"
+        }
+      ]
+    },
+    {
+      "id": "e::T2::5",
+      "type": "SendZ",
+      "time": "2024-01-01T00:00:06Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "SendTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "5"
+        },
+        {
+          "name": "participant",
+          "value": "PartyB"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "msgId",
+          "value": "T2-m3"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T2",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T2::PartyB",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T2::5",
+          "qualifier": "send"
+        }
+      ]
+    },
+    {
+      "id": "e::T2::6",
+      "type": "Wrapup",
+      "time": "2024-01-01T00:00:07Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "task"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "6"
+        },
+        {
+          "name": "participant",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T2",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T2::PartyB",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "participant"
+        }
+      ]
+    },
+    {
+      "id": "e::T2::7",
+      "type": "End",
+      "time": "2024-01-01T00:00:08Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "task"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "7"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T2",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T2::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        }
+      ]
+    },
+    {
+      "id": "e::T3::0",
+      "type": "Start",
+      "time": "2024-01-01T00:00:01Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "task"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "0"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T3",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T3::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        }
+      ]
+    },
+    {
+      "id": "e::T3::1",
+      "type": "SendP",
+      "time": "2024-01-01T00:00:02Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "SendTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "1"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "msgId",
+          "value": "T3-m1"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T3",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T3::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T3::1",
+          "qualifier": "send"
+        }
+      ]
+    },
+    {
+      "id": "e::T3::2",
+      "type": "RecvP",
+      "time": "2024-01-01T00:00:03Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "ReceiveTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "2"
+        },
+        {
+          "name": "participant",
+          "value": "PartyB"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "msgId",
+          "value": "T3-m1"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T3",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T3::PartyB",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T3::2",
+          "qualifier": "receive"
+        }
+      ]
+    },
+    {
+      "id": "e::T3::3",
+      "type": "SendQ",
+      "time": "2024-01-01T00:00:04Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "SendTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "3"
+        },
+        {
+          "name": "participant",
+          "value": "PartyB"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "msgId",
+          "value": "T3-m2"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T3",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T3::PartyB",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T3::3",
+          "qualifier": "send"
+        }
+      ]
+    },
+    {
+      "id": "e::T3::4",
+      "type": "RecvQ",
+      "time": "2024-01-01T00:00:05Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "ReceiveTask"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "4"
+        },
+        {
+          "name": "participant",
+          "value": "PartyA"
+        },
+        {
+          "name": "fromParticipant",
+          "value": "PartyB"
+        },
+        {
+          "name": "toParticipant",
+          "value": "PartyA"
+        },
+        {
+          "name": "msgId",
+          "value": "T3-m2"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T3",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T3::PartyA",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyA",
+          "qualifier": "participant"
+        },
+        {
+          "objectId": "msg::e::T3::4",
+          "qualifier": "receive"
+        }
+      ]
+    },
+    {
+      "id": "e::T3::5",
+      "type": "End",
+      "time": "2024-01-01T00:00:06Z",
+      "attributes": [
+        {
+          "name": "elemType",
+          "value": "task"
+        },
+        {
+          "name": "sequenceNumber",
+          "value": "5"
+        },
+        {
+          "name": "participant",
+          "value": "PartyB"
+        }
+      ],
+      "relationships": [
+        {
+          "objectId": "cc::T3",
+          "qualifier": "within"
+        },
+        {
+          "objectId": "pp::T3::PartyB",
+          "qualifier": "in_projection"
+        },
+        {
+          "objectId": "part::PartyB",
+          "qualifier": "participant"
+        }
+      ]
+    }
+  ]
+}
