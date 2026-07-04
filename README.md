@@ -235,16 +235,15 @@ reformulated tasks, but keeps them **out of `catalog.TASKS`/`EQUIVALENCE_TASKS`/
   `corr_attr` enrichment (`ocpm_tasks/adapters.py`, default `None`) supplies it from a
   residual event attribute (e.g. `"msgId"`) without changing the core mapping.
 
-Both are demonstrated on a **Healthcare log variant with message-correlation ids**
-(`src/mapping/aux/build_healthcare_extended.py` → `data/logs/healthcare_extended.xes`:
-100 cases, 1450 events, same structure as the original healthcare log but with `msgId`
-attributes added to sends for explicit X-MSt correlation). This is converted with
-the same `collab_xes_to_ocel.py` converter as the study logs and run through the
-*same* OCPA feature-extraction/CV/RandomForest machinery as RQ3
-(`ocpm_eval/rq_ext_pipeline.py`), demonstrating that the extensions work on realistic
-data, not just the hand-built toy case. A dedicated pure-Python test
-(`tests/test_extensions_toy.py`) remains as a unit test, verifying label logic by
-hand on a small synthetic case with intentional in-flight/unmatched sends.
+Both are demonstrated on a **small hand-built toy log**
+(`src/mapping/aux/build_toy_collab_log.py` → `data/logs/toy_collab.xes`: 3 cases, 23 events,
+designed to exercise both targets with variable in-flight backlogs and explicit `msgId` 
+correlation ids on send/receive events). This is converted with the same 
+`collab_xes_to_ocel.py` converter as the study logs and run through the *same* OCPA 
+feature-extraction/CV/RandomForest machinery as RQ3 (`ocpm_eval/rq_ext_pipeline.py`), 
+demonstrating that the extensions work end-to-end in the native object-centric pipeline.
+A dedicated pure-Python unit test (`tests/test_extensions_toy.py`) verifies label logic 
+by hand on synthetic cases with intentional in-flight/unmatched sends.
 
 ---
 
