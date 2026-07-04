@@ -36,13 +36,30 @@ def build_feature_set(ocel, schema):
     execution-based features (they would leak). feature_set[0] = remaining time is the
     NV-PrT target and the alignment oracle (excluded from model features by the
     caller). This is the tabular encoding (one row per cut point); OCPA's sequential /
-    graph encodings are alternatives the same features support."""
+    graph encodings are alternatives the same features support.
+
+    Uses ot_pp (ParticipantProjection), not ot_participant, as the second
+    previous_type_count argument: io_ocel.load_ocpa_ocel strips the direct
+    event->Participant E2O edge before import (to stop OCPA's leading-type
+    extraction from merging every CollaborationCase that shares a Participant),
+    so Participant never appears in event_objects and a count over it is always
+    0. ParticipantProjection is untouched by that strip and is minted 1:1 with
+    (case, participant) by the converter (collab_xes_to_ocel._pp_id), so a
+    previous-ParticipantProjection-count within one execution equals the
+    previous-Participant-count it was meant to capture."""
     from ocpa.algo.predictive_monitoring import factory as predictive_monitoring
-    activities = list(set(ocel.log.log["event_activity"].tolist()))
+    # sorted(), not list(set(...)): a set's string iteration order depends on
+    # Python's per-process hash seed, which would silently reorder the
+    # preceding_activities(a) feature columns from run to run. Since
+    # RandomForestClassifier/Regressor subsamples features by column
+    # position using the random_state-seeded RNG, a reordered column set
+    # would make results non-reproducible across process runs despite the
+    # fixed seed.
+    activities = sorted(set(ocel.log.log["event_activity"].tolist()))
     return [
         (predictive_monitoring.EVENT_REMAINING_TIME, ()),     # [0]: target + oracle
         (predictive_monitoring.EVENT_ELAPSED_TIME, ()),
-        (predictive_monitoring.EVENT_PREVIOUS_TYPE_COUNT, (schema.ot_participant,)),
+        (predictive_monitoring.EVENT_PREVIOUS_TYPE_COUNT, (schema.ot_pp,)),
         (predictive_monitoring.EVENT_PREVIOUS_TYPE_COUNT, (schema.ot_message,)),
     ] + [(predictive_monitoring.EVENT_PRECEDING_ACTIVITIES, (a,)) for a in activities]
 

@@ -15,18 +15,27 @@ from ocpa.util.util import LinearRegression as OcpaLinearRegression
 from ocpm_tasks.catalog import Task
 
 
-def _xy(table: pd.DataFrame, feature_cols: List[str], y_col: str):
-    X = table[feature_cols].copy()
-    for c in X.columns:
-        if X[c].dtype == object or str(X[c].dtype).startswith("category"):
-            X[c] = X[c].astype("category").cat.codes
-    return X.fillna(0.0), table[y_col]
+def _xy(table: pd.DataFrame, feature_cols: List[str], y_col: str, train_mask, test_mask):
+    """Split into train/test and encode categorical columns fit on train only.
+
+    Unseen categories at test time (present in test but not in train) are
+    encoded as -1, matching pandas' standard out-of-vocabulary convention,
+    rather than being folded into a train+test-wide category mapping.
+    """
+    X_tr = table.loc[train_mask, feature_cols].copy()
+    X_te = table.loc[test_mask, feature_cols].copy()
+    for c in feature_cols:
+        if X_tr[c].dtype == object or str(X_tr[c].dtype).startswith("category"):
+            categories = pd.Categorical(X_tr[c]).categories
+            X_tr[c] = pd.Categorical(X_tr[c], categories=categories).codes
+            X_te[c] = pd.Categorical(X_te[c], categories=categories).codes
+    y = table[y_col]
+    return X_tr.fillna(0.0), X_te.fillna(0.0), y[train_mask], y[test_mask]
 
 
 def fit_and_score_fold(table: pd.DataFrame, feature_cols: List[str], y_col: str,
                        task: Task, train_mask, test_mask, cfg) -> Dict[str, float]:
-    X, y = _xy(table, feature_cols, y_col)
-    X_tr, X_te, y_tr, y_te = X[train_mask], X[test_mask], y[train_mask], y[test_mask]
+    X_tr, X_te, y_tr, y_te = _xy(table, feature_cols, y_col, train_mask, test_mask)
     if len(y_tr) == 0 or len(y_te) == 0:
         return {}
     if task.kind in ("categorical", "binary"):
@@ -67,8 +76,7 @@ def fit_and_score_fold_ocpa_lr(table: pd.DataFrame, feature_cols: List[str], y_c
     OCPA ships no classifier, so categorical/binary tasks are skipped (empty dict)."""
     if task.kind in ("categorical", "binary"):
         return {}
-    X, y = _xy(table, feature_cols, y_col)
-    X_tr, X_te, y_tr, y_te = X[train_mask], X[test_mask], y[train_mask], y[test_mask]
+    X_tr, X_te, y_tr, y_te = _xy(table, feature_cols, y_col, train_mask, test_mask)
     if len(y_tr) == 0 or len(y_te) == 0:
         return {}
     reg = OcpaLinearRegression()

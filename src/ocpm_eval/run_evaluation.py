@@ -21,7 +21,21 @@ in-flight backlog) and X-MSt (message synchronization time with correlation).
 Remaining extensions (X-PaL, X-Cmp, X-Lag) are not implemented here.
 
 Usage: python -m ocpm_eval.run_evaluation   (adjust paths in config.py)
+
+Reproducibility note: a fixed PYTHONHASHSEED is required across process runs.
+OCPA's leading-type process-execution extraction and some of our own set(...)
+usages (e.g. the activity vocabulary in features_ocpa.build_feature_set) order
+their output by Python's per-string hash, which is randomized per process
+unless PYTHONHASHSEED is pinned; without it, CollaborationCase/row order can
+differ between runs, which in turn changes which rows RandomForest's bootstrap
+sampling draws at each fixed random_state, changing the reported metrics by a
+few percentage points despite the fixed seed. The __main__ guard below
+re-execs the process once with PYTHONHASHSEED=0 if it is not already set, so
+`python -m ocpm_eval.run_evaluation` is reproducible without the caller having
+to remember the environment variable.
 """
+import os
+import sys
 from dataclasses import replace
 from typing import Optional
 from ocpm_tasks.catalog import EQUIVALENCE_TASKS
@@ -49,4 +63,7 @@ def main(cfg: Optional[ExperimentConfig] = None,
 
 
 if __name__ == "__main__":
+    if os.environ.get("PYTHONHASHSEED") != "0":
+        os.environ["PYTHONHASHSEED"] = "0"
+        os.execv(sys.executable, [sys.executable, "-m", "ocpm_eval.run_evaluation"] + sys.argv[1:])
     main()

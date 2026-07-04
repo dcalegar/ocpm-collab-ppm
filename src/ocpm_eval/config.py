@@ -48,7 +48,7 @@ class ExperimentConfig:
     obm_target_activity: Optional[str] = None
     obp_target_participant: Optional[str] = None
 
-    out_dir: str = "results"
+    out_dir: str = "data/results"
     bottom: str = "__BOTTOM__"
     numeric_tol: float = 1.0     # seconds, for RQ2 temporal equivalence
 
