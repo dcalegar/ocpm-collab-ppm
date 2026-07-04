@@ -58,12 +58,13 @@ class ExperimentConfig:
 # from ExperimentConfig/delgado_ocel_logs so it never mixes into RQ2/RQ3.
 # ---------------------------------------------------------------------------
 def toy_ext_log() -> LogSpec:
-    """Small hand-built toy log (src/mapping/aux/build_toy_collab_log.py) for
-    testing X-Inf and X-MSt extensions; NOT one of the four study logs. 3 cases,
-    23 events, designed to exercise both targets: variable in-flight backlogs
-    (X-Inf) and send/receive pairs with explicit msgId correlation (X-MSt).
-    Demonstrates that both extensions are functionally correct when data has
-    the needed semantic properties (send/receive events + correlation ids)."""
+    """Hand-built toy log (src/mapping/aux/build_toy_collab_log.py) for
+    testing X-Inf and X-MSt extensions; NOT one of the four study logs. 100
+    cases, 3 participants, 904 events, designed to exercise both targets:
+    variable in-flight backlogs (X-Inf) and send/receive pairs with explicit
+    msgId correlation (X-MSt). Demonstrates that both extensions are
+    functionally correct when data has the needed semantic properties
+    (send/receive events + correlation ids)."""
     return LogSpec("ToyCollab", "data/logs/toy_collab.sqlite",
                                 "data/logs/toy_collab.xes")
 
@@ -79,7 +80,8 @@ class ExtExperimentConfig:
     # undefined everywhere, as in the core (unenriched) mapping.
     corr_attr: Optional[str] = "msgId"
 
-    n_folds: int = 2            # the toy log has only 3 collaboration cases
+    # Same 5-fold protocol as ExperimentConfig (RQ3), grouped by CollaborationCase.
+    n_folds: int = 5
     random_state: int = 3395
     rf_n_estimators: int = 200
     rf_max_depth: Optional[int] = None
