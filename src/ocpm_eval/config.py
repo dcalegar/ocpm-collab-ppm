@@ -60,11 +60,14 @@ class ExperimentConfig:
 def toy_ext_log() -> LogSpec:
     """Hand-built toy log (src/mapping/aux/build_toy_collab_log.py) for
     testing X-Inf and X-MSt extensions; NOT one of the four study logs. 100
-    cases, 3 participants, 904 events, designed to exercise both targets:
+    cases, 3 participants, 1,132 events, designed to exercise both targets:
     variable in-flight backlogs (X-Inf) and send/receive pairs with explicit
-    msgId correlation (X-MSt). Demonstrates that both extensions are
-    functionally correct when data has the needed semantic properties
-    (send/receive events + correlation ids)."""
+    msgId correlation (X-MSt), tied to case participant count (2 vs. 3) so
+    both targets carry a genuine, prefix-observable signal rather than one
+    drawn i.i.d. of the observed prefix. Demonstrates that both extensions
+    are functionally correct, and exploitable by a generic object-centric
+    feature set, when data has the needed semantic properties (send/receive
+    events + correlation ids)."""
     return LogSpec("ToyCollab", "data/logs/toy_collab.sqlite",
                                 "data/logs/toy_collab.xes")
 

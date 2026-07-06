@@ -11,10 +11,14 @@ them); it stays out of RQ2/RQ3 by task/config separation, not by directory
 -- its own results go to a dedicated "rq_ext_results_toy.csv" in data/results/.
 
 100 collaboration cases with 3 participants (PartyA, PartyB, PartyC), each with
-6-15 events. Cases are generated to exercise both X-Inf and X-MSt:
-  - Variable in-flight backlogs (peak 0-4 unmatched sends)
-  - Variable send-to-receive latencies (1-8 seconds)
-  - Some sends that are never received (driving X-Inf backlog)
+a variable number of events. Cases are generated to exercise both X-Inf and
+X-MSt, with backlog/latency tied to a prefix-observable structural property
+(2 vs. 3 participants in the case) rather than drawn independently of the
+observed prefix, so the targets carry a genuine, learnable signal:
+  - Variable in-flight backlogs, higher in 3-party ("congested") cases
+  - Variable send-to-receive latencies, higher in 3-party cases
+  - Some sends that are never received (driving X-Inf backlog), more likely
+    in 3-party cases
   - Explicit msgId correlation for X-MSt enrichment
 
 Each Send/Receive event carries a residual "msgId" attribute (NOT part of the
@@ -81,25 +85,41 @@ def build_toy_log() -> EventLog:
         events = []
         time_offset = 0
 
-        # Vary case structure: 2 or 3 participants per case
-        case_participants = random.sample(participants, random.choice([2, 3]))
+        # Vary case structure: 2 or 3 participants per case. Coordination
+        # overhead (backlog, latency) is tied to this structural, prefix-
+        # observable property -- more parties means more concurrent
+        # in-flight messages and slower synchronization, which the
+        # ParticipantProjection object count already reveals to the
+        # feature extractor from the case's first few events onward. This
+        # gives X-Inf/X-MSt a genuine, non-degenerate signal to learn,
+        # instead of drawing backlog/latency i.i.d. of the observed prefix.
+        n_participants = random.choice([2, 3])
+        case_participants = random.sample(participants, n_participants)
         primary = case_participants[0]
-        secondary = case_participants[1]
-        tertiary = case_participants[2] if len(case_participants) > 2 else None
+        congested = n_participants == 3
 
         # Start event
         events.append(_ev(time_offset, "Start", "task", primary))
         time_offset += random.randint(1, 3)
 
-        # Generate 5-12 events per case with varying send/receive patterns
-        num_interactions = random.randint(3, 6)
+        # Join event per remaining participant, right after Start: establishes
+        # every case participant's ParticipantProjection early, so the case-size
+        # signal is available to the feature extractor (previous-PP-count) from
+        # near the beginning of the prefix, not only once that participant
+        # happens to act in a later interaction.
+        for p in case_participants[1:]:
+            events.append(_ev(time_offset, "Join", "task", p))
+            time_offset += random.randint(1, 2)
+
+        # More interactions, and more unmatched sends, in congested cases.
+        num_interactions = random.randint(7, 10) if congested else random.randint(2, 3)
 
         for inter in range(num_interactions):
-            # Decide: 2-party or 3-party interaction, and pattern
+            # Decide: message interaction (any pair of case participants --
+            # 3-party cases have more distinct channels, hence more concurrent
+            # messages) or a regular task
             if random.random() < 0.7:
-                # 2-party: send then receive (but with variable latency)
-                sender = random.choice(case_participants[:2])
-                receiver = secondary if sender == primary else primary
+                sender, receiver = random.sample(case_participants, 2)
                 msg_id = f"{case_id}-m{msg_counter}"
                 msg_counter += 1
 
@@ -109,15 +129,17 @@ def build_toy_log() -> EventLog:
                                  frm=sender, to=receiver, msg_id=msg_id))
                 time_offset += random.randint(1, 2)
 
-                # Receive event (sometimes delayed, sometimes missing entirely)
-                latency = random.randint(1, 8)
-                if random.random() < 0.85:  # 85% receive
+                # Receive event (sometimes delayed, sometimes missing entirely);
+                # congested (3-party) cases run slower and drop more sends.
+                latency = random.randint(5, 12) if congested else random.randint(1, 3)
+                unmatched_prob = 0.35 if congested else 0.03
+                if random.random() >= unmatched_prob:  # received
                     recv_activity = random.choice(["Receive", "Process", "Handle"])
                     events.append(_ev(time_offset + latency, recv_activity,
                                      "ReceiveTask", receiver, frm=sender, to=receiver,
                                      msg_id=msg_id))
                     time_offset += latency + random.randint(1, 3)
-                else:  # 15% unmatched send (drives X-Inf backlog)
+                else:  # unmatched send (drives X-Inf backlog)
                     time_offset += random.randint(2, 4)
             else:
                 # Just a regular task

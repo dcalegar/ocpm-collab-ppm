@@ -236,9 +236,11 @@ reformulated tasks, but keeps them **out of `catalog.TASKS`/`EQUIVALENCE_TASKS`/
   residual event attribute (e.g. `"msgId"`) without changing the core mapping.
 
 Both are demonstrated on a **synthetic toy log**
-(`src/mapping/aux/build_toy_collab_log.py` → `data/logs/toy_collab.xes`: 100 cases, 904 events, 
-3 participants, designed to exercise both targets with variable in-flight backlogs and explicit `msgId` 
-correlation ids on send/receive events). This is converted with the same 
+(`src/mapping/aux/build_toy_collab_log.py` → `data/logs/toy_collab.xes`: 100 cases, 1,132 events,
+3 participants, designed to exercise both targets with variable in-flight backlogs and explicit `msgId`
+correlation ids on send/receive events; backlog and latency are tied to a prefix-observable structural
+property, the case's participant count, so the targets carry a genuine, learnable signal instead of one
+drawn i.i.d. of the observed prefix). This is converted with the same
 `collab_xes_to_ocel.py` converter as the study logs and run through the *same* OCPA 
 feature-extraction/CV/RandomForest machinery as RQ3 (`ocpm_eval/rq_ext_pipeline.py`), 
 demonstrating that the extensions work end-to-end in the native object-centric pipeline

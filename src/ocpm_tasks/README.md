@@ -195,8 +195,9 @@ for key in ("X-Inf", "X-MSt"):
 Both extensions are demonstrated end to end — including the same OCPA feature
 extraction and grouped cross-validation used for the 14 reformulated tasks — on a
 **synthetic toy log** (`src/mapping/aux/build_toy_collab_log.py` → 
-`data/logs/toy_collab.xes`: 100 cases, 904 events, 3 participants, designed to exercise 
-both targets with variable in-flight backlogs and explicit `msgId` correlation ids), 
+`data/logs/toy_collab.xes`: 100 cases, 1,132 events, 3 participants, designed to exercise 
+both targets with variable in-flight backlogs and explicit `msgId` correlation ids, tied to
+case participant count so the targets are genuinely learnable from the observed prefix), 
 converted with the same `collab_xes_to_ocel.py` converter as the four study logs, via
 `ocpm_eval/rq_ext_pipeline.py` (results in `data/results/rq_ext_results_toy.csv`).
 A dedicated pure-Python unit test, `tests/test_extensions_toy.py`, verifies label logic 
