@@ -1,6 +1,6 @@
 """
 RQ-EXT — object-enabled EXTENSION tasks (X-Inf, X-MSt), demonstrated on a
-hand-built toy log (data/logs/toy_collab.*) designed to exercise both extensions,
+hand-built toy log (data/logs/ToyCollab/toy_collab.*) designed to exercise both extensions,
 never on the four study logs.
 
 This mirrors rq3_pipeline.run_one_log/run_rq3 exactly (same OCPA feature

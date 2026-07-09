@@ -74,7 +74,9 @@ ocpm-collab-ppm/
 │       ├── rq_ext_pipeline.py #   RQ-EXT — X-Inf/X-MSt demo on the TOY log only
 │       └── run_evaluation.py  #   orchestrator (RQ2/RQ3/RQ-EXT)
 └── data/
-    ├── logs/                    # the four study logs, PLUS toy_collab.* (X-Inf/X-MSt demo log)
+    ├── logs/
+    │   ├── Predict-Collab/      # the four study logs
+    │   └── ToyCollab/           # toy_collab.* (X-Inf/X-MSt demo log)
     └── results/                 # evaluation outputs, incl. rq_ext_results_toy.csv (RQ-EXT demo)
 ```
 
@@ -236,7 +238,7 @@ reformulated tasks, but keeps them **out of `catalog.TASKS`/`EQUIVALENCE_TASKS`/
   residual event attribute (e.g. `"msgId"`) without changing the core mapping.
 
 Both are demonstrated on a **synthetic toy log**
-(`src/mapping/aux/build_toy_collab_log.py` → `data/logs/toy_collab.xes`: 100 cases, 1,132 events,
+(`src/mapping/aux/build_toy_collab_log.py` → `data/logs/ToyCollab/toy_collab.xes`: 100 cases, 1,132 events,
 3 participants, designed to exercise both targets with variable in-flight backlogs and explicit `msgId`
 correlation ids on send/receive events; backlog and latency are tied to a prefix-observable structural
 property, the case's participant count, so the targets carry a genuine, learnable signal instead of one

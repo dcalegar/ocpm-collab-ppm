@@ -5,10 +5,11 @@ build_toy_collab_log.py
 =====================================================================
 Builds a synthetic extended collaborative XES log (100 cases, 3 participants)
 used ONLY to demonstrate and test the object-enabled EXTENSION tasks (X-Inf,
-X-MSt; see ocpm_tasks/extensions.py). Its files live alongside the four study
-logs in data/logs/ (named "toy_collab.*" so it is never mistaken for one of
-them); it stays out of RQ2/RQ3 by task/config separation, not by directory
--- its own results go to a dedicated "rq_ext_results_toy.csv" in data/results/.
+X-MSt; see ocpm_tasks/extensions.py). Its files live in data/logs/ToyCollab/
+(named "toy_collab.*" so it is never mistaken for one of the four study logs,
+which live in data/logs/Predict-Collab/); it stays out of RQ2/RQ3 by
+task/config separation, not by directory -- its own results go to a dedicated
+"rq_ext_results_toy.csv" in data/results/.
 
 100 collaboration cases with 3 participants (PartyA, PartyB, PartyC), each with
 a variable number of events. Cases are generated to exercise both X-Inf and
@@ -30,7 +31,7 @@ explicit, opt-in correlation source.
 
 Run (mapping venv, pm4py >= 2.7):
     arch -x86_64 .venv-mapping/bin/python3.10 \
-        src/mapping/aux/build_toy_collab_log.py data/logs/toy_collab.xes
+        src/mapping/aux/build_toy_collab_log.py data/logs/ToyCollab/toy_collab.xes
 """
 from __future__ import annotations
 
@@ -161,7 +162,7 @@ def build_toy_log() -> EventLog:
 def main(argv=None):
     import pm4py
     argv = argv if argv is not None else sys.argv[1:]
-    out_path = argv[0] if argv else "data/logs/toy_collab.xes"
+    out_path = argv[0] if argv else "data/logs/ToyCollab/toy_collab.xes"
     log = build_toy_log()
     pm4py.write_xes(log, out_path)
     n_events = sum(len(t) for t in log)

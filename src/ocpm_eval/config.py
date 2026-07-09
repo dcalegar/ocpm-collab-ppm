@@ -18,22 +18,22 @@ class LogSpec:
     xes_path: str    # extended collaborative XES (.xes), original source log (R1)
 
 
-def delgado_ocel_logs() -> List[LogSpec]:
+def predictcollab_ocel_logs() -> List[LogSpec]:
     return [
-        LogSpec("Healthcare",  "data/logs/collectivelog_healthcare_collab.sqlite",
-                               "data/logs/collectivelog_healthcare_collab.xes"),
-        LogSpec("Artificial1", "data/logs/collectivelog_artificial1_collab.sqlite",
-                               "data/logs/collectivelog_artificial1_collab.xes"),
-        LogSpec("Artificial5", "data/logs/collectivelog_artificial5_collab.sqlite",
-                               "data/logs/collectivelog_artificial5_collab.xes"),
-        LogSpec("Real4",       "data/logs/collectivelog_real4_collab.sqlite",
-                               "data/logs/collectivelog_real4_collab.xes"),
+        LogSpec("Healthcare",  "data/logs/Predict-Collab/collectivelog_healthcare_collab.sqlite",
+                               "data/logs/Predict-Collab/collectivelog_healthcare_collab.xes"),
+        LogSpec("Artificial1", "data/logs/Predict-Collab/collectivelog_artificial1_collab.sqlite",
+                               "data/logs/Predict-Collab/collectivelog_artificial1_collab.xes"),
+        LogSpec("Artificial5", "data/logs/Predict-Collab/collectivelog_artificial5_collab.sqlite",
+                               "data/logs/Predict-Collab/collectivelog_artificial5_collab.xes"),
+        LogSpec("Real4",       "data/logs/Predict-Collab/collectivelog_real4_collab.sqlite",
+                               "data/logs/Predict-Collab/collectivelog_real4_collab.xes"),
     ]
 
 
 @dataclass
 class ExperimentConfig:
-    logs: List[LogSpec] = field(default_factory=delgado_ocel_logs)
+    logs: List[LogSpec] = field(default_factory=predictcollab_ocel_logs)
     schema: Schema = field(default_factory=Schema)
 
     rq3_tasks: List[str] = field(default_factory=lambda: list(RQ3_SUBSET))
@@ -68,8 +68,8 @@ def toy_ext_log() -> LogSpec:
     are functionally correct, and exploitable by a generic object-centric
     feature set, when data has the needed semantic properties (send/receive
     events + correlation ids)."""
-    return LogSpec("ToyCollab", "data/logs/toy_collab.sqlite",
-                                "data/logs/toy_collab.xes")
+    return LogSpec("ToyCollab", "data/logs/ToyCollab/toy_collab.sqlite",
+                                "data/logs/ToyCollab/toy_collab.xes")
 
 
 @dataclass

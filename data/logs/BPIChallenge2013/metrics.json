@@ -1,0 +1,86 @@
+{
+  "collaboration_instances": 7554,
+  "genuinely_collaborative_ci_ge2_participants": 2034,
+  "single_participant_ci": 5520,
+  "events_total": 65533,
+  "participants_distinct": 25,
+  "local_cases_total": 9846,
+  "messages_total": 4051,
+  "receive_matched": 4051,
+  "elem_type_events": {
+    "task": 61482,
+    "ReceiveTask": 4051
+  },
+  "participants_per_ci": {
+    "mean": 1.303,
+    "max": 5
+  },
+  "events_per_ci": {
+    "mean": 8.675,
+    "max": 123
+  },
+  "messages_per_ci": {
+    "mean": 0.536,
+    "max": 25,
+    "ci_with_ge1_message": 1982
+  },
+  "local_case_length": {
+    "mean": 6.656,
+    "median": 5,
+    "max": 86
+  },
+  "flags": {
+    "queued_at_ci_entry_external_or_entry": 1156,
+    "line_change_not_surfaced_as_queued": 299,
+    "receive_from_external_unobserved": 0,
+    "participant_absent_events": 0,
+    "activity_unmatched_events": 5,
+    "catchall_other_line_events": 2319,
+    "groups_spanning_multiple_lines": 44,
+    "groups_distinct": 649,
+    "events_missing_org_role": 6950,
+    "ci_with_product_or_impact_not_constant": 0
+  },
+  "events_by_participant_top": [
+    [
+      "Org line C",
+      42189
+    ],
+    [
+      "Org line A2",
+      12508
+    ],
+    [
+      "Org line B",
+      4623
+    ],
+    [
+      "Other",
+      2319
+    ],
+    [
+      "Org line V7n",
+      893
+    ],
+    [
+      "Org line G4",
+      861
+    ],
+    [
+      "Org line V2",
+      605
+    ],
+    [
+      "Org line V11",
+      480
+    ],
+    [
+      "Org line G1",
+      215
+    ],
+    [
+      "Org line G2",
+      186
+    ]
+  ]
+}

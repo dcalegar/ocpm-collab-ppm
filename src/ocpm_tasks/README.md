@@ -185,7 +185,7 @@ from ocpm_tasks.extensions import EXT_TASKS, compute_ext_label_rows
 # corr_attr: opt-in enrichment. A residual event attribute (e.g. "msgId") that
 # carries a native message-correlation id; None (default) leaves every
 # Event.corr_id unset, exactly like the unenriched core mapping.
-log = from_ocel2_sqlite("toy_collab.sqlite", corr_attr="msgId")
+log = from_ocel2_sqlite("data/logs/ToyCollab/toy_collab.sqlite", corr_attr="msgId")
 
 for key in ("X-Inf", "X-MSt"):
     rows = compute_ext_label_rows(log, EXT_TASKS[key])
@@ -195,7 +195,7 @@ for key in ("X-Inf", "X-MSt"):
 Both extensions are demonstrated end to end — including the same OCPA feature
 extraction and grouped cross-validation used for the 14 reformulated tasks — on a
 **synthetic toy log** (`src/mapping/aux/build_toy_collab_log.py` → 
-`data/logs/toy_collab.xes`: 100 cases, 1,132 events, 3 participants, designed to exercise 
+`data/logs/ToyCollab/toy_collab.xes`: 100 cases, 1,132 events, 3 participants, designed to exercise 
 both targets with variable in-flight backlogs and explicit `msgId` correlation ids, tied to
 case participant count so the targets are genuinely learnable from the observed prefix), 
 converted with the same `collab_xes_to_ocel.py` converter as the four study logs, via
