@@ -496,19 +496,32 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
                               kind="mergesort")  # stable
         evlist: List[Dict[str, Any]] = []
         for idx, (_, row) in enumerate(grp.iterrows()):
-            elem_raw = _clean(row.get(cfg.elemtype_key))
+            elem = _clean(row.get(cfg.elemtype_key)) or ELEM_TASK
+            participant = _clean(row.get(cfg.participant_key))
+            from_p = (_clean(row.get(cfg.from_key))
+                      if cfg.from_key in work.columns else None)
+            to_p = (_clean(row.get(cfg.to_key))
+                    if cfg.to_key in work.columns else None)
+            # Def. app-r1 well-formedness (i)/(ii): part(e)=from(e) for a
+            # SendTask and part(e)=to(e) for a ReceiveTask; from/to are
+            # total on S_L u R_L. The source log may leave the "own side"
+            # of a send/receive event implicit (recording only the
+            # counterparty), relying on collab:participant to supply it;
+            # backfill it here so from/to are total, as M7/M8 assume.
+            if elem == ELEM_SEND and from_p is None:
+                from_p = participant
+            if elem == ELEM_RECEIVE and to_p is None:
+                to_p = participant
             evlist.append({
                 "eid": _event_id(str(case_val), idx),
                 "case": str(case_val),
                 "idx": idx,
                 "activity": row[cfg.activity_key],
                 "timestamp": row[cfg.timestamp_key],
-                "elem": elem_raw if elem_raw is not None else ELEM_TASK,
-                "participant": _clean(row.get(cfg.participant_key)),
-                "from": (_clean(row.get(cfg.from_key))
-                         if cfg.from_key in work.columns else None),
-                "to": (_clean(row.get(cfg.to_key))
-                       if cfg.to_key in work.columns else None),
+                "elem": elem,
+                "participant": participant,
+                "from": from_p,
+                "to": to_p,
                 "row": row,
             })
         cases[str(case_val)] = evlist
@@ -819,9 +832,9 @@ def run_consistency_checks(src_df: pd.DataFrame,
                 receiver = obj_idx.at[m, "receiver"] if "receiver" in obj_idx.columns else None
                 froms = o2o_msg[(o2o_msg[COL_OID] == m) & (o2o_msg[COL_QUALIFIER] == Q_FROM)][COL_OID2].tolist()
                 tos = o2o_msg[(o2o_msg[COL_OID] == m) & (o2o_msg[COL_QUALIFIER] == Q_TO)][COL_OID2].tolist()
-                if sender is not None and froms and froms[0] != _participant_id(str(sender)):
+                if pd.notna(sender) and froms and froms[0] != _participant_id(str(sender)):
                     oa_disagreements += 1
-                if receiver is not None and tos and tos[0] != _participant_id(str(receiver)):
+                if pd.notna(receiver) and tos and tos[0] != _participant_id(str(receiver)):
                     oa_disagreements += 1
 
                 eid_qual = msg_event.get(m)
@@ -831,13 +844,13 @@ def run_consistency_checks(src_df: pd.DataFrame,
                 ev_from = ev_idx.at[eid, "fromParticipant"] if "fromParticipant" in ev_idx.columns else None
                 ev_to = ev_idx.at[eid, "toParticipant"] if "toParticipant" in ev_idx.columns else None
                 ev_participant = ev_idx.at[eid, "participant"] if "participant" in ev_idx.columns else None
-                if sender is not None and pd.notna(ev_from) and str(ev_from) != str(sender):
+                if pd.notna(sender) and pd.notna(ev_from) and str(ev_from) != str(sender):
                     ea_disagreements += 1
-                if receiver is not None and pd.notna(ev_to) and str(ev_to) != str(receiver):
+                if pd.notna(receiver) and pd.notna(ev_to) and str(ev_to) != str(receiver):
                     ea_disagreements += 1
                 if pd.notna(ev_participant):
                     expected = sender if qual == Q_SEND else receiver
-                    if expected is not None and str(ev_participant) != str(expected):
+                    if pd.notna(expected) and str(ev_participant) != str(expected):
                         participant_disagreements += 1
 
             p13_detail_bits.append(f"from/to O2O vs sender/receiver: {oa_disagreements}")

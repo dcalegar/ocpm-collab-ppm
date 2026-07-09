@@ -1,3 +1,6 @@
+# Claude
+.claude/
+
 # Virtual environments
 .venv/
 .venv-mapping/
