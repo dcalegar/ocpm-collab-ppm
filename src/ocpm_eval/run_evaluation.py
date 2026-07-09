@@ -12,7 +12,7 @@ intended as supplementary material rather than an in-paper table.
 
 RQ-EXT (object-enabled EXTENSION tasks X-Inf, X-MSt; ocpm_tasks/extensions.py) is run
 separately, on a small hand-built toy log (data/logs/ToyCollab/toy_collab.*, see
-mapping/aux/build_toy_collab_log.py) with explicit send/receive pairs and msgId
+mapping/support/build_toy_collab_log.py) with explicit send/receive pairs and msgId
 correlation -- NOT on the four study logs, and its results (`rq_ext_results_toy.csv`)
 are never combined with rq2/rq3. This is a feasibility demo of the object-enabled
 targets outlined in tasks.tex/discussion.tex, not part of the paper's evaluated

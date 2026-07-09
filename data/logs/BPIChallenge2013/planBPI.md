@@ -81,7 +81,7 @@ Archivo: `data/logs/BPIChallenge2013/collab_convert.py`
   diseño revisado y su justificación.
 - Resolver la nota "must be reconciled with the authoritative collaborative-XES
   extension" — verificado: `elemType`/`participant`/`fromParticipant`/`toParticipant`
-  ya coinciden exactamente con `src/mapping/aux/collab.xesext`.
+  ya coinciden exactamente con `src/mapping/support/collab.xesext`.
 - `chmod 644 collab_convert.py metrics.json` (hoy están en 600, a diferencia de sus
   archivos hermanos).
 

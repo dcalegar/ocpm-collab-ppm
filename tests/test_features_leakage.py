@@ -27,7 +27,7 @@ built/discarded in-session) to all feature families and to both leakage
 directions.
 
 Fixtures are pre-built SQLite files under tests/fixtures/ (see
-src/mapping/aux/build_leakage_test_logs.py) because building an OCEL 2.0
+src/mapping/support/build_leakage_test_logs.py) because building an OCEL 2.0
 SQLite requires pm4py>=2.7 (the .venv-mapping environment), while reading
 it back through OCPA for feature extraction requires the separate ocpa
 environment (.venv) -- the same two-venv split the converter/evaluation

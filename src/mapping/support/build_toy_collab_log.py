@@ -31,7 +31,7 @@ explicit, opt-in correlation source.
 
 Run (mapping venv, pm4py >= 2.7):
     arch -x86_64 .venv-mapping/bin/python3.10 \
-        src/mapping/aux/build_toy_collab_log.py data/logs/ToyCollab/toy_collab.xes
+        src/mapping/support/build_toy_collab_log.py data/logs/ToyCollab/toy_collab.xes
 """
 from __future__ import annotations
 

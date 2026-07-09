@@ -201,7 +201,7 @@ python src/mapping/collab_xes_to_ocel.py input.xes output -v
 ```
 
 The extended XES source must use the `collab` extension attributes defined in
-`src/mapping/aux/collab.xesext`: `collab:elemType` (`task` / `SendTask` /
+`src/mapping/support/collab.xesext`: `collab:elemType` (`task` / `SendTask` /
 `ReceiveTask`), `collab:participant`, `collab:fromParticipant`, and
 `collab:toParticipant`.
 
@@ -238,7 +238,7 @@ reformulated tasks, but keeps them **out of `catalog.TASKS`/`EQUIVALENCE_TASKS`/
   residual event attribute (e.g. `"msgId"`) without changing the core mapping.
 
 Both are demonstrated on a **synthetic toy log**
-(`src/mapping/aux/build_toy_collab_log.py` → `data/logs/ToyCollab/toy_collab.xes`: 100 cases, 1,132 events,
+(`src/mapping/support/build_toy_collab_log.py` → `data/logs/ToyCollab/toy_collab.xes`: 100 cases, 1,132 events,
 3 participants, designed to exercise both targets with variable in-flight backlogs and explicit `msgId`
 correlation ids on send/receive events; backlog and latency are tied to a prefix-observable structural
 property, the case's participant count, so the targets carry a genuine, learnable signal instead of one

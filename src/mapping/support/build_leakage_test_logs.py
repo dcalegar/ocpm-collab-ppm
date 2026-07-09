@@ -29,7 +29,7 @@ pm4py-independent and only object construction/export touches pm4py.
 
 Run (mapping venv, pm4py >= 2.7, matching the converter's requirement):
     arch -x86_64 .venv-mapping/bin/python3.10 \
-        src/mapping/aux/build_leakage_test_logs.py
+        src/mapping/support/build_leakage_test_logs.py
 """
 from __future__ import annotations
 

@@ -61,7 +61,7 @@ instances, 65,533 events, 25 participants).
 
 ## `ToyCollab/` — synthetic demo log
 
-`toy_collab.*`, built by `src/mapping/aux/build_toy_collab_log.py`. A
+`toy_collab.*`, built by `src/mapping/support/build_toy_collab_log.py`. A
 hand-crafted synthetic log (100 collaboration cases, 3 participants, ~1,132
 events) used **only** to demonstrate and test the object-enabled extension
 tasks (X-Inf, X-MSt) in `src/ocpm_eval/rq_ext_pipeline.py`. It is not one of
