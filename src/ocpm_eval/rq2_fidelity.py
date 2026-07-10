@@ -154,18 +154,22 @@ def _src_label(key: str, evs: List[dict], i: int, param, bottom: str,
         return bottom
 
     if key == "NV-NMPr":
-        return sum(1 for j in range(i + 1, n) if evs[j]["elem"] == _ELEM_SEND)
+        # Delgado et al. 2025, Table 2: "(send/receive)" -- both directions.
+        return sum(1 for j in range(i + 1, n)
+                   if evs[j]["elem"] in (_ELEM_SEND, _ELEM_RECV))
 
     if key == "NV-NMPa":
-        # part(send_j) = collab:participant = msg_from in R2
+        # part(e_j) = collab:participant, for either direction (see NV-NMPr).
         return sum(1 for j in range(i + 1, n)
-                   if evs[j]["elem"] == _ELEM_SEND and evs[j]["participant"] == param)
+                   if evs[j]["elem"] in (_ELEM_SEND, _ELEM_RECV)
+                   and evs[j]["participant"] == param)
 
     if key == "OB-P":
         return any(evs[j]["participant"] == param for j in range(i + 1, n))
 
     if key == "OB-M":
-        return any(evs[j]["elem"] == _ELEM_SEND and evs[j]["activity"] == param
+        # Delgado et al. 2025, Table 2: "sent/received" -- both directions.
+        return any(evs[j]["elem"] in (_ELEM_SEND, _ELEM_RECV) and evs[j]["activity"] == param
                    for j in range(i + 1, n))
 
     raise ValueError(f"No source-level Θ_τ^L implementation for task {key}")

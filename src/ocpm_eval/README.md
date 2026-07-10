@@ -96,38 +96,37 @@ Point the evaluation at your own logs by editing the registry in
 OCEL 2.0 `.sqlite` from `mapping`, `xes_path` is only needed for RQ2's R1
 comparison).
 
-### With BPI2013 (opt-in real-world validation)
+### Selecting stages individually
 
-`run_evaluation.main` also accepts `run_bpi2013: bool = False`. It defaults to
-`False` because BPI2013 (`data/logs/BPIChallenge2013/`, registered in
-`config.py::real_world_ocel_logs()`) is ~36x larger than the largest study log
-(7,554 cases / 65,533 events vs. up to ~100 cases / ~1,800 events), so its
-OCPA feature extraction + RandomForest fitting time is significantly longer.
-It does not share provenance with the four study logs reused from Delgado et
-al. (2025), so it always runs as a separate stage against a separate config
-(`replace(cfg, logs=real_world_ocel_logs())`) and writes to separate CSVs
-(`rq2_fidelity_bpi2013.csv`, `rq3_results_bpi2013.csv`), never mixing into
-`rq2_fidelity.csv`/`rq3_results*.csv`. There is no CLI flag for this yet —
-enable it by calling `main` programmatically:
+`run_evaluation.main` accepts one bool flag per stage, all combinable:
+`run_predictcollab: bool = True` (RQ2 + RQ3 subset + RQ3 full on the four
+Predict-Collab study logs), `run_rq_ext: bool = True` (RQ-EXT on the toy log),
+`run_bpi2013: bool = False`, `run_bpi2013_full: bool = False` (see below).
+There is no CLI flag for this yet — enable/disable stages by calling `main`
+programmatically:
 
 ```python
 from ocpm_eval.run_evaluation import main
 
-main(run_bpi2013=True)   # runs RQ2+RQ3+RQ-EXT as usual, PLUS RQ2/RQ3 on BPI2013
+main()                                                  # default: Predict-Collab + RQ-EXT, no BPI2013
+main(run_bpi2013=True)                                  # + RQ2/RQ3 on BPI2013 as well
+main(run_predictcollab=False, run_bpi2013=True)         # BPI2013 only (skips the four study logs)
+main(run_predictcollab=False, run_rq_ext=False,
+     run_bpi2013=True, run_bpi2013_full=True)           # BPI2013 (subset + full catalog) only
 ```
 
-Or run just the BPI2013 stage on its own, without the four study logs:
+### With BPI2013 (opt-in real-world validation)
 
-```python
-from dataclasses import replace
-from ocpm_eval.config import ExperimentConfig, real_world_ocel_logs
-from ocpm_eval.rq2_fidelity import run_rq2
-from ocpm_eval.rq3_pipeline import run_rq3
-
-bpi_cfg = replace(ExperimentConfig(), logs=real_world_ocel_logs())
-run_rq2(bpi_cfg, out_name="rq2_fidelity_bpi2013.csv")
-run_rq3(bpi_cfg, out_name="rq3_results_bpi2013.csv")
-```
+BPI2013 (`data/logs/BPIChallenge2013/`, registered in
+`config.py::real_world_ocel_logs()`) is ~36x larger than the largest study log
+(7,554 cases / 65,533 events vs. up to ~100 cases / ~1,800 events), so its
+OCPA feature extraction + RandomForest fitting time is significantly longer;
+`run_bpi2013` defaults to `False` for that reason. It does not share
+provenance with the four study logs reused from Delgado et al. (2025), so it
+always runs as a separate stage against a separate config
+(`replace(cfg, logs=real_world_ocel_logs())`) and writes to separate CSVs
+(`rq2_fidelity_bpi2013.csv`, `rq3_results_bpi2013.csv`), never mixing into
+`rq2_fidelity.csv`/`rq3_results*.csv`.
 
 See [data/logs/README.md](../../data/logs/README.md#bpichallenge2013--real-life-application-log)
 for the log's provenance and the synthesized-`SendTask` design, and

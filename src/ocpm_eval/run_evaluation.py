@@ -45,25 +45,35 @@ from ocpm_tasks.catalog import EQUIVALENCE_TASKS
 from .config import ExperimentConfig, ExtExperimentConfig, real_world_ocel_logs
 from .rq2_fidelity import run_rq2
 from .rq3_pipeline import run_rq3
-from .rq_ext_pipeline import run_rq_ext
+from .rq_ext_pipeline import run_rq_ext as run_rq_ext_pipeline
 
 
 def main(cfg: Optional[ExperimentConfig] = None,
         ext_cfg: Optional[ExtExperimentConfig] = None,
+        run_predictcollab: bool = True,
+        run_rq_ext: bool = True,
         run_bpi2013: bool = False,
         run_bpi2013_full: bool = False):
     cfg = cfg or ExperimentConfig()
     results = {}
-    print("\n########## RQ2 — label fidelity ##########")
-    results["rq2"] = run_rq2(cfg)
-    print("\n########## RQ3 — end-to-end feasibility (representative subset) ##########")
-    results["rq3"] = run_rq3(cfg)
-    print("\n########## RQ3 — full catalog (supplementary coverage) ##########")
-    full_cfg = replace(cfg, rq3_tasks=list(EQUIVALENCE_TASKS))
-    results["rq3_full"] = run_rq3(full_cfg, out_name="rq3_results_full.csv")
-    print("\n[note] RQ1 (transformation + P1 + schema) is the converter's tool.")
-    print("\n########## RQ-EXT — object-enabled extensions X-Inf/X-MSt (TOY LOG demo) ##########")
-    results["rq_ext_toy"] = run_rq_ext(ext_cfg or ExtExperimentConfig())
+    if run_predictcollab:
+        # The four Predict-Collab study logs (config.py::predictcollab_ocel_logs,
+        # cfg.logs by default): RQ2 + RQ3 (subset) + RQ3 (full catalog). Opt out
+        # (run_predictcollab=False) to run only the other stages -- e.g. BPI2013
+        # in isolation via run_bpi2013=True.
+        print("\n########## RQ2 — label fidelity ##########")
+        results["rq2"] = run_rq2(cfg)
+        print("\n########## RQ3 — end-to-end feasibility (representative subset) ##########")
+        results["rq3"] = run_rq3(cfg)
+        print("\n########## RQ3 — full catalog (supplementary coverage) ##########")
+        full_cfg = replace(cfg, rq3_tasks=list(EQUIVALENCE_TASKS))
+        results["rq3_full"] = run_rq3(full_cfg, out_name="rq3_results_full.csv")
+        print("\n[note] RQ1 (transformation + P1 + schema) is the converter's tool.")
+    else:
+        print("\n[skip] Predict-Collab stage (RQ2/RQ3 on the four study logs) -- run_predictcollab=False.")
+    if run_rq_ext:
+        print("\n########## RQ-EXT — object-enabled extensions X-Inf/X-MSt (TOY LOG demo) ##########")
+        results["rq_ext_toy"] = run_rq_ext_pipeline(ext_cfg or ExtExperimentConfig())
     if run_bpi2013:
         # Opt-in: BPI2013 is ~36x larger than the largest study log (7,554 cases /
         # 65,533 events); OCPA feature extraction + RandomForest fitting time is

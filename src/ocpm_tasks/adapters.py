@@ -346,8 +346,15 @@ def from_ocel2_sqlite(path: str, schema: "Schema | None" = None,
     ot_map = {r["ocel_type"]: r["ocel_type_map"]
               for r in cur.execute("SELECT ocel_type, ocel_type_map FROM object_map_type")}
 
+    # ORDER BY ocel_id: SQLite does not guarantee row order for a SELECT
+    # without an explicit ORDER BY. `events` (built below, in the order of
+    # this dict) must reproduce prec_L so Execution's stable timestamp sort
+    # (model.py) breaks ties correctly; ocel_id sorts consistently with
+    # prec_L once minted with zero-padded indices (see
+    # mapping.collab_xes_to_ocel._event_id).
     ev_type = {r["ocel_id"]: r["ocel_type"]
-               for r in cur.execute("SELECT ocel_id, ocel_type FROM event")}
+               for r in cur.execute("SELECT ocel_id, ocel_type FROM event "
+                                    "ORDER BY ocel_id")}
     ev_time, ev_attrs = {}, {}
     for suffix in set(et_map.values()):
         tbl = f"event_{suffix}"

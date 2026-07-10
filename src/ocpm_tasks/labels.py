@@ -96,14 +96,17 @@ def _NV_TNM(ctx, ex, i, p):
     return ctx.bottom
 
 def _NV_NMPr(ctx, ex, i, p):
-    return sum(1 for j in range(i + 1, ex.n) if ex.events[j].is_send)
+    # Delgado et al. 2025, Table 2: "Number of remaining/total messages
+    # (send/receive)" -- both directions count, not sends only.
+    return sum(1 for j in range(i + 1, ex.n) if ex.events[j].is_msg)
 
 def _NV_NMPa(ctx, ex, i, p):
     if p is None:
         raise ValueError("NV-NMPa requires param = participant.")
+    # Both directions count (see _NV_NMPr); a message's owning participant
+    # is its event's actor regardless of send/receive direction.
     return sum(1 for j in range(i + 1, ex.n)
-               if ex.events[j].is_send
-               and (ex.events[j].msg_from or ex.events[j].actor) == p)
+               if ex.events[j].is_msg and ex.events[j].actor == p)
 
 def _OB_P(ctx, ex, i, p):
     if p is None:
@@ -112,8 +115,10 @@ def _OB_P(ctx, ex, i, p):
 
 def _OB_M(ctx, ex, i, p):
     if p is None:
-        raise ValueError("OB-M requires param = send-activity label (a_hat).")
-    return any(ex.events[j].is_send and ex.events[j].activity == p
+        raise ValueError("OB-M requires param = message-activity label (a_hat).")
+    # Delgado et al. 2025, Table 2: "If a particular message will be
+    # sent/received" -- both directions count, not sends only.
+    return any(ex.events[j].is_msg and ex.events[j].activity == p
                for j in range(i + 1, ex.n))
 
 

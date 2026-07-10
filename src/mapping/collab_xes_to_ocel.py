@@ -211,9 +211,14 @@ def _message_id(eid: str) -> str:
     # and a receive Message is inferred.
     return f"msg::{eid}"
 
-def _event_id(case: str, idx: int) -> str:
-    # Stable per-case event id. idx is the within-case source order.
-    return f"e::{case}::{idx}"
+def _event_id(case: str, idx: int, width: int = 1) -> str:
+    # Stable per-case event id. idx is the within-case source order (the
+    # rank of e in prec_L, Definition 1). Zero-padded to `width` digits so
+    # that lexicographic string order on the id agrees with numeric idx
+    # order -- required for mu_E to be an order-embedding of prec_L (see
+    # "Identifier creation", appendixMapping.tex): without padding,
+    # "e::459::10" sorts before "e::459::9".
+    return f"e::{case}::{str(idx).zfill(width)}"
 
 
 # =====================================================================
@@ -555,6 +560,9 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
         # identical before and after the mapping (M5).
         grp = grp.sort_values(by=[cfg.timestamp_key, "__src_order__"],
                               kind="mergesort")  # stable
+        # Width to zero-pad idx so id order matches prec_L order (see
+        # _event_id): must cover the largest index in this case, n-1.
+        idx_width = max(1, len(str(max(len(grp) - 1, 0))))
         evlist: List[Dict[str, Any]] = []
         for idx, (_, row) in enumerate(grp.iterrows()):
             elem = _clean(row.get(cfg.elemtype_key)) or ELEM_TASK
@@ -574,7 +582,7 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
             if elem == ELEM_RECEIVE and to_p is None:
                 to_p = participant
             evlist.append({
-                "eid": _event_id(str(case_val), idx),
+                "eid": _event_id(str(case_val), idx, idx_width),
                 "case": str(case_val),
                 "idx": idx,
                 "activity": row[cfg.activity_key],
@@ -847,6 +855,31 @@ def run_consistency_checks(src_df: pd.DataFrame,
         f"CC objects={len(cc_ids)}; count mismatches={len(mismatches)}; "
         f"dangling within-targets={len(dangling)}."
         + ("" if p12 else f" first mismatches={dict(list(mismatches.items())[:5])}")))
+
+    # ---- P1.2b Per-case order: identifier order is timestamp-monotonic
+    # The cardinality check above only compares set sizes; it says nothing
+    # about order. P1.2 (appendixMapping.tex, "Identifier creation") promises
+    # that a consumer enumerating a case's events by event-identifier order
+    # (e.g. `ORDER BY ocel:eid`) recovers the trace in non-decreasing
+    # timestamp order. This directly guards against the id-padding
+    # regression that motivated fixed-width `_event_id` (e.g. "e::9" sorting
+    # after "e::10" under an unpadded scheme).
+    order_violations: Dict[str, int] = {}
+    if not rel.empty and not ev.empty and COL_TIMESTAMP in ev.columns:
+        ev_ts = ev.drop_duplicates(subset=[COL_EID]).set_index(COL_EID)[COL_TIMESTAMP]
+        for cc_oid, grp in within.groupby(COL_OID):
+            eids_sorted = sorted(grp[COL_EID].unique())
+            ts_sorted = [t for t in (ev_ts.get(eid) for eid in eids_sorted) if pd.notna(t)]
+            n_bad = sum(1 for a, b in zip(ts_sorted, ts_sorted[1:]) if b < a)
+            if n_bad:
+                order_violations[cc_oid] = n_bad
+    p12_order = len(order_violations) == 0
+    out.append(CheckResult(
+        "P1.2b Per-case order (identifier order is timestamp-monotonic)",
+        bool(p12_order),
+        f"cases checked={within[COL_OID].nunique() if not within.empty else 0}; "
+        f"cases with an identifier-order timestamp inversion={len(order_violations)}."
+        + ("" if p12_order else f" first offenders={dict(list(order_violations.items())[:5])}")))
 
     # ---- P1.3 Message well-formedness ------------------------------
     # Every Message is related to exactly one communication event, either
