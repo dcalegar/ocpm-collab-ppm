@@ -6,15 +6,16 @@ object-centric model they operate on. It has **no dependency on `mapping` or
 `ocpm_eval`** — only `pandas` at import time (`pm4py`/`ocpa` are imported lazily,
 only if you use the corresponding adapter).
 
-`tasks.tex` also outlines further exploratory extensions beyond this taxonomy
-(`X-PaL`, `X-Inf`, `X-Cmp`, `X-MSt`, `X-Lag`) as "a promising avenue ... rather
-than ... contributions evaluated in this work". Two of them, **`X-Inf`** (in-flight
-message backlog) and **`X-MSt`** (message synchronization time), are formalized in
-`extensions.py` — see "Object-enabled extension tasks" below. `X-PaL`, `X-Cmp`, and
-`X-Lag` remain unimplemented. `X-MSt` presupposes a correspondence between individual
-send and receive observations that the core mapping (rule M4) deliberately does not
-establish; `extensions.py`/`adapters.py` recover it via an explicit, opt-in
-enrichment step, not a change to the core mapping.
+Beyond this 14-task taxonomy, two further "object-enabled" extension tasks,
+**`X-Inf`** (in-flight message backlog) and **`X-MSt`** (message synchronization
+time), are formalized in `extensions.py` — see "Object-enabled extension tasks"
+below. Other exploratory directions (cross-case participant load, message-
+convergence completion, inter-participant progress lag, intra-projection
+orchestration concurrency) remain unimplemented. `X-MSt` presupposes a
+correspondence between individual send and receive observations that the core
+mapping (rule M4) deliberately does not establish; `extensions.py`/`adapters.py`
+recover it via an explicit, opt-in enrichment step, not a change to the core
+mapping.
 
 ## Install
 
@@ -162,9 +163,9 @@ on any OCEL library.
 
 ## Object-enabled extension tasks (`extensions.py`)
 
-`X-Inf` and `X-MSt` — two of the "object-enabled" targets outlined in
-tasks.tex/discussion.tex — are formalized here as label functions over the same
-`model.Execution`, using the same `LabelContext`/BOTTOM convention as `labels.py`.
+`X-Inf` and `X-MSt` — two "object-enabled" extension targets beyond the 14-task
+taxonomy — are formalized here as label functions over the same `model.Execution`,
+using the same `LabelContext`/BOTTOM convention as `labels.py`.
 They are deliberately **not** part of `catalog.TASKS`/`EQUIVALENCE_TASKS`/
 `RQ3_SUBSET`, so importing/using them never mixes into the 14-task RQ2/RQ3
 evaluation:

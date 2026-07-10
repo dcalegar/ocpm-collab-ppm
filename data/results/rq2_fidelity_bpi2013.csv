@@ -2,7 +2,8 @@ task,check,eval_labels,matches,mismatches,agreement,only_in_reference,only_in_ob
 NE-NEPr,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,
 NE-NPaA,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,
 NE-NEPa,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,
-NE-NPaM,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,
+NE-NPaM,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,send
+NE-NPaM,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,receive
 NE-NMPa,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Org line A2
 NE-NMPa,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Org line B
 NE-NMPa,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Org line C
@@ -56,7 +57,8 @@ NV-PaT,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Org line V8
 NV-PaT,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Org line V9
 NV-PaT,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Other
 NV-TNE,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,
-NV-TNM,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,
+NV-TNM,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,send
+NV-TNM,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,receive
 NV-NMPr,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,
 NV-NMPa,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Org line A2
 NV-NMPa,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Org line B

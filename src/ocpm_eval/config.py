@@ -66,7 +66,7 @@ class ExperimentConfig:
 
 # ---------------------------------------------------------------------------
 # Object-enabled EXTENSION tasks (X-Inf, X-MSt) -- demo config, kept separate
-# from ExperimentConfig/delgado_ocel_logs so it never mixes into RQ2/RQ3.
+# from ExperimentConfig/predictcollab_ocel_logs so it never mixes into RQ2/RQ3.
 # ---------------------------------------------------------------------------
 def toy_ext_log() -> LogSpec:
     """Hand-built toy log (src/mapping/support/build_toy_collab_log.py) for

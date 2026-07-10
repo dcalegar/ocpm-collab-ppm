@@ -130,7 +130,7 @@ always runs as a separate stage against a separate config
 
 See [data/logs/README.md](../../data/logs/README.md#bpichallenge2013--real-life-application-log)
 for the log's provenance and the synthesized-`SendTask` design, and
-`data/logs/BPIChallenge2013/planBPI.md` for the full integration history.
+`data/logs/BPIChallenge2013/collab_convert.py` for the full conversion logic.
 
 ## RQ3 protocol
 
@@ -153,12 +153,12 @@ combinations run end-to-end, but a few of the non-curated tasks (e.g.
 `NV-TNE`, `NV-TNM`) land close to or slightly worse than their trivial
 baseline in some logs — unlike the subset, which was picked to show clear
 separation, the full catalog is a coverage check, not a predictive-quality
-claim. tasks.tex outlines further exploratory extensions beyond the
-taxonomy (X-PaL, X-Inf, X-Cmp, X-MSt, X-Lag) as "a promising avenue ...
-rather than ... contributions evaluated in this work"; none are
-implemented here — X-MSt in particular presupposes a send/receive
-correspondence that the core mapping (rule M4) deliberately does not
-establish, so it needs an enrichment step beyond the current converter.
+claim. Beyond the 14-task catalog, `ocpm_tasks/extensions.py` implements two
+further object-enabled extension tasks (X-Inf, X-MSt) kept out of
+`catalog.TASKS` — see the RQ-EXT section below. X-MSt in particular
+presupposes a send/receive correspondence that the core mapping (rule M4)
+deliberately does not establish, so it needs an enrichment step beyond the
+current converter.
 
 ## RQ2 protocol
 

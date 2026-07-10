@@ -8,7 +8,8 @@ version = "0.1.0"
 description = "Object-centric predictive monitoring of collaborative processes (tasks library + evaluation)."
 requires-python = ">=3.9"
 # Runtime tools (OCPA, pm4py) are installed separately; see requirements.txt.
-dependencies = ["scikit-learn", "pandas", "numpy"]
+# Pinned to the versions that produced the results in data/results/.
+dependencies = ["scikit-learn==1.7.2", "pandas==2.3.3", "numpy==2.2.6"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

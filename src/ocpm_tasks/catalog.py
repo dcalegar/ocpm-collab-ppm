@@ -1,11 +1,11 @@
 """
-Catalog of the 14 reformulated prediction tasks of tasks.tex (the reformulation of
+Catalog of the 14 reformulated prediction tasks (the object-centric reformulation of
 the collaborative baseline of Delgado et al.). Each task declares its anchor object
-type (Table tab:collabOCPM), problem type, value kind, and parameterization.
+type, problem type, value kind, and parameterization.
 
-tasks.tex Sect. "Exploratory extensions beyond the taxonomy" outlines further
-directions (X-PaL, X-Inf, X-Cmp, X-MSt, X-Lag) as "a promising avenue ... rather
-than ... contributions evaluated in this work"; none are implemented here.
+Beyond this taxonomy, further exploratory extension directions (X-PaL, X-Inf,
+X-Cmp, X-MSt, X-Lag) have been outlined; only X-Inf and X-MSt are implemented,
+in ``extensions.py``, kept out of this catalog (see that module).
 
 This module is pure metadata; the actual label computation lives in ``labels.py``.
 """

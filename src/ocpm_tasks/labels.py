@@ -52,9 +52,15 @@ def _NE_NEPa(ctx, ex, i, p):
     return ctx.bottom
 
 def _NE_NPaM(ctx, ex, i, p):
+    """Next participant to send (p="send", default) or receive (p="receive") a
+    message: the message-object endpoint, `from` for send / `to` for receive
+    (tasks.tex, NE-NPaM), read via msg_from/msg_to, falling back to the
+    event's own actor (equal by P1.3 when both are defined)."""
+    want_send = (p or "send") == "send"
     for j in range(i + 1, ex.n):
-        if ex.events[j].is_send:
-            return ex.events[j].msg_from or ex.events[j].actor
+        e = ex.events[j]
+        if e.is_send if want_send else e.is_receive:
+            return (e.msg_from if want_send else e.msg_to) or e.actor
     return ctx.bottom
 
 def _NE_NMPa(ctx, ex, i, p):
@@ -90,9 +96,13 @@ def _NV_TNE(ctx, ex, i, p):
     return ctx.bottom
 
 def _NV_TNM(ctx, ex, i, p):
+    """Time until the next message in direction p ("send", default, or
+    "receive"; tasks.tex, NV-TNM)."""
+    want_send = (p or "send") == "send"
     for j in range(i + 1, ex.n):
-        if ex.events[j].is_send:
-            return (ex.events[j].timestamp - ex.events[i].timestamp).total_seconds()
+        e = ex.events[j]
+        if e.is_send if want_send else e.is_receive:
+            return (e.timestamp - ex.events[i].timestamp).total_seconds()
     return ctx.bottom
 
 def _NV_NMPr(ctx, ex, i, p):

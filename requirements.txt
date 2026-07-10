@@ -2,10 +2,19 @@
 # Dependencies follow what OCPA requires (OCPA pins pm4py==2.2.32 and brings the
 # OCEL 2.0 importer on its main branch). Install OCPA FIRST, then this file:
 #
-#   pip install "git+https://github.com/ocpm/ocpa.git@main"     # GPL-3.0
+#   pip install "git+https://github.com/ocpm/ocpa.git@de056e0203a3fa4a9bbc19a95e001eada323074a"   # GPL-3.0, v1.3.3
 #   pip install -r requirements.txt
 #
-# pandas / numpy / pm4py(==2.2.32) are resolved transitively by OCPA; do not
-# override them. Only the learner is added here.
+# OCPA is pinned to the exact commit used to produce the published results
+# (v1.3.3 as of that commit); installing from a moving branch (@main) is not
+# reproducible over time.
+#
+# pm4py(==2.2.32) is resolved transitively by OCPA; do not override it. The
+# packages below are pinned to the versions that produced the results in
+# data/results/ (Python 3.10, see README):
 # ---------------------------------------------------------------------------
-scikit-learn
+scikit-learn==1.7.2
+numpy==2.2.6
+pandas==2.3.3
+scipy==1.15.3
+joblib==1.5.3

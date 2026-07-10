@@ -1,8 +1,9 @@
 """
 Adapters that build the neutral object-centric model from a concrete OCEL, so that the
 task library can be used **inside OCPA or pm4py** without coupling to the
-experimentation. The collaborative roles (mapping.tex) are derived here from E2O
-qualifiers (within/local/send/receive) and O2O qualifiers (executed_by/from/to);
+experimentation. The collaborative roles (see ``schema.py``) are derived here from E2O
+qualifiers (within/in_projection/send/receive/participant) and O2O qualifiers
+(projection_of/for_participant/from/to/exchanged_in);
 ``build_from_relations`` contains the (library-tested) derivation, and the
 ``from_pm4py`` / ``from_ocpa`` wrappers only extract relations and attributes from the
 respective object.

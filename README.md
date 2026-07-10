@@ -13,7 +13,7 @@ The code is split into a reusable **prediction-task library** and a modular
 
 | Tool | Role | Notes |
 |---|---|---|
-| [OCPA](https://github.com/ocpm/ocpa) | native object-centric feature extraction (RQ3) and OCEL 2.0 import | GPL-3.0; pins `pm4py==2.2.32`; OCEL 2.0 importer on `main` |
+| [OCPA](https://github.com/ocpm/ocpa) | native object-centric feature extraction (RQ3) and OCEL 2.0 import | GPL-3.0; pins `pm4py==2.2.32`; v1.3.3, pinned to commit `de056e02` (see [Setup](#setup-virtual-environments)) |
 | [pm4py](https://processintelligence.solutions/pm4py/installation) | dependency of OCPA | `==2.2.32` (pulled by OCPA). It does **not** read OCEL 2.0, so it is **not** used for reading here |
 | [scikit-learn](https://scikit-learn.org) | RandomForest learner + metrics | macro-F1 / MAE |
 | OCEL 2.0 (SQLite) | input event-log format | read natively by OCPA; read for labels with the stdlib `sqlite3` |
@@ -44,7 +44,7 @@ top-level file covers setup and how they fit together.
 ocpm-collab-ppm/
 ├── README.md                  # this file
 ├── LICENSE                    # GPL-3.0 notice (OCPA dependency)
-├── requirements.txt           # learner dep; OCPA installed separately
+├── requirements.txt           # pinned evaluation deps; OCPA installed separately (pinned commit)
 ├── pyproject.toml             # makes src/ packages importable (pip install -e .)
 ├── src/
 │   ├── mapping/                       # MAPPING TOOL — extended XES → OCEL 2.0 (RQ1)
@@ -96,7 +96,7 @@ must run in **separate virtual environments**:
 | Environment | Used by | pm4py |
 |---|---|---|
 | `.venv` | `ocpm_eval`, `ocpm_tasks` | `==2.2.32` (pinned by OCPA) |
-| `.venv-mapping` | `src/mapping/` | `>=2.7.16` (OCEL 2.0 write support) |
+| `.venv-mapping` | `src/mapping/` | `==2.7.22.5` (OCEL 2.0 write support) |
 
 Recommended Python: **3.10**. Below: macOS/Linux, then Windows. Both follow the
 same four steps — only venv creation/activation syntax differs.
@@ -143,8 +143,10 @@ python3.10 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 
-# 3) install OCPA FIRST (it resolves pm4py==2.2.32 and the OCEL 2.0 importer)
-pip install "git+https://github.com/ocpm/ocpa.git@main"      # GPL-3.0
+# 3) install OCPA FIRST (it resolves pm4py==2.2.32 and the OCEL 2.0 importer).
+#    Pinned to the exact commit (v1.3.3) used to produce the published results;
+#    do not install from @main, which is a moving branch.
+pip install "git+https://github.com/ocpm/ocpa.git@de056e0203a3fa4a9bbc19a95e001eada323074a"      # GPL-3.0
 
 # 4) install remaining deps and make local packages importable
 pip install -r requirements.txt
@@ -193,8 +195,10 @@ py -3.10 -m venv .venv
 .venv\Scripts\Activate.ps1        # cmd.exe: .venv\Scripts\activate.bat
 python -m pip install --upgrade pip
 
-# 3) install OCPA FIRST (it resolves pm4py==2.2.32 and the OCEL 2.0 importer)
-pip install "git+https://github.com/ocpm/ocpa.git@main"      # GPL-3.0
+# 3) install OCPA FIRST (it resolves pm4py==2.2.32 and the OCEL 2.0 importer).
+#    Pinned to the exact commit (v1.3.3) used to produce the published results;
+#    do not install from @main, which is a moving branch.
+pip install "git+https://github.com/ocpm/ocpa.git@de056e0203a3fa4a9bbc19a95e001eada323074a"      # GPL-3.0
 
 # 4) install remaining deps and make local packages importable
 pip install -r requirements.txt
@@ -310,10 +314,9 @@ converter's R1 reader; pass `r1_logs={name: ObjectCentricLog}` to
 
 ### RQ-EXT — object-enabled extensions (X-Inf, X-MSt)
 
-`ocpm_tasks/extensions.py` formalizes two of the "object-enabled" targets outlined in
-tasks.tex/discussion.tex as label functions over the same neutral model as the 14
-reformulated tasks, but keeps them **out of `catalog.TASKS`/`EQUIVALENCE_TASKS`/
-`RQ3_SUBSET`** so they never mix into RQ2/RQ3:
+`ocpm_tasks/extensions.py` formalizes two "object-enabled" targets as label functions
+over the same neutral model as the 14 reformulated tasks, but keeps them **out of
+`catalog.TASKS`/`EQUIVALENCE_TASKS`/`RQ3_SUBSET`** so they never mix into RQ2/RQ3:
 
 - **X-Inf** (in-flight backlog, `CollaborationCase` anchor, count regression) — peak
   `#send − #receive` observations over the case's remainder after the cut. Needs **no**
@@ -346,15 +349,17 @@ by hand on specific synthetic patterns.
   neutral model with an adapter, then call the label functions. It depends only on
   pandas (OCPA/pm4py are optional, lazy).
 - **14 tasks** = the object-centric reformulation of the 14 tasks of the
-  collaborative baseline (tasks.tex). The RQ3 representative subset is six tasks
-  covering the anchor × problem-type combinations.
-- **Exploratory extensions left for future work.** tasks.tex outlines further
-  directions beyond the taxonomy (X-PaL, X-Inf, X-Cmp, X-MSt, X-Lag) that are "a
-  promising avenue ... rather than ... contributions evaluated in this work"; none
-  are implemented here. X-MSt (message synchronization time) in particular
-  presupposes a correspondence between individual send and receive observations
-  that the core mapping (rule M4) deliberately does not establish; recovering it
-  needs an enrichment step beyond the current converter.
+  collaborative baseline (`ocpm_tasks/catalog.py`). The RQ3 representative subset
+  is six tasks covering the anchor × problem-type combinations.
+- **Object-enabled extensions.** Two extension tasks outside the 14-task taxonomy,
+  X-Inf and X-MSt, **are** implemented in `ocpm_tasks/extensions.py` but kept out
+  of `catalog.TASKS` — see the RQ-EXT section above. X-MSt presupposes a
+  correspondence between individual send and receive observations that the core
+  mapping (rule M4) deliberately does not establish; it is supplied by the opt-in
+  `corr_attr` enrichment in `ocpm_tasks/adapters.py`, not by the converter. Further
+  extension directions (cross-case participant load, message-convergence
+  completion, inter-participant progress lag, intra-projection orchestration
+  concurrency) are outlined as future work and are **not** implemented here.
 - **Targets vs features.** Targets are defined over each collaboration instance's
   global trace (linear cut points, deterministic order); features are object-centric
   and past-relative (prefix-respecting) so per-event rows do not leak the future.

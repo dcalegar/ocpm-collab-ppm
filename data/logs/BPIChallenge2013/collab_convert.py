@@ -29,9 +29,9 @@ Design decisions (consistent with the project bitacora):
         event. Its organizational attributes (``org:resource``, ``org:role``,
         ``org:group``, countries) are copied from that same ``Queued`` event
         -- only "organization involved" is re-attributed to the previous
-        line -- justified by the empirical finding in ``informacion.md`` that
-        98.2% of such hand-overs are executed by the resource of the previous
-        handler. This is a deterministic re-attribution of data already
+        line -- justified by a prior empirical check (not reproduced by this
+        script) that 98.2% of such hand-overs are executed by the resource of
+        the previous handler. This is a deterministic re-attribution of data already
         present on the event, not a fabrication of unobserved data, and it is
         declared explicitly (never silently blended with real observations)
         via the residual attribute ``collab:synthesized="true"``, present
@@ -81,9 +81,9 @@ PRESERVE_KEYS = [
     "resource country",
 ]
 # Case-level attributes, constant within every CI, hoisted to <trace> instead
-# of being repeated on every <event> (description.tex, "Reported quality
-# issues": "The attributes product and impact are constant within every case
-# and are thus preserved as attributes of the collaboration instance.").
+# of being repeated on every <event>: these attributes are constant within
+# every case, so they are preserved as attributes of the collaboration
+# instance instead.
 CASE_LEVEL_KEYS = ["product", "impact"]
 
 
@@ -210,8 +210,9 @@ def transform(traces):
                     # receive side of a hand-over. Shallow-copy the
                     # triggering Queued event so org:resource/org:role/
                     # org:group/countries (which already describe the real
-                    # sender empirically -- informacion.md, 98.2% agreement)
-                    # and time:timestamp are preserved verbatim; only
+                    # sender empirically, 98.2% agreement per a prior check
+                    # not reproduced here -- see module docstring) and
+                    # time:timestamp are preserved verbatim; only
                     # "organization involved" is re-attributed to prev_part.
                     # Inserted immediately before the ReceiveTask so
                     # insertion order (the project's stable tie-break

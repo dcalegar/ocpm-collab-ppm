@@ -58,12 +58,13 @@ records the receiving side of a hand-over, so for each detected `ReceiveTask`
 the converter **synthesizes a correlated `SendTask`**, attributed to the
 previous line and re-using the organizational attributes (`org:resource`,
 `org:role`, `org:group`) already recorded on the triggering `Queued` event —
-justified by the empirical finding (98.2% agreement, see `informacion.md`)
-that those attributes already describe the actual sending resource. This is a
-deterministic re-attribution of already-observed data, not a fabrication of
-unobserved data, and is flagged explicitly (not hidden) via a residual
+justified by the empirical finding (98.2% agreement, documented in the
+module docstring of `collab_convert.py`) that those attributes
+already describe the actual sending resource. This is a deterministic
+re-attribution of already-observed data, not a fabrication of unobserved
+data, and is flagged explicitly (not hidden) via a residual
 `collab:synthesized="true"` attribute on the synthesized event only. See
-`informacion.md` and `description.tex` for the full design rationale, and
+`collab_convert.py` for the full conversion logic and design rationale, and
 `metrics.json` for the resulting structural metrics (7,554 collaboration
 instances, 65,533 events, 25 participants, 4,051 synthesized `SendTask`
 events).

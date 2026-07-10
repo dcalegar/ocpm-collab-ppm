@@ -18,7 +18,7 @@ separately, on a small hand-built toy log (data/logs/ToyCollab/toy_collab.*, see
 mapping/support/build_toy_collab_log.py) with explicit send/receive pairs and msgId
 correlation -- NOT on the four study logs, and its results (`rq_ext_results_toy.csv`)
 are never combined with rq2/rq3. This is a feasibility demo of the object-enabled
-targets outlined in tasks.tex/discussion.tex, not part of the paper's evaluated
+extension tasks (ocpm_tasks/extensions.py), not part of the paper's evaluated
 RQ2/RQ3 results. The toy log is designed to exercise both X-Inf (variable
 in-flight backlog) and X-MSt (message synchronization time with correlation).
 Remaining extensions (X-PaL, X-Cmp, X-Lag) are not implemented here.
@@ -80,7 +80,7 @@ def main(cfg: Optional[ExperimentConfig] = None,
         # untested at this scale, so this stage is not run by default. Kept in a
         # separate stage/config and separate output CSVs since BPI2013 does not
         # share provenance with the four study logs reused from Delgado et al.
-        # (2025) -- see data/logs/BPIChallenge2013/planBPI.md.
+        # (2025) -- see data/logs/BPIChallenge2013/collab_convert.py.
         print("\n########## RQ2/RQ3 — real-world validation (BPI2013) ##########")
         bpi_cfg = replace(cfg, logs=real_world_ocel_logs())
         results["rq2_bpi2013"] = run_rq2(bpi_cfg, out_name="rq2_fidelity_bpi2013.csv")

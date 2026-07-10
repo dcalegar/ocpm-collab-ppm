@@ -114,9 +114,13 @@ def _src_label(key: str, evs: List[dict], i: int, param, bottom: str,
         return bottom
 
     if key == "NE-NPaM":
-        # part(e_j) via 'from' O2O = collab:participant of the send event
+        # part(e_j) via 'from' (send) / 'to' (receive) O2O = collab:participant
+        # of the message event in direction `param` ("send" or "receive",
+        # default "send"); well-formedness (i)/(ii) makes this equal from(e)
+        # for a send and to(e) for a receive.
+        want = _ELEM_SEND if (param or "send") == "send" else _ELEM_RECV
         for j in range(i + 1, n):
-            if evs[j]["elem"] == _ELEM_SEND:
+            if evs[j]["elem"] == want:
                 return evs[j]["participant"]
         return bottom
 
@@ -148,8 +152,10 @@ def _src_label(key: str, evs: List[dict], i: int, param, bottom: str,
         return bottom
 
     if key == "NV-TNM":
+        # Direction `param` ("send" or "receive", default "send").
+        want = _ELEM_SEND if (param or "send") == "send" else _ELEM_RECV
         for j in range(i + 1, n):
-            if evs[j]["elem"] == _ELEM_SEND:
+            if evs[j]["elem"] == want:
                 return (evs[j]["timestamp"] - evs[i]["timestamp"]).total_seconds()
         return bottom
 
@@ -196,10 +202,23 @@ def _compute_source_rows(xes_path: str, task, param, bottom: str) -> List[Row]:
 # RQ2 orchestration
 # ---------------------------------------------------------------------------
 
+# NE-NPaM and NV-TNM are parameterized by message direction d in {send, receive}
+# (tasks.tex); the evaluation's RQ3 pipeline only instantiates send (matching
+# Predict-Collab, a deliberate empirical scope decision documented in
+# evaluation.tex), but RQ2's label-equivalence check tests both, since
+# Proposition P2 covers both directions and neither should go unverified.
+_DIRECTION_TASKS = {"NE-NPaM", "NV-TNM"}
+
+
 def _params_for(task, ocel_log, cfg):
     """Relevant parameter values for a parameterized task (resolved from R2 log)."""
+    if task.key in _DIRECTION_TASKS:
+        return ["send", "receive"]
     if task.param == "activity":
-        acts = sorted({e.activity for ex in ocel_log for e in ex.events if e.is_send})
+        # OB-M's own definition triggers on a message sent OR received (is_msg),
+        # so the swept activities must include receive-only ones too, not just
+        # send activities.
+        acts = sorted({e.activity for ex in ocel_log for e in ex.events if e.is_msg})
         return acts or [None]
     if task.param == "participant":
         ps = sorted({e.actor for ex in ocel_log for e in ex.events if e.actor})

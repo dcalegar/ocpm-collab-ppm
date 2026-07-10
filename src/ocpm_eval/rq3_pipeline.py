@@ -26,7 +26,10 @@ from .models import fit_and_score_fold
 def _a_hat(log, cfg):
     if cfg.obm_target_activity:
         return cfg.obm_target_activity
-    c = collections.Counter(e.activity for ex in log for e in ex.events if e.is_send)
+    # OB-M's own definition triggers on a message sent OR received (is_msg,
+    # see labels.py::_OB_M), so the candidate activities must include
+    # receive-only ones, not just sends.
+    c = collections.Counter(e.activity for ex in log for e in ex.events if e.is_msg)
     return c.most_common(1)[0][0] if c else None
 
 

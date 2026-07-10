@@ -1,10 +1,15 @@
 """
-Object-enabled EXTENSION tasks (X-Inf, X-MSt) — targets with "no single-case
-counterpart" that tasks.tex / discussion.tex (Sect. "object-enabled prediction
-targets") outline. They are deliberately kept OUT of the main catalog
-(``catalog.TASKS`` / ``EQUIVALENCE_TASKS`` / ``RQ3_SUBSET``) so they are never
-mixed into the reformulation evaluation (RQ2 label-equivalence, RQ3 subset/full).
-They are exercised only by a dedicated toy-log test (``tests/test_extensions_toy.py``).
+Object-enabled EXTENSION tasks (X-Inf, X-MSt) — targets outside the fourteen-type
+taxonomy of Delgado et al., naturally expressed over object-centric relations
+rather than over a single flattened case trace (tasks.tex, Sect. "Object-enabled
+extension tasks"). This is NOT the same as having no single-case counterpart: a
+case-centric trace that retained the same attributes (direction, endpoints, a
+correlation id) could state equivalent targets with additional preprocessing —
+see the paper's own "Neither target strictly requires object identity..."
+paragraph. They are deliberately kept OUT of the main catalog (``catalog.TASKS``
+/ ``EQUIVALENCE_TASKS`` / ``RQ3_SUBSET``) so they are never mixed into the
+reformulation evaluation (RQ2 label-equivalence, RQ3 subset/full). They are
+exercised only by a dedicated toy-log test (``tests/test_extensions_toy.py``).
 
 Two extensions with intentionally different correlation requirements:
 
@@ -21,9 +26,15 @@ X-MSt — message synchronization time (Message anchor, time regression).
     does NOT establish (M4). It is defined over an ENRICHED model in which each
     communication event carries a native correlation id (``Event.corr_id``), from
     which the pairing is recovered. Target at cut ``i``: the latency
-    ``receive_time - send_time`` of the NEXT send after the cut. Returns BOTTOM when
-    that send has no matching reception (an unmatched / still-in-flight send) or when
-    no correlation id is available — i.e. the task is undefined without enrichment.
+    ``receive_time - send_time`` of the NEXT send after the cut. A send matches a
+    receive (tasks.tex, X-MSt, conditions 1-4) only if it shares the send's
+    correlation id AND its message endpoints (``msg_from``/``msg_to``) AND occurs
+    strictly after it in the case's positional order (ties on timestamp are
+    resolved by source order, not treated as simultaneous — see ``_match_receive``).
+    Returns BOTTOM when that send has no matching reception under all four
+    conditions (unmatched, still in flight, endpoint mismatch, or a same-corr-id
+    receive that precedes it) or when no correlation id is available — i.e. the
+    task is undefined without enrichment.
 
 Both label functions share the uniform signature ``fn(ctx, ex, i, param)`` used in
 ``labels.py`` and reuse its ``LabelContext`` / BOTTOM sentinel.
@@ -56,10 +67,28 @@ def in_flight_trajectory(ex: Execution) -> List[int]:
     return traj
 
 
-def _receive_by_corr(ex: Execution) -> Dict[str, Event]:
-    """Enrichment: index receive observations by their native correlation id."""
-    return {e.corr_id: e for e in ex.events
-            if e.is_receive and e.corr_id is not None}
+def _match_receive(ex: Execution, j: int) -> Optional[Event]:
+    """match(eps_j) (tasks.tex, X-MSt, conditions 1-4): the receive event, if
+    any, that (2) shares the send's correlation id, (3) shares its message
+    endpoints (``msg_from``/``msg_to``), and (4) occurs strictly after it in
+    the case's positional order -- position, not merely timestamp, since
+    ties on timestamp are resolved by source order (P1.2/prec_L), not
+    treated as simultaneous. Condition 1 (same case) holds automatically:
+    ``ex.events`` is already one collaboration case.
+
+    Conditions 2+3 make match(eps_j) unique whenever ``corr_id`` is
+    injective among same-case, same-endpoint receive events, an invariant
+    the enrichment is assumed to satisfy. If that invariant is violated
+    (e.g. a duplicated correlation id on two same-endpoint receives), the
+    earliest qualifying candidate by position is returned deterministically,
+    rather than silently keeping whichever receive a corr_id happened to
+    collide with last (as a ``{corr_id: receive}`` index would)."""
+    send = ex.events[j]
+    for r in ex.events[j + 1:]:
+        if (r.is_receive and r.corr_id == send.corr_id
+                and r.msg_from == send.msg_from and r.msg_to == send.msg_to):
+            return r
+    return None
 
 
 # --- label functions ---------------------------------------------------------
@@ -71,15 +100,16 @@ def _X_Inf(ctx: LabelContext, ex: Execution, i: int, p) -> int:
 
 def _X_MSt(ctx: LabelContext, ex: Execution, i: int, p):
     """Synchronization latency (s) of the next send after the cut to its matching
-    receive; BOTTOM if unmatched/in-flight or if no correlation id is available."""
-    recv = _receive_by_corr(ex)
+    receive (see ``_match_receive`` for the endpoint/position conditions); BOTTOM
+    if unmatched/in-flight, endpoint-mismatched, or if no correlation id is
+    available."""
     for j in range(i + 1, ex.n):
         e = ex.events[j]
         if e.is_send:
             if e.corr_id is None:
                 return ctx.bottom            # undefined without enrichment
-            r = recv.get(e.corr_id)
-            if r is None or r.timestamp < e.timestamp:
+            r = _match_receive(ex, j)
+            if r is None:
                 return ctx.bottom            # unmatched / still in flight
             return (r.timestamp - e.timestamp).total_seconds()
     return ctx.bottom

@@ -1,7 +1,7 @@
 """
 Mapping vocabulary (object types, qualifiers, attributes) shared by the adapters
-that turn an OCEL into the neutral object-centric model. Mirrors mapping.tex
-(M1-M8). This is the only place that names OCEL artefacts; the task definitions are
+that turn an OCEL into the neutral object-centric model. Mirrors the mapping rules
+M1-M8. This is the only place that names OCEL artefacts; the task definitions are
 expressed over the neutral model and never touch these names.
 """
 from dataclasses import dataclass

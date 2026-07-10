@@ -2,6 +2,6 @@ log,task,anchor,problem_type,samples,ran_end_to_end,metric_name,metric_mean,metr
 BPI2013,NE-NPaA,Participant,Multiclass classification,62030,True,f1_macro,0.0724958051633349,0.0034402594088893414,0.03678071837497615,5,,
 BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,18481,True,f1_macro,1.0,0.0,1.0,5,,
 BPI2013,NV-PrT,CollaborationCase,Regression (time),62030,True,mae,1622429.571371391,74714.76406650763,1157647.692261809,5,,
-BPI2013,NV-PaT,ParticipantProjection,Regression (time),62030,True,mae,827503.5624425169,37669.65948005845,679910.8537965501,5,Org line C,
-BPI2013,NV-NMPr,Message,Count regression,62030,True,mae,1.8759065633720997,0.04698247464069282,1.3931162340802838,5,,
+BPI2013,NV-PaT,ParticipantProjection,Regression (time),62030,True,mae,827503.5624425169,37669.65948005847,679910.8537965501,5,Org line C,
+BPI2013,NV-NMPr,Message,Count regression,62030,True,mae,1.8759065633720997,0.046982474640692856,1.3931162340802838,5,,
 BPI2013,OB-M,Message,Binary classification,62030,True,f1_macro,0.6197179321439433,0.007836985545095137,0.41246587479766184,5,,Queued

@@ -2,7 +2,8 @@ task,check,eval_labels,matches,mismatches,agreement,only_in_reference,only_in_ob
 NE-NEPr,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,
 NE-NPaA,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,
 NE-NEPa,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,
-NE-NPaM,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,
+NE-NPaM,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,send
+NE-NPaM,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,receive
 NE-NMPa,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Gynecologist
 NE-NMPa,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Hospital
 NE-NMPa,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Laboratory
@@ -14,7 +15,8 @@ NV-PaT,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Hospital
 NV-PaT,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Laboratory
 NV-PaT,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Patient
 NV-TNE,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,
-NV-TNM,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,
+NV-TNM,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,send
+NV-TNM,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,receive
 NV-NMPr,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,
 NV-NMPa,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Gynecologist
 NV-NMPa,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Hospital
@@ -24,9 +26,17 @@ OB-P,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Gynecologist
 OB-P,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Hospital
 OB-P,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Laboratory
 OB-P,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Patient
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Admit patient
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Communicate disease
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Communicate the need to hospitalise
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Forward patient analysis results
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Hospitalisation needed
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Receive admission info
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Receive blood analysis results
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Receive blood sample
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Receive disease info
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Receive patient results
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Receive prescription
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Require patient admission
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Send admission info
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Send blood sample
@@ -35,7 +45,8 @@ OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Send results
 NE-NEPr,equivalence,700,700,0,1.0,0,0,[],Artificial1,
 NE-NPaA,equivalence,700,700,0,1.0,0,0,[],Artificial1,
 NE-NEPa,equivalence,700,700,0,1.0,0,0,[],Artificial1,
-NE-NPaM,equivalence,700,700,0,1.0,0,0,[],Artificial1,
+NE-NPaM,equivalence,700,700,0,1.0,0,0,[],Artificial1,send
+NE-NPaM,equivalence,700,700,0,1.0,0,0,[],Artificial1,receive
 NE-NMPa,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyA
 NE-NMPa,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyC
 NE-NMPr,equivalence,700,700,0,1.0,0,0,[],Artificial1,
@@ -43,18 +54,22 @@ NV-PrT,equivalence,700,700,0,1.0,0,0,[],Artificial1,
 NV-PaT,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyA
 NV-PaT,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyC
 NV-TNE,equivalence,700,700,0,1.0,0,0,[],Artificial1,
-NV-TNM,equivalence,700,700,0,1.0,0,0,[],Artificial1,
+NV-TNM,equivalence,700,700,0,1.0,0,0,[],Artificial1,send
+NV-TNM,equivalence,700,700,0,1.0,0,0,[],Artificial1,receive
 NV-NMPr,equivalence,700,700,0,1.0,0,0,[],Artificial1,
 NV-NMPa,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyA
 NV-NMPa,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyC
 OB-P,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyA
 OB-P,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyC
+OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity C
 OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity CZ
+OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity D
 OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity DZ
 NE-NEPr,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,
 NE-NPaA,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,
 NE-NEPa,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,
-NE-NPaM,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,
+NE-NPaM,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,send
+NE-NPaM,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,receive
 NE-NMPa,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyA
 NE-NMPa,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyB
 NE-NMPa,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyC
@@ -66,7 +81,8 @@ NV-PaT,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyB
 NV-PaT,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyC
 NV-PaT,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyD
 NV-TNE,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,
-NV-TNM,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,
+NV-TNM,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,send
+NV-TNM,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,receive
 NV-NMPr,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,
 NV-NMPa,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyA
 NV-NMPa,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyB
@@ -78,14 +94,21 @@ OB-P,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyC
 OB-P,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyD
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity AA
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity CC
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity D
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity DZ
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity E
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity EE
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity F
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity H
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity K
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity M
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Start
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Start2
 NE-NEPr,equivalence,1700,1700,0,1.0,0,0,[],Real4,
 NE-NPaA,equivalence,1700,1700,0,1.0,0,0,[],Real4,
 NE-NEPa,equivalence,1700,1700,0,1.0,0,0,[],Real4,
-NE-NPaM,equivalence,1700,1700,0,1.0,0,0,[],Real4,
+NE-NPaM,equivalence,1700,1700,0,1.0,0,0,[],Real4,send
+NE-NPaM,equivalence,1700,1700,0,1.0,0,0,[],Real4,receive
 NE-NMPa,equivalence,1700,1700,0,1.0,0,0,[],Real4,Bank
 NE-NMPa,equivalence,1700,1700,0,1.0,0,0,[],Real4,Visitor
 NE-NMPa,equivalence,1700,1700,0,1.0,0,0,[],Real4,Zoo
@@ -95,7 +118,8 @@ NV-PaT,equivalence,1700,1700,0,1.0,0,0,[],Real4,Bank
 NV-PaT,equivalence,1700,1700,0,1.0,0,0,[],Real4,Visitor
 NV-PaT,equivalence,1700,1700,0,1.0,0,0,[],Real4,Zoo
 NV-TNE,equivalence,1700,1700,0,1.0,0,0,[],Real4,
-NV-TNM,equivalence,1700,1700,0,1.0,0,0,[],Real4,
+NV-TNM,equivalence,1700,1700,0,1.0,0,0,[],Real4,send
+NV-TNM,equivalence,1700,1700,0,1.0,0,0,[],Real4,receive
 NV-NMPr,equivalence,1700,1700,0,1.0,0,0,[],Real4,
 NV-NMPa,equivalence,1700,1700,0,1.0,0,0,[],Real4,Bank
 NV-NMPa,equivalence,1700,1700,0,1.0,0,0,[],Real4,Visitor
@@ -103,7 +127,11 @@ NV-NMPa,equivalence,1700,1700,0,1.0,0,0,[],Real4,Zoo
 OB-P,equivalence,1700,1700,0,1.0,0,0,[],Real4,Bank
 OB-P,equivalence,1700,1700,0,1.0,0,0,[],Real4,Visitor
 OB-P,equivalence,1700,1700,0,1.0,0,0,[],Real4,Zoo
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Card received?
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Change account
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Deliver Zooclub card
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Payment confirmed
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Receive payment request
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Receive visitor information
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Send information to the ZooClub department
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Send payment request

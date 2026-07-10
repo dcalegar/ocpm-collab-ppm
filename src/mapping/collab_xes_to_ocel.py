@@ -16,14 +16,21 @@ Source side (extended collaborative XES), per the collab.xesext
 extension, carries these event-level string attributes:
     collab:elemType        in {task, SendTask, ReceiveTask}
     collab:participant     participant executing the event
-    collab:fromParticipant sender (defined on Send/Receive events)
-    collab:toParticipant   receiver (defined on Send/Receive events)
+    collab:fromParticipant sender (own side always backfilled from
+                            collab:participant on Send events; counterparty
+                            side on Receive events, may be absent)
+    collab:toParticipant   receiver (own side always backfilled from
+                            collab:participant on Receive events; counterparty
+                            side on Send events, may be absent)
 plus the XES keys for activity, timestamp, and global case id.
 
 The Message object represents a single communication OBSERVATION, not a
 correlated message instance: rule M4 mints one Message per send event and
 one Message per receive event, each related to exactly its own event (by
-`send` or `receive`) and carrying that event's recorded sender/receiver.
+`send` or `receive`) and carrying that event's recorded sender/receiver --
+when the source records the counterparty side; when it does not, the
+sender/receiver attribute and the corresponding from/to O2O relation are
+left undefined rather than guessed (see _sorted_case_events, P1.3 below).
 Because the source logs do not guarantee message identifiers or other
 reliable correlation information, the core mapping does NOT infer any
 correspondence between a send observation and a receive observation.
@@ -215,9 +222,8 @@ def _event_id(case: str, idx: int, width: int = 1) -> str:
     # Stable per-case event id. idx is the within-case source order (the
     # rank of e in prec_L, Definition 1). Zero-padded to `width` digits so
     # that lexicographic string order on the id agrees with numeric idx
-    # order -- required for mu_E to be an order-embedding of prec_L (see
-    # "Identifier creation", appendixMapping.tex): without padding,
-    # "e::459::10" sorts before "e::459::9".
+    # order -- required for mu_E to be an order-embedding of prec_L:
+    # without padding, "e::459::10" sorts before "e::459::9".
     return f"e::{case}::{str(idx).zfill(width)}"
 
 
@@ -637,6 +643,16 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
 
     participant_seen: set = set()
     n_messages = 0
+    # Counterparty completeness (Normalization paragraph, appendix): the source
+    # format may leave a send/receive event's OWN side implicit (backfilled
+    # above from collab:participant), but it may also leave the COUNTERPARTY
+    # side (toParticipant for a Send, fromParticipant for a Receive) genuinely
+    # absent. That side is NOT guessed: from(e)/to(e) stay undefined (None),
+    # no 'from'/'to' O2O relation is created for that side, and the Message's
+    # sender/receiver object attribute stays unset. Tracked here so it is
+    # visible in stats/P1.3 rather than silently dropped.
+    n_messages_missing_sender = 0
+    n_messages_missing_receiver = 0
 
     def _ensure_object(oid: str, otype: str, attrs: Dict[str, Any]) -> None:
         if oid not in object_rows:
@@ -667,6 +683,10 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
                 "receiver": ev["to"],
             })
             n_messages += 1
+            if ev["from"] is None:
+                n_messages_missing_sender += 1
+            if ev["to"] is None:
+                n_messages_missing_receiver += 1
 
         for ev in evlist:
             p = ev["participant"]
@@ -786,8 +806,18 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
         "n_e2o": len(relations_df),
         "n_o2o": len(o2o_df),
         "n_messages": n_messages,
+        "n_messages_missing_sender": n_messages_missing_sender,
+        "n_messages_missing_receiver": n_messages_missing_receiver,
         "n_cases": len(cases),
     }
+    if n_messages_missing_sender or n_messages_missing_receiver:
+        logger.warning(
+            "%d Message object(s) have no recorded sender and %d have no "
+            "recorded receiver (source log leaves the counterparty side "
+            "of some send/receive events implicit; see Normalization, "
+            "appendix). Their 'from'/'to' O2O relation and sender/receiver "
+            "object attribute are left undefined rather than guessed.",
+            n_messages_missing_sender, n_messages_missing_receiver)
     return TransformResult(events_df, objects_df, relations_df, o2o_df, stats)
 
 
@@ -817,68 +847,101 @@ def run_consistency_checks(src_df: pd.DataFrame,
     o2o = res.o2o_df
     obj = res.objects_df
 
-    # ---- P1.1 Totality: one OCEL event per source event, ts preserved
+    # Independently recompute the expected per-event identity (case, eid,
+    # activity, timestamp, prec_L order) straight from the source log, using
+    # the same normalization/ordering logic the transform itself uses. This
+    # is deliberately NOT read off `res`: P1.1/P1.2/P1.2b below compare the
+    # transform's output against this freshly-derived expectation, rather
+    # than against internal state the transform already trusted, so they
+    # catch defects that only checking cardinalities/timestamps would miss
+    # (e.g. a permuted activity or a swapped case membership that keeps
+    # every count the same).
+    expected_cases = _sorted_case_events(src_df, cfg)
+    expected_by_eid: Dict[str, Tuple[str, Any]] = {
+        e["eid"]: (str(e["activity"]), e["timestamp"])
+        for evlist in expected_cases.values() for e in evlist}
+    expected_eids_by_case: Dict[str, List[str]] = {
+        case: [e["eid"] for e in evlist] for case, evlist in expected_cases.items()}
+
+    # ---- P1.1 Totality: one OCEL event per source event, same activity
+    # and timestamp as its source counterpart (checked by event identity,
+    # not merely by matching aggregate counts).
     n_src = len(src_df)
     n_ev = len(ev)
-    p11 = (n_src == n_ev) and (COL_TIMESTAMP in ev.columns) \
-        and (ev[COL_TIMESTAMP].notna().sum() == src_df[cfg.timestamp_key].notna().sum()
-             if cfg.timestamp_key in src_df.columns else True)
+    ev_by_eid = ev.set_index(COL_EID) if not ev.empty else None
+    missing_eids = 0
+    activity_mismatches = 0
+    timestamp_mismatches = 0
+    for eid, (exp_act, exp_ts) in expected_by_eid.items():
+        if ev_by_eid is None or eid not in ev_by_eid.index:
+            missing_eids += 1
+            continue
+        if str(ev_by_eid.at[eid, COL_ACTIVITY]) != exp_act:
+            activity_mismatches += 1
+        got_ts = ev_by_eid.at[eid, COL_TIMESTAMP] if COL_TIMESTAMP in ev_by_eid.columns else None
+        if pd.notna(exp_ts) and pd.notna(got_ts) and pd.Timestamp(got_ts) != pd.Timestamp(exp_ts):
+            timestamp_mismatches += 1
+        elif pd.isna(exp_ts) != pd.isna(got_ts):
+            timestamp_mismatches += 1
+    p11 = (n_src == n_ev) and missing_eids == 0 \
+        and activity_mismatches == 0 and timestamp_mismatches == 0
     out.append(CheckResult(
         "P1.1 Totality",
         bool(p11),
-        f"source events={n_src}, ocel events={n_ev}; "
-        f"timestamps preserved (non-null parity checked)."))
+        f"source events={n_src}, ocel events={n_ev}; missing event ids={missing_eids}; "
+        f"activity mismatches={activity_mismatches}; timestamp mismatches={timestamp_mismatches}."))
 
-    # ---- P1.2 Per-case partition: within-image of each cc == case set
-    # Build, per CC object, the set of event ids related by 'within';
-    # compare its size to the number of source events of that case.
+    # ---- P1.2 Per-case partition: within-image of each cc equals the
+    # exact SET of source event ids of that case (not merely its size, so a
+    # swap of same-count events between two cases is caught).
     if not rel.empty:
         within = rel[(rel[COL_QUALIFIER] == Q_WITHIN) & (rel[COL_OTYPE] == OT_CC)]
-        within_counts = within.groupby(COL_OID)[COL_EID].nunique().to_dict()
+        within_sets: Dict[str, set] = within.groupby(COL_OID)[COL_EID].apply(set).to_dict()
     else:
-        within_counts = {}
-    # expected per-case counts from source
-    if cfg.case_key in src_df.columns:
-        src_case_counts = src_df.groupby(cfg.case_key).size().to_dict()
-        expected = {_cc_id(str(c)): n for c, n in src_case_counts.items()}
-    else:
-        expected = {}
-    mismatches = {k: (within_counts.get(k, 0), v)
-                  for k, v in expected.items() if within_counts.get(k, 0) != v}
+        within = pd.DataFrame(columns=[COL_EID, COL_OID, COL_OTYPE, COL_QUALIFIER])
+        within_sets = {}
+    expected_sets = {_cc_id(case): set(eids) for case, eids in expected_eids_by_case.items()}
+    mismatches = {k: (len(within_sets.get(k, set())), len(v))
+                  for k, v in expected_sets.items() if within_sets.get(k, set()) != v}
     # also: every within edge points at an existing CC object
     cc_ids = set(obj[obj[COL_OTYPE] == OT_CC][COL_OID]) if not obj.empty else set()
-    dangling = set(within_counts) - cc_ids
+    dangling = set(within_sets) - cc_ids
     p12 = (len(mismatches) == 0) and (len(dangling) == 0)
     out.append(CheckResult(
         "P1.2 Per-case partition",
         bool(p12),
-        f"CC objects={len(cc_ids)}; count mismatches={len(mismatches)}; "
+        f"CC objects={len(cc_ids)}; set mismatches={len(mismatches)}; "
         f"dangling within-targets={len(dangling)}."
         + ("" if p12 else f" first mismatches={dict(list(mismatches.items())[:5])}")))
 
-    # ---- P1.2b Per-case order: identifier order is timestamp-monotonic
-    # The cardinality check above only compares set sizes; it says nothing
-    # about order. P1.2 (appendixMapping.tex, "Identifier creation") promises
-    # that a consumer enumerating a case's events by event-identifier order
-    # (e.g. `ORDER BY ocel:eid`) recovers the trace in non-decreasing
-    # timestamp order. This directly guards against the id-padding
-    # regression that motivated fixed-width `_event_id` (e.g. "e::9" sorting
-    # after "e::10" under an unpadded scheme).
+    # ---- P1.2b Per-case order: identifier order equals prec_L exactly
+    # (timestamp order with ties broken by source appearance order, M5).
+    # A timestamp-monotonicity-only check (b < a) would accept two same-
+    # timestamp events swapped in identifier order, since b == a is not a
+    # decrease -- silently violating the tie-break half of prec_L that
+    # criterion P1.2/M5 also promises. Instead, compare the identifier
+    # order directly against `expected_eids_by_case`, which is prec_L
+    # itself (timestamp, then __src_order__): identifiers are minted in
+    # that exact sequence (M5), so this also re-catches the id-padding
+    # regression that motivated fixed-width `_event_id` (e.g. "e::9"
+    # sorting after "e::10" under an unpadded scheme) as a special case.
     order_violations: Dict[str, int] = {}
-    if not rel.empty and not ev.empty and COL_TIMESTAMP in ev.columns:
-        ev_ts = ev.drop_duplicates(subset=[COL_EID]).set_index(COL_EID)[COL_TIMESTAMP]
-        for cc_oid, grp in within.groupby(COL_OID):
-            eids_sorted = sorted(grp[COL_EID].unique())
-            ts_sorted = [t for t in (ev_ts.get(eid) for eid in eids_sorted) if pd.notna(t)]
-            n_bad = sum(1 for a, b in zip(ts_sorted, ts_sorted[1:]) if b < a)
-            if n_bad:
-                order_violations[cc_oid] = n_bad
+    if not within.empty:
+        for case, expected_order in expected_eids_by_case.items():
+            cc_oid = _cc_id(case)
+            grp = within[within[COL_OID] == cc_oid]
+            if grp.empty:
+                continue
+            actual_order = sorted(grp[COL_EID].unique())  # lexicographic == identifier order
+            if actual_order != expected_order:
+                n_bad = sum(1 for a, b in zip(actual_order, expected_order) if a != b)
+                order_violations[cc_oid] = max(n_bad, 1)
     p12_order = len(order_violations) == 0
     out.append(CheckResult(
-        "P1.2b Per-case order (identifier order is timestamp-monotonic)",
+        "P1.2b Per-case order (identifier order equals prec_L, incl. tie-break)",
         bool(p12_order),
-        f"cases checked={within[COL_OID].nunique() if not within.empty else 0}; "
-        f"cases with an identifier-order timestamp inversion={len(order_violations)}."
+        f"cases checked={len(expected_eids_by_case)}; "
+        f"cases with an identifier-order deviation from prec_L={len(order_violations)}."
         + ("" if p12_order else f" first offenders={dict(list(order_violations.items())[:5])}")))
 
     # ---- P1.3 Message well-formedness ------------------------------
@@ -889,6 +952,19 @@ def run_consistency_checks(src_df: pd.DataFrame,
     # fromParticipant/toParticipant attributes of that single related
     # event. For a send observation the event participant is the sender;
     # for a receive observation it is the receiver.
+    #
+    # Completeness of from/to: the source format may leave a send/receive
+    # event's COUNTERPARTY side (toParticipant of a Send, fromParticipant
+    # of a Receive) unrecorded (see Normalization, appendix). That side is
+    # not guessed: from(e)/to(e) stay undefined for that Message, no O2O
+    # 'from'/'to' relation is created for it, and its sender/receiver
+    # object attribute stays unset. This is a data-completeness property,
+    # not a construction defect, so it is reported explicitly below
+    # (n_messages_missing_sender/receiver) rather than silently skipped;
+    # P1.3 only fails on an actual DISAGREEMENT between two sources that
+    # both claim to have a value (or a value present on one side of the
+    # attribute/relation pair without its counterpart), never merely on
+    # an endpoint the source log never recorded.
     p13_ok = True
     p13_detail_bits: List[str] = []
     if not rel.empty:
@@ -912,13 +988,17 @@ def run_consistency_checks(src_df: pd.DataFrame,
         msg_event.update({oid: (eid, Q_RECEIVE)
                           for oid, eid in zip(recv_edges[COL_OID], recv_edges[COL_EID])})
 
-        if not o2o.empty and not obj.empty:
+        if not obj.empty:
             obj_idx = obj.set_index(COL_OID)
             ev_idx = ev.set_index(COL_EID) if not ev.empty else None
-            o2o_msg = o2o[o2o[COL_QUALIFIER].isin([Q_FROM, Q_TO])]
+            o2o_msg = (o2o[o2o[COL_QUALIFIER].isin([Q_FROM, Q_TO])] if not o2o.empty
+                      else pd.DataFrame(columns=[COL_OID, COL_OID2, COL_QUALIFIER]))
             oa_disagreements = 0
             ea_disagreements = 0
             participant_disagreements = 0
+            missing_sender = 0
+            missing_receiver = 0
+            inconsistent_partial = 0  # attribute defined but relation missing, or vice versa
             for m in msg_ids:
                 if m not in obj_idx.index:
                     continue
@@ -926,9 +1006,23 @@ def run_consistency_checks(src_df: pd.DataFrame,
                 receiver = obj_idx.at[m, "receiver"] if "receiver" in obj_idx.columns else None
                 froms = o2o_msg[(o2o_msg[COL_OID] == m) & (o2o_msg[COL_QUALIFIER] == Q_FROM)][COL_OID2].tolist()
                 tos = o2o_msg[(o2o_msg[COL_OID] == m) & (o2o_msg[COL_QUALIFIER] == Q_TO)][COL_OID2].tolist()
-                if pd.notna(sender) and froms and froms[0] != _participant_id(str(sender)):
+
+                sender_defined, from_defined = pd.notna(sender), bool(froms)
+                receiver_defined, to_defined = pd.notna(receiver), bool(tos)
+                if not sender_defined:
+                    missing_sender += 1
+                if not receiver_defined:
+                    missing_receiver += 1
+                # A genuine construction bug: the object attribute and the O2O
+                # relation for the SAME side disagree on whether it is defined.
+                if sender_defined != from_defined:
+                    inconsistent_partial += 1
+                if receiver_defined != to_defined:
+                    inconsistent_partial += 1
+
+                if sender_defined and froms and froms[0] != _participant_id(str(sender)):
                     oa_disagreements += 1
-                if pd.notna(receiver) and tos and tos[0] != _participant_id(str(receiver)):
+                if receiver_defined and tos and tos[0] != _participant_id(str(receiver)):
                     oa_disagreements += 1
 
                 eid_qual = msg_event.get(m)
@@ -951,7 +1045,14 @@ def run_consistency_checks(src_df: pd.DataFrame,
             p13_detail_bits.append(
                 f"sender/receiver vs event fromParticipant/toParticipant: {ea_disagreements}")
             p13_detail_bits.append(f"event participant disagreements: {participant_disagreements}")
-            if oa_disagreements or ea_disagreements or participant_disagreements:
+            p13_detail_bits.append(
+                f"messages missing sender (source never recorded 'from'): {missing_sender}")
+            p13_detail_bits.append(
+                f"messages missing receiver (source never recorded 'to'): {missing_receiver}")
+            p13_detail_bits.append(
+                f"inconsistent partial state (attribute/relation disagree on definedness): "
+                f"{inconsistent_partial}")
+            if oa_disagreements or ea_disagreements or participant_disagreements or inconsistent_partial:
                 p13_ok = False
     out.append(CheckResult("P1.3 Message well-formedness", bool(p13_ok),
                            "; ".join(p13_detail_bits) or "no messages"))

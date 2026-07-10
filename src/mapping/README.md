@@ -70,14 +70,28 @@ This design keeps the transformation lightweight while relying on standard seria
 Machine-checked guards against implementation defects (the mapping's
 correctness argument is by construction; these checks catch bugs):
 
+Checks compare the constructed output against an **independently recomputed
+expectation** from the source log (a fresh call to `_sorted_case_events`),
+not just aggregate counts read off the transform's own output.
+
 | Check | Verifies |
 |---|---|
-| P1.1 Totality | one OCEL event per source event; timestamps preserved |
-| P1.2 Per-case partition | each `CollaborationCase`'s `within`-related events == that case's source events, no dangling edges |
-| P1.3 Message well-formedness | every Message is related to exactly one event, by `send` **xor** `receive` (never both); `from`/`to` O2O relations agree with the Message's sender/receiver attributes and with the related event's preserved `fromParticipant`/`toParticipant` attributes; the related event's participant is the sender (send) or the receiver (receive) |
+| P1.1 Totality | one OCEL event per source event, with the *same activity and timestamp* checked per event id (not just matching totals) |
+| P1.2 Per-case partition | each `CollaborationCase`'s `within`-related events equal the *exact set* of that case's source event ids (not just a matching count), no dangling edges |
+| P1.2b Per-case order | the identifier order reproduces `prec_L` exactly, timestamp *and* its tie-break by source order (not just a non-decreasing-timestamp check, which a tie inversion would still pass) |
+| P1.3 Message well-formedness | every Message is related to exactly one event, by `send` **xor** `receive` (never both); `from`/`to` O2O relations agree with the Message's sender/receiver attributes and with the related event's preserved `fromParticipant`/`toParticipant` attributes whenever both are defined; the related event's participant is the sender (send) or the receiver (receive). Counterparty endpoints the source never recorded are reported explicitly (`n_messages_missing_sender`/`_receiver`) rather than silently skipped or treated as a disagreement; an attribute/relation pair that disagrees on whether it is defined at all *does* fail the check |
 | P1.4 Participant-projection coherence | `in_projection`/`projection_of` agree with `within`; each `ParticipantProjection` is `for_participant` exactly one `Participant`, name-consistent |
 | P1.5 No orphan objects | every object is referenced by at least one E2O or O2O relation |
 | P1.6 Participant coherence | for every event, the `Participant` reached by the direct `participant` edge equals the one reached via `in_projection -> for_participant` |
+
+**Counterparty endpoint completeness.** The source format may leave a
+send/receive event's own side implicit (backfilled from
+`collab:participant`) but may also leave the *counterparty* side
+(`toParticipant` of a Send, `fromParticipant` of a Receive) unrecorded. That
+side is never guessed: `from`/`to` stay undefined for that Message, with no
+fabricated O2O relation or `sender`/`receiver` attribute. This occurs in
+practice: 26 of 550 `SendTask` events in Healthcare and 44 of 530 in
+Artificial5 lack `toParticipant` (Artificial1 and Real4: none).
 
 ## Usage
 
