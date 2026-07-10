@@ -5,9 +5,6 @@ ocpm-collab-ppm.code-workspace
 # Claude
 .claude/
 
-# Personal working notes
-plan.md
-
 # Virtual environments
 .venv/
 .venv-mapping/
