@@ -219,7 +219,8 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
     return out
 
 
-def run_rq2(cfg: Optional[ExperimentConfig] = None) -> pd.DataFrame:
+def run_rq2(cfg: Optional[ExperimentConfig] = None,
+           out_name: str = "rq2_fidelity.csv") -> pd.DataFrame:
     cfg = cfg or ExperimentConfig()
     os.makedirs(cfg.out_dir, exist_ok=True)
     out: List[dict] = []
@@ -231,6 +232,6 @@ def run_rq2(cfg: Optional[ExperimentConfig] = None) -> pd.DataFrame:
             print(f"[{spec.name}] ERROR: {ex}")
             out.append({"log": spec.name, "error": str(ex)})
     df = pd.DataFrame(out)
-    df.to_csv(os.path.join(cfg.out_dir, "rq2_fidelity.csv"), index=False)
-    print("[ok] wrote rq2_fidelity.csv")
+    df.to_csv(os.path.join(cfg.out_dir, out_name), index=False)
+    print(f"[ok] wrote {out_name}")
     return df

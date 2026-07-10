@@ -6,9 +6,12 @@ Evaluation orchestrator. Runs the stages owned by the experimentation tool:
 RQ1 (XES->OCEL transformation, properties P1.1-P1.5, OCEL 2.0 schema validation) is
 produced by the CONVERTER (a separate tool) and is therefore out of scope here.
 
-RQ3 is run twice: once on the representative subset (paper Table tab:rq3subset,
-`rq3_results.csv`) and once on the full catalog of 14 tasks (`rq3_results_full.csv`),
-intended as supplementary material rather than an in-paper table.
+RQ3 is run twice on the four study logs: once on the representative subset (paper
+Table tab:rq3subset, `rq3_results.csv`) and once on the full catalog of 14 tasks
+(`rq3_results_full.csv`), intended as supplementary material rather than an
+in-paper table. The optional BPI2013 stage mirrors this split (`run_bpi2013`,
+`run_bpi2013_full`): `rq3_results_bpi2013.csv` (subset) and
+`rq3_results_bpi2013_full.csv` (full catalog, opt-in on top of `run_bpi2013`).
 
 RQ-EXT (object-enabled EXTENSION tasks X-Inf, X-MSt; ocpm_tasks/extensions.py) is run
 separately, on a small hand-built toy log (data/logs/ToyCollab/toy_collab.*, see
@@ -39,14 +42,16 @@ import sys
 from dataclasses import replace
 from typing import Optional
 from ocpm_tasks.catalog import EQUIVALENCE_TASKS
-from .config import ExperimentConfig, ExtExperimentConfig
+from .config import ExperimentConfig, ExtExperimentConfig, real_world_ocel_logs
 from .rq2_fidelity import run_rq2
 from .rq3_pipeline import run_rq3
 from .rq_ext_pipeline import run_rq_ext
 
 
 def main(cfg: Optional[ExperimentConfig] = None,
-        ext_cfg: Optional[ExtExperimentConfig] = None):
+        ext_cfg: Optional[ExtExperimentConfig] = None,
+        run_bpi2013: bool = False,
+        run_bpi2013_full: bool = False):
     cfg = cfg or ExperimentConfig()
     results = {}
     print("\n########## RQ2 — label fidelity ##########")
@@ -59,6 +64,26 @@ def main(cfg: Optional[ExperimentConfig] = None,
     print("\n[note] RQ1 (transformation + P1 + schema) is the converter's tool.")
     print("\n########## RQ-EXT — object-enabled extensions X-Inf/X-MSt (TOY LOG demo) ##########")
     results["rq_ext_toy"] = run_rq_ext(ext_cfg or ExtExperimentConfig())
+    if run_bpi2013:
+        # Opt-in: BPI2013 is ~36x larger than the largest study log (7,554 cases /
+        # 65,533 events); OCPA feature extraction + RandomForest fitting time is
+        # untested at this scale, so this stage is not run by default. Kept in a
+        # separate stage/config and separate output CSVs since BPI2013 does not
+        # share provenance with the four study logs reused from Delgado et al.
+        # (2025) -- see data/logs/BPIChallenge2013/planBPI.md.
+        print("\n########## RQ2/RQ3 — real-world validation (BPI2013) ##########")
+        bpi_cfg = replace(cfg, logs=real_world_ocel_logs())
+        results["rq2_bpi2013"] = run_rq2(bpi_cfg, out_name="rq2_fidelity_bpi2013.csv")
+        results["rq3_bpi2013"] = run_rq3(bpi_cfg, out_name="rq3_results_bpi2013.csv")
+        if run_bpi2013_full:
+            # Separate opt-in on top of run_bpi2013: the full 14-task catalog
+            # (vs. the 6-task representative subset above) roughly doubles the
+            # OCPA feature extraction + RandomForest fitting cost on a log that
+            # is already ~36x the largest study log, so it is not run by default
+            # even when run_bpi2013=True.
+            print("\n########## RQ3 — full catalog, real-world validation (BPI2013) ##########")
+            bpi_full_cfg = replace(bpi_cfg, rq3_tasks=list(EQUIVALENCE_TASKS))
+            results["rq3_bpi2013_full"] = run_rq3(bpi_full_cfg, out_name="rq3_results_bpi2013_full.csv")
     return results
 
 

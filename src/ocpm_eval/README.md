@@ -35,6 +35,7 @@ package is the fuller, cross-validated version of the same pattern.
 | **RQ3** end-to-end feasibility (representative subset, in-paper) | `rq3_pipeline.py` | `results/rq3_results.csv` |
 | **RQ3** full catalog (supplementary coverage, 14 tasks × 4 logs) | `rq3_pipeline.py` via `run_evaluation.py` | `results/rq3_results_full.csv` |
 | RQ1 transformation + P1 | — | [`mapping`](../mapping/README.md) (separate tool) |
+| **RQ2/RQ3 on BPI2013** (opt-in real-world validation, see below) | `rq2_fidelity.py`/`rq3_pipeline.py` via `run_evaluation.py` (`run_bpi2013=True`) | `results/rq2_fidelity_bpi2013.csv`, `results/rq3_results_bpi2013.csv` |
 
 ## Reading path
 
@@ -65,10 +66,15 @@ cannot read it:
 ## Usage
 
 ```bash
-# full evaluation (RQ2 + RQ3) — RQ3 requires OCPA installed; run from
-# the repo root with .venv active. Writes CSVs to results/.
+# full evaluation (RQ2 + RQ3 + RQ-EXT), WITHOUT BPI2013 — RQ3 requires OCPA
+# installed; run from the repo root with .venv active. Writes CSVs to results/.
 python -m ocpm_eval.run_evaluation
 ```
+
+Same command on Windows, once `.venv` is active (PowerShell:
+`.venv\Scripts\Activate.ps1`; `cmd.exe`: `.venv\Scripts\activate.bat`). See
+the root [README.md](../../README.md#setup-virtual-environments) for the
+full macOS/Linux + Windows setup of `.venv`.
 
 Run a single stage, or drive it programmatically:
 
@@ -89,6 +95,43 @@ Point the evaluation at your own logs by editing the registry in
 `config.py` (`LogSpec(name, ocel_path, xes_path)` — `ocel_path` is the
 OCEL 2.0 `.sqlite` from `mapping`, `xes_path` is only needed for RQ2's R1
 comparison).
+
+### With BPI2013 (opt-in real-world validation)
+
+`run_evaluation.main` also accepts `run_bpi2013: bool = False`. It defaults to
+`False` because BPI2013 (`data/logs/BPIChallenge2013/`, registered in
+`config.py::real_world_ocel_logs()`) is ~36x larger than the largest study log
+(7,554 cases / 65,533 events vs. up to ~100 cases / ~1,800 events), so its
+OCPA feature extraction + RandomForest fitting time is significantly longer.
+It does not share provenance with the four study logs reused from Delgado et
+al. (2025), so it always runs as a separate stage against a separate config
+(`replace(cfg, logs=real_world_ocel_logs())`) and writes to separate CSVs
+(`rq2_fidelity_bpi2013.csv`, `rq3_results_bpi2013.csv`), never mixing into
+`rq2_fidelity.csv`/`rq3_results*.csv`. There is no CLI flag for this yet —
+enable it by calling `main` programmatically:
+
+```python
+from ocpm_eval.run_evaluation import main
+
+main(run_bpi2013=True)   # runs RQ2+RQ3+RQ-EXT as usual, PLUS RQ2/RQ3 on BPI2013
+```
+
+Or run just the BPI2013 stage on its own, without the four study logs:
+
+```python
+from dataclasses import replace
+from ocpm_eval.config import ExperimentConfig, real_world_ocel_logs
+from ocpm_eval.rq2_fidelity import run_rq2
+from ocpm_eval.rq3_pipeline import run_rq3
+
+bpi_cfg = replace(ExperimentConfig(), logs=real_world_ocel_logs())
+run_rq2(bpi_cfg, out_name="rq2_fidelity_bpi2013.csv")
+run_rq3(bpi_cfg, out_name="rq3_results_bpi2013.csv")
+```
+
+See [data/logs/README.md](../../data/logs/README.md#bpichallenge2013--real-life-application-log)
+for the log's provenance and the synthesized-`SendTask` design, and
+`data/logs/BPIChallenge2013/planBPI.md` for the full integration history.
 
 ## RQ3 protocol
 

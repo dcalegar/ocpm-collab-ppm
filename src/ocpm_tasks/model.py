@@ -41,14 +41,25 @@ class Execution:
     encoded: in R2 the observable prefix is the object-centric execution graph, and
     the features (e.g. via OCPA) are graph-based, not a linear-prefix encoding. The
     linear order here is used only to define ground-truth targets at each cut point.
-    Ties on timestamp are broken by event_id so cut points are deterministic.
+    Ties on timestamp keep the adapter's original (source/insertion) order --
+    a stable sort on timestamp alone, no secondary key -- so cut points are
+    deterministic.
     """
     case_id: str
     events: List[Event]
 
     def __post_init__(self):
-        self.events = sorted(self.events,
-                             key=lambda e: (e.timestamp, str(e.event_id)))
+        # Stable sort: ties on timestamp preserve the order `events` was
+        # built in (each adapter appends per case in source/insertion
+        # order -- see adapters.build_from_relations). A secondary sort
+        # key of str(event_id) was used before, but string comparison
+        # does not agree with the events' true (numeric/insertion) order
+        # once ids differ in digit count, e.g. "e::case::10" sorts before
+        # "e::case::9" -- which silently reversed a synthesized
+        # SendTask/ReceiveTask pair sharing one timestamp (they are
+        # minted as consecutive indices, so this triggers whenever the
+        # pair straddles a power-of-10 boundary).
+        self.events = sorted(self.events, key=lambda e: e.timestamp)
 
     @property
     def n(self) -> int:

@@ -31,6 +31,17 @@ def predictcollab_ocel_logs() -> List[LogSpec]:
     ]
 
 
+def real_world_ocel_logs() -> List[LogSpec]:
+    """BPI Challenge 2013 (incidents, collaborative). Real-world validation log,
+    kept out of predictcollab_ocel_logs() since it does not share provenance
+    with the four study logs reused from Delgado et al. (2025); run as a
+    separate stage/config (see run_evaluation.py)."""
+    return [
+        LogSpec("BPI2013", "data/logs/BPIChallenge2013/BPI2013_incidents_collaborative.sqlite",
+                            "data/logs/BPIChallenge2013/BPI2013_incidents_collaborative.xes"),
+    ]
+
+
 @dataclass
 class ExperimentConfig:
     logs: List[LogSpec] = field(default_factory=predictcollab_ocel_logs)

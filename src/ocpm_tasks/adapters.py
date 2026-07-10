@@ -23,10 +23,14 @@ def _normalize_ocel_sqlite_timestamps(path: str) -> str:
     """Return a temp path to a copy of the SQLite file patched for OCPA compatibility:
     (1) event timestamps without microseconds gain '.000000' — pandas 2.0+ infers the
         format from the first N values and rejects mixed presence of .f;
-    (2) column names containing ':' are renamed (replacing ':' with '_') — pandas
-        itertuples() sanitizes ':' in namedtuple field names but OCPA still looks up
-        the original name, causing AttributeError.
+    (2) column names that are not valid Python identifiers (e.g. containing ':' as in
+        'org:group', or a space as in the BPI2013 source attribute 'organization
+        involved') are renamed, replacing every invalid character with '_' — pandas
+        itertuples() silently drops/renames such columns in the namedtuple, but OCPA's
+        own importer (ocpa/objects/log/converter/versions/df_to_ocel.py) still looks
+        up the original name via getattr(row, attr), causing AttributeError.
     Only copies the file when at least one of these conditions is detected."""
+    import re
     import sqlite3, os, shutil, tempfile
 
     def _user_tables(cur):
@@ -35,10 +39,10 @@ def _normalize_ocel_sqlite_timestamps(path: str) -> str:
             "AND name NOT LIKE 'sqlite_%'"
         )]
 
-    def _colon_cols(cur, tbl):
-        return [(r[1], r[1].replace(":", "_"))
+    def _invalid_ident_cols(cur, tbl):
+        return [(r[1], re.sub(r"\W", "_", r[1]))
                 for r in cur.execute(f'PRAGMA table_info("{tbl}")')
-                if ":" in r[1]]
+                if not r[1].isidentifier()]
 
     con = sqlite3.connect(path)
     cur = con.cursor()
@@ -54,10 +58,10 @@ def _normalize_ocel_sqlite_timestamps(path: str) -> str:
             if row:
                 needs_fix = True
                 break
-        # Check for colon characters in any column name.
+        # Check for non-identifier column names in any column name.
         if not needs_fix:
             for tbl in _user_tables(cur):
-                if _colon_cols(cur, tbl):
+                if _invalid_ident_cols(cur, tbl):
                     needs_fix = True
                     break
     except Exception:
@@ -82,9 +86,9 @@ def _normalize_ocel_sqlite_timestamps(path: str) -> str:
                 f'substr(ocel_time,1,19)||".000000"||substr(ocel_time,20) '
                 f'WHERE ocel_time IS NOT NULL AND ocel_time NOT LIKE "%.%"'
             )
-        # (2) Rename colon-containing columns in all user tables.
+        # (2) Rename non-identifier columns in all user tables.
         for tbl in _user_tables(cur):
-            for old_col, new_col in _colon_cols(cur, tbl):
+            for old_col, new_col in _invalid_ident_cols(cur, tbl):
                 cur.execute(f'ALTER TABLE "{tbl}" RENAME COLUMN "{old_col}" TO "{new_col}"')
         con.commit()
     finally:

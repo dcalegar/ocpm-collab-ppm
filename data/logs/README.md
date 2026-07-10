@@ -53,11 +53,28 @@ The original source files (`original/BPI_Challenge_2013_incidents.xes.gz`,
 challenge data. `collab_convert.py` reinterprets it collaboratively — each IT
 organizational line ("organization involved") becomes a participant/pool, each
 incident becomes a collaboration instance, and inter-line ticket hand-overs
-surfaced as `Queued` events become detected messages (independent message
-model; no send counterpart is fabricated, since the source records none). See
+surfaced as `Queued` events become detected messages. The source log only
+records the receiving side of a hand-over, so for each detected `ReceiveTask`
+the converter **synthesizes a correlated `SendTask`**, attributed to the
+previous line and re-using the organizational attributes (`org:resource`,
+`org:role`, `org:group`) already recorded on the triggering `Queued` event —
+justified by the empirical finding (98.2% agreement, see `informacion.md`)
+that those attributes already describe the actual sending resource. This is a
+deterministic re-attribution of already-observed data, not a fabrication of
+unobserved data, and is flagged explicitly (not hidden) via a residual
+`collab:synthesized="true"` attribute on the synthesized event only. See
 `informacion.md` and `description.tex` for the full design rationale, and
 `metrics.json` for the resulting structural metrics (7,554 collaboration
-instances, 65,533 events, 25 participants).
+instances, 65,533 events, 25 participants, 4,051 synthesized `SendTask`
+events).
+
+This log is kept out of `predictcollab_ocel_logs()`/RQ2/RQ3's regular CSVs: it
+is registered separately in `src/ocpm_eval/config.py::real_world_ocel_logs()`
+and run as an opt-in stage (`run_bpi2013=True`) writing to its own
+`rq2_fidelity_bpi2013.csv`/`rq3_results_bpi2013.csv`, since it does not share
+provenance with the four study logs reused from Delgado et al. (2025). See
+[src/ocpm_eval/README.md](../../src/ocpm_eval/README.md#usage) for how to run
+it.
 
 ## `ToyCollab/` — synthetic demo log
 

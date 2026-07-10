@@ -95,13 +95,18 @@ python src/mapping/collab_xes_to_ocel.py input.xes output --no-validate
 python src/mapping/collab_xes_to_ocel.py input.xes output -v
 ```
 
+Same commands on Windows, once `.venv-mapping` is active
+(`.venv-mapping\Scripts\Activate.ps1` in PowerShell, or
+`.venv-mapping\Scripts\activate.bat` in `cmd.exe`); `input.xes`/`output` with
+forward slashes work as-is, no need to switch to backslashes.
+
 `output` is a base path/name; the tool appends `.jsonocel` and `.sqlite`
 (any of `.jsonocel`/`.sqlite`/`.json` passed in `output` is stripped first).
 
 ### Source format
 
 The extended XES must carry the `collab` extension attributes defined in
-`aux/collab.xesext`, plus the standard XES case/activity/timestamp keys:
+`support/collab.xesext`, plus the standard XES case/activity/timestamp keys:
 
 | XES key | Meaning |
 |---|---|
@@ -118,7 +123,7 @@ The extended XES must carry the `collab` extension attributes defined in
 ```
 mapping/
 ├── collab_xes_to_ocel.py   # the transformation (M1-M8), checks (P1.1-P1.6), I/O, CLI
-└── aux/
+└── support/
     ├── collab.xesext           # collab XES extension definition (source vocabulary)
     ├── ocel20-schema-json.json # OCEL 2.0 JSON schema (draft-07), reference copy
     └── printOCEL.py             # debug script: load a .jsonocel with pm4py, discover
@@ -126,19 +131,37 @@ mapping/
                                   #   the conversion pipeline; requires graphviz)
 ```
 
+> This directory used to be named `aux/`; it was renamed to `support/` because
+> `aux` is a reserved DOS device name on Windows (like `con`, `prn`, `nul`),
+> which silently broke `git clone`/checkout for Windows users.
+
 ## Setup
 
 Requires **pm4py >= 2.7.16** (OCEL 2.0 write support), which conflicts with
 the `pm4py==2.2.32` pinned by OCPA in the evaluation environment — run this
 tool from a **separate virtual environment**. See the root
-[README.md](../../README.md#setup-macos-virtual-environments) for the full
+[README.md](../../README.md#setup-virtual-environments) for the full
 two-environment setup (`.venv-mapping` here, `.venv` for
-`ocpm_eval`/`ocpm_tasks`).
+`ocpm_eval`/`ocpm_tasks`), including the Apple Silicon and Windows notes.
+
+**macOS / Linux:**
 
 ```bash
 python3.10 -m venv .venv-mapping
 source .venv-mapping/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements-mapping.txt
+pip install -e .
+```
+
+**Windows (PowerShell):**
+
+```powershell
+py -3.10 -m venv .venv-mapping
+.venv-mapping\Scripts\Activate.ps1   # cmd.exe: .venv-mapping\Scripts\activate.bat
+python -m pip install --upgrade pip
+pip install -r requirements-mapping.txt
+pip install -e .
 ```
 
 ## Where the output goes

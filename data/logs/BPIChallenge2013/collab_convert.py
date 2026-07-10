@@ -15,27 +15,43 @@ Design decisions (consistent with the project bitacora):
   * Local case = the projection of a CI onto a single participant (the M3
     (case, participant) pair); collected even when the participant is left and
     re-entered (ping-pong).
-  * Message detection (INDEPENDENT MESSAGE MODEL, no correlation function):
-    an event whose activity status is ``Queued`` and whose participant differs
-    from the immediately preceding event's participant is read as a *receive*
-    observation of a ticket hand-over. One Message is minted per such
-    observation; no send counterpart is fabricated, because the source system
-    does not record a separate send event.
-      - toParticipant = the receiving line (the event's own participant).
-      - fromParticipant = the previous event's participant (DERIVED; declared
+  * Message detection: an event whose activity status is ``Queued`` and whose
+    participant differs from the immediately preceding event's participant is
+    read as a *receive* observation of a ticket hand-over. One Message is
+    minted per such observation, correlating exactly two observations:
+      - a ``ReceiveTask`` (the real, recorded ``Queued`` event), with
+        toParticipant = the receiving line (the event's own participant) and
+        fromParticipant = the previous event's participant (DERIVED; declared
         as a pre-processing inference, not a recorded fact).
+      - a ``SendTask`` (SYNTHESIZED: the source system does not record a
+        separate send event for a hand-over), attributed to the previous
+        line and dated at the same timestamp as the triggering ``Queued``
+        event. Its organizational attributes (``org:resource``, ``org:role``,
+        ``org:group``, countries) are copied from that same ``Queued`` event
+        -- only "organization involved" is re-attributed to the previous
+        line -- justified by the empirical finding in ``informacion.md`` that
+        98.2% of such hand-overs are executed by the resource of the previous
+        handler. This is a deterministic re-attribution of data already
+        present on the event, not a fabrication of unobserved data, and it is
+        declared explicitly (never silently blended with real observations)
+        via the residual attribute ``collab:synthesized="true"``, present
+        only on the synthesized ``SendTask``.
+      - Both observations of a pair share the same message identifier
+        (serialized as the residual attribute ``msgId``), enabling explicit
+        message correlation (the same ``corr_attr`` mechanism already used by
+        ToyCollab).
       - A ``Queued`` line-change event in first position of a CI has no observed
         predecessor -> flagged as an UNMATCHED receive (external / unobserved
-        origin); kept, not corrected.
+        origin); kept, not corrected, and no send is synthesized for it.
 
 The converter FLAGS but does NOT silently correct data-quality issues
 (unmatched receives, group->line inconsistencies, catch-all "Other" line,
 missing roles, "Unmatched" activity, etc.).
 
-NOTE ON SCHEMA KEYS: the ``collab:*`` attribute keys used on output are this
-converter's documented convention. They must be reconciled with the
-authoritative collaborative-XES extension used by the project repository before
-the artefact is committed.
+NOTE ON SCHEMA KEYS: the ``collab:*`` attribute keys used on output
+(``elemType``, ``participant``, ``fromParticipant``, ``toParticipant``) have
+been reconciled with, and match exactly, the authoritative collaborative-XES
+extension used by the project repository (``src/mapping/support/collab.xesext``).
 
 Author-facing, reproducible. Python 3, standard library only.
 """
@@ -116,6 +132,7 @@ def transform(traces):
         "n_task": 0,
         "n_receive_matched": 0,
         "n_receive_unmatched": 0,
+        "n_send_synthesized": 0,
         "n_messages": 0,
         "elem_by_status": Counter(),
         "participants": Counter(),          # events per participant
@@ -149,7 +166,6 @@ def transform(traces):
 
         prev_part = None
         for i, e in enumerate(events):
-            eid += 1
             part = e.get(PARTICIPANT_KEY)
             status = e.get("concept:name")
 
@@ -176,7 +192,8 @@ def transform(traces):
                     # Queued at CI entry: no observed predecessor.
                     stats["flag_queued_first_of_ci"] += 1
                 elif is_line_change:
-                    # Receive observation -> mint one Message (independent model)
+                    # Receive observation -> mint one Message, correlating a
+                    # real ReceiveTask with a synthesized SendTask.
                     mid += 1
                     n_msg_ci += 1
                     elem_type = "ReceiveTask"
@@ -187,12 +204,43 @@ def transform(traces):
                     stats["n_messages"] += 1
                     if from_part in (None, "UNKNOWN"):
                         stats["from_is_external"] += 1
+
+                    # Synthesize the paired send observation, attributed to
+                    # the previous line: the source log records only the
+                    # receive side of a hand-over. Shallow-copy the
+                    # triggering Queued event so org:resource/org:role/
+                    # org:group/countries (which already describe the real
+                    # sender empirically -- informacion.md, 98.2% agreement)
+                    # and time:timestamp are preserved verbatim; only
+                    # "organization involved" is re-attributed to prev_part.
+                    # Inserted immediately before the ReceiveTask so
+                    # insertion order (the project's stable tie-break
+                    # convention) places it first.
+                    eid += 1
+                    send_src = dict(e)
+                    send_src[PARTICIPANT_KEY] = prev_part
+                    send_ev = {
+                        "collab_event_id": f"e{eid:07d}",
+                        "participant": prev_part,
+                        "elem_type": "SendTask",
+                        "from_participant": prev_part,
+                        "to_participant": part,
+                        "message_id": msg_id,
+                        "synthesized": True,
+                        "src": send_src,
+                    }
+                    stats["elem_by_status"][(status, "SendTask")] += 1
+                    stats["n_send_synthesized"] += 1
+                    enriched.append(send_ev)
+                    local_events[prev_part].append(send_ev)
+                    participants_here.add(prev_part)
                 # else: same-line Queued -> internal re-queue, stays a task
             elif is_line_change:
                 # Hand-over NOT surfaced as a Queued event: flagged residual,
                 # NOT minted as a message under the stated algorithm.
                 stats["flag_line_change_non_queued"] += 1
 
+            eid += 1
             stats["elem_by_status"][(status, elem_type)] += 1
             enriched_ev = {
                 "collab_event_id": f"e{eid:07d}",
@@ -201,6 +249,7 @@ def transform(traces):
                 "from_participant": from_part,
                 "to_participant": to_part,
                 "message_id": msg_id,
+                "synthesized": False,
                 "src": e,
             }
             enriched.append(enriched_ev)
@@ -267,10 +316,12 @@ def write_collab_xes(collab_cases, path):
     (identified by ``concept:name``), which also carries the CI-constant
     ``product``/``impact`` attributes.
 
-    Consistent with the independent message model (no correlation): receive
-    observations carry no message identifier and no send counterpart is minted,
-    since the source does not record a send. Element type ``SendTask`` is
-    therefore never emitted for this log.
+    Each receive observation is paired with a synthesized send observation
+    (element type ``SendTask``), correlated via the residual ``msgId``
+    attribute (serialized on both sides of the pair -- the same ``corr_attr``
+    mechanism already used by ToyCollab). The synthesized side additionally
+    carries the residual attribute ``collab:synthesized="true"``, never
+    present on the real (recorded) side.
     """
     op = gzip.open(path, "wt", encoding="utf-8") if path.endswith(".gz") \
         else open(path, "w", encoding="utf-8")
@@ -278,8 +329,9 @@ def write_collab_xes(collab_cases, path):
         f.write('<?xml version="1.0" encoding="UTF-8" ?>\n')
         f.write('<!-- Collaborative log derived from BPI Challenge 2013, incidents (Volvo IT VINST). -->\n')
         f.write('<!-- Participant = source attribute "organization involved" (IT organizational line). -->\n')
-        f.write('<!-- Messages: Queued events on a participant change, read as receive observations -->\n')
-        f.write('<!-- (independent message model): receive-only, no fabricated send, no correlation. -->\n')
+        f.write('<!-- Messages: Queued events on a participant change are read as receive -->\n')
+        f.write('<!-- observations, paired with a synthesized SendTask (collab:synthesized="true") -->\n')
+        f.write('<!-- attributed to the previous line and correlated via msgId. -->\n')
         f.write('<log xes.version="1.0" xes.features="nested-attributes">\n')
         for nm, pref, uri in EXTENSIONS:
             f.write(f'\t<extension name="{nm}" prefix="{pref}" uri="{uri}"/>\n')
@@ -297,9 +349,12 @@ def write_collab_xes(collab_cases, path):
                 f.write('\t\t<event>\n')
                 f.write(f'\t\t\t<string key="collab:elemType" value="{ev["elem_type"]}"/>\n')
                 f.write(f'\t\t\t<string key="collab:participant" value="{_esc(ev["participant"])}"/>\n')
-                if ev["elem_type"] == "ReceiveTask":
+                if ev["elem_type"] in ("ReceiveTask", "SendTask"):
                     f.write(f'\t\t\t<string key="collab:fromParticipant" value="{_esc(ev["from_participant"])}"/>\n')
                     f.write(f'\t\t\t<string key="collab:toParticipant" value="{_esc(ev["to_participant"])}"/>\n')
+                    f.write(f'\t\t\t<string key="msgId" value="{_esc(ev["message_id"])}"/>\n')
+                if ev.get("synthesized"):
+                    f.write('\t\t\t<string key="collab:synthesized" value="true"/>\n')
                 for k in PRESERVE_KEYS:
                     if k in src and k != "time:timestamp":
                         f.write(f'\t\t\t<string key="{_esc(k)}" value="{_esc(src[k])}"/>\n')
@@ -330,9 +385,11 @@ def summarize(stats):
         "local_cases_total": stats["localcases_total"],
         "messages_total": stats["n_messages"],
         "receive_matched": stats["n_receive_matched"],
+        "send_synthesized": stats["n_send_synthesized"],
         "elem_type_events": {
             "task": stats["n_task"],
             "ReceiveTask": stats["n_receive_matched"],
+            "SendTask": stats["n_send_synthesized"],
         },
         "participants_per_ci": {
             "mean": round(sum(ppc)/len(ppc), 3), "max": max(ppc),

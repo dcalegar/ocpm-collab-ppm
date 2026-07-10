@@ -220,6 +220,62 @@ def _event_id(case: str, idx: int) -> str:
 # I/O endpoints (the only pm4py-dependent functions)
 # =====================================================================
 
+def _raw_timestamps_in_file_order(path: str) -> List[str]:
+    """Extract every event's raw time:timestamp attribute string directly
+    from the XML, in exact file order (trace-by-trace, event-by-event),
+    bypassing pm4py's datetime parser entirely -- see _correct_utc_timestamps
+    for why."""
+    from lxml import etree
+    root = etree.parse(path).getroot()
+    out: List[str] = []
+    for trace in root.findall("trace"):
+        for ev in trace.findall("event"):
+            for d in ev.findall("date"):
+                if d.get("key") == TIMESTAMP_KEY:
+                    out.append(d.get("value"))
+                    break
+    return out
+
+
+def _correct_utc_timestamps(path: str, n_events: int) -> pd.Series:
+    """Re-derive the timestamp column directly from the raw XES, in UTC.
+
+    pm4py's ISO8601 datetime parsers -- both the default
+    ``strpfromiso`` variant (pm4py.util.dt_parsing.variants.strpfromiso.
+    fix_naivety) and its ``dummy`` fallback -- normalize to UTC via
+    ``datetime.replace(tzinfo=timezone.utc)`` instead of
+    ``astimezone(timezone.utc)``. ``replace`` only overwrites the tzinfo
+    label; it does not shift the clock reading, so any timestamp with a
+    non-zero UTC offset comes back with its original LOCAL wall-clock
+    digits silently mislabeled as UTC. pm4py itself warns about this
+    ("ISO8601 strings are not fully supported with strpfromiso for
+    Python versions below 3.11") but still returns the wrong value
+    instead of raising.
+
+    This is silent for logs whose events all share one fixed UTC offset
+    (it cancels out in any time delta), but is wrong for any source log
+    whose offset varies across events -- e.g. a timezone that observes
+    DST, where a duration whose two endpoints straddle the DST change
+    comes out off by exactly one hour. Example: source
+    ``2012-05-23T01:22:25+02:00`` (true UTC 2012-05-22 23:22:25) comes
+    back from pm4py as ``2012-05-23 01:22:25+00:00`` -- the local digits,
+    not the UTC instant.
+
+    Bypasses the bug by re-parsing the raw attribute strings ourselves
+    with pandas (which converts non-UTC offsets to UTC correctly)
+    instead of trusting pm4py's parsed column.
+    """
+    raw = _raw_timestamps_in_file_order(path)
+    if len(raw) != n_events:
+        raise ValueError(
+            f"Raw timestamp count from XML ({len(raw)}) does not match "
+            f"pm4py's parsed event count ({n_events}); cannot safely "
+            f"realign timestamps to fix the UTC-offset bug (see "
+            f"_correct_utc_timestamps docstring)."
+        )
+    return pd.to_datetime(pd.Series(raw), utc=True, errors="coerce")
+
+
 def read_collaborative_xes(path: str, encoding: str = "utf-8") -> pd.DataFrame:
     """M0 - read the extended collaborative XES file into a DataFrame.
 
@@ -235,6 +291,11 @@ def read_collaborative_xes(path: str, encoding: str = "utf-8") -> pd.DataFrame:
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame(df)
     logger.info("Read %d events.", len(df))
+    # Work around pm4py's UTC-offset parsing bug (see
+    # _correct_utc_timestamps): re-derive TIMESTAMP_KEY from the raw XML
+    # rather than trusting pm4py's own parsed column.
+    df = df.reset_index(drop=True)
+    df[TIMESTAMP_KEY] = _correct_utc_timestamps(path, len(df))
     return df
 
 

@@ -1,3 +1,7 @@
+# Workspace
+ocpm-collab-ppm.code-workspace
+
+
 # Claude
 .claude/
 
@@ -30,3 +34,7 @@ build/
 .idea/
 *.swp
 *.swo
+
+# Oversized raw export (exceeds GitHub's 100MB blob limit at this log's
+# scale); the .jsonocel.gz alongside it is tracked instead.
+data/logs/BPIChallenge2013/BPI2013_incidents_collaborative.jsonocel

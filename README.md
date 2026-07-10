@@ -50,7 +50,7 @@ ocpm-collab-ppm/
 │   ├── mapping/                       # MAPPING TOOL — extended XES → OCEL 2.0 (RQ1)
 │   │   ├── README.md                  #   mapping rules M1-M8, checks P1.1-P1.6, usage
 │   │   ├── collab_xes_to_ocel.py      #   transformation + checks
-│   │   └── aux/                       #   supporting files
+│   │   └── support/                   #   supporting files
 │   │       ├── collab.xesext          #     collaborative XES extension definition
 │   │       ├── ocel20-schema-json.json  #   OCEL 2.0 JSON schema (draft-07)
 │   │       └── printOCEL.py           #     debug helper to inspect OCEL objects and print images
@@ -76,6 +76,7 @@ ocpm-collab-ppm/
 └── data/
     ├── logs/
     │   ├── Predict-Collab/      # the four study logs
+    │   ├── BPIChallenge2013/    # real-world validation log (opt-in stage, see below)
     │   └── ToyCollab/           # toy_collab.* (X-Inf/X-MSt demo log)
     └── results/                 # evaluation outputs, incl. rq_ext_results_toy.csv (RQ-EXT demo)
 ```
@@ -87,7 +88,7 @@ The three directories the project revolves around: **example logs** (`data/logs/
 
 ---
 
-## Setup (macOS, virtual environments)
+## Setup (virtual environments)
 
 `mapping` and `ocpm_eval`/`ocpm_tasks` require **different versions of pm4py** and
 must run in **separate virtual environments**:
@@ -97,8 +98,14 @@ must run in **separate virtual environments**:
 | `.venv` | `ocpm_eval`, `ocpm_tasks` | `==2.2.32` (pinned by OCPA) |
 | `.venv-mapping` | `src/mapping/` | `>=2.7.16` (OCEL 2.0 write support) |
 
-Recommended Python: **3.10**. Optional system dependency for OCPA visualization
-(not used by this pipeline): `brew install graphviz`.
+Recommended Python: **3.10**. Below: macOS/Linux, then Windows. Both follow the
+same four steps — only venv creation/activation syntax differs.
+
+> **Windows note.** `src/mapping/support/` (converter helper scripts) used to be
+> named `aux/`; `aux` is a reserved DOS device name (like `con`, `prn`, `nul`)
+> and silently breaks `git clone`/checkout on Windows. The repository already
+> uses `support/` — if you have an old checkout, zip, or backup with an `aux`
+> folder under `src/mapping/`, discard it and re-clone instead of merging it in.
 
 > **Apple Silicon (arm64) note.** Both venvs must be built with an **arm64-native**
 > Python 3.10 (e.g. `brew install python@3.10` under an arm64 Homebrew at
@@ -109,9 +116,22 @@ Recommended Python: **3.10**. Optional system dependency for OCPA visualization
 > `ImportError: ... you should not try to import numpy from its source
 > directory`. Check with `file "$(readlink -f .venv/bin/python3.10)"`; if it says
 > `x86_64` only, recreate the venv with an arm64 interpreter, or always invoke it
-> as `arch -x86_64 .venv/bin/python ...` (Rosetta) instead.
+> as `arch -x86_64 .venv/bin/python ...` (Rosetta) instead. This applies to
+> **both** `.venv` and `.venv-mapping` independently — fixing one does not fix
+> the other. The same symptom (a wrong-architecture wheel under a
+> right-architecture interpreter) can also show up after `pip install
+> --upgrade`/`--force-reinstall` pulls an x86_64 wheel from a stale cache; the
+> fix is the same: `pip install --force-reinstall --no-cache-dir <package>`
+> for the affected package (check with `file` on its `*.so` files under
+> `site-packages/`).
 
-### Environment 1 — evaluation (`ocpm_eval` + `ocpm_tasks`)
+Optional system dependency for OCPA visualization (not used by this
+pipeline): Graphviz — `brew install graphviz` (macOS), your distro's package
+manager (Linux), or see the Windows section below.
+
+### macOS / Linux
+
+#### Environment 1 — evaluation (`ocpm_eval` + `ocpm_tasks`)
 
 ```bash
 # 1) clone
@@ -134,12 +154,62 @@ pip install -e .
 > If `pip install -e .` re-resolves `pandas`/`numpy` in a way that conflicts with
 > OCPA, prefer OCPA's versions (reinstall OCPA last).
 
-### Environment 2 — mapping (`src/mapping/`)
+#### Environment 2 — mapping (`src/mapping/`)
 
 ```bash
 # In a separate terminal (or after deactivating .venv)
 python3.10 -m venv .venv-mapping
 source .venv-mapping/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements-mapping.txt
+pip install -e .
+```
+
+### Windows
+
+Use the `py` launcher (bundled with the python.org installer) to pin Python
+3.10 — a bare `python3.10` command typically doesn't exist on Windows.
+Commands below are for **PowerShell**; the `cmd.exe` equivalent for
+activation is noted inline.
+
+> If `Activate.ps1` is blocked ("running scripts is disabled on this
+> system"), allow it for the current session:
+> `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`.
+
+Optional system dependency for OCPA visualization (not used by this
+pipeline): install [Graphviz for Windows](https://graphviz.org/download/)
+and add its `bin\` folder to `PATH` (or `choco install graphviz` with
+Chocolatey), then restart the terminal.
+
+#### Environment 1 — evaluation (`ocpm_eval` + `ocpm_tasks`)
+
+```powershell
+# 1) clone
+git clone <your-fork-url> ocpm-collab-ppm
+cd ocpm-collab-ppm
+
+# 2) create the evaluation environment
+py -3.10 -m venv .venv
+.venv\Scripts\Activate.ps1        # cmd.exe: .venv\Scripts\activate.bat
+python -m pip install --upgrade pip
+
+# 3) install OCPA FIRST (it resolves pm4py==2.2.32 and the OCEL 2.0 importer)
+pip install "git+https://github.com/ocpm/ocpa.git@main"      # GPL-3.0
+
+# 4) install remaining deps and make local packages importable
+pip install -r requirements.txt
+pip install -e .
+```
+
+> If `pip install -e .` re-resolves `pandas`/`numpy` in a way that conflicts with
+> OCPA, prefer OCPA's versions (reinstall OCPA last).
+
+#### Environment 2 — mapping (`src/mapping/`)
+
+```powershell
+# In a separate terminal (or after deactivating .venv)
+py -3.10 -m venv .venv-mapping
+.venv-mapping\Scripts\Activate.ps1   # cmd.exe: .venv-mapping\Scripts\activate.bat
 python -m pip install --upgrade pip
 pip install -r requirements-mapping.txt
 pip install -e .
@@ -154,6 +224,8 @@ pip install -e .
 - For `src/ocpm_eval` / `src/ocpm_tasks` files → select the `.venv` interpreter.
 - For `src/mapping/` files → select `.venv-mapping` interpreter
   (use **Python: Select Interpreter** per file, or set it per workspace folder).
+  On Windows the interpreter path is `.venv\Scripts\python.exe` /
+  `.venv-mapping\Scripts\python.exe`.
 
 ---
 
@@ -170,6 +242,14 @@ path to running things.
 # the repo root with .venv active. Writes CSVs to results/ (see table below).
 python -m ocpm_eval.run_evaluation
 ```
+
+Same command on Windows, once `.venv` is active (`.venv\Scripts\Activate.ps1`
+in PowerShell, or `.venv\Scripts\activate.bat` in `cmd.exe` — see
+[Setup](#setup-virtual-environments)).
+
+The command above does **not** run the opt-in BPI2013 real-world validation
+stage (`run_bpi2013=True`, ~36x larger than the study logs) — see
+[ocpm_eval's README](src/ocpm_eval/README.md#usage) for how to enable it.
 
 There is currently no automated test suite for `ocpm_tasks`/`ocpm_eval`; validate a
 change by running the evaluation above and inspecting the `results/*.csv` outputs
@@ -200,6 +280,12 @@ python src/mapping/collab_xes_to_ocel.py input.xes output --no-validate
 python src/mapping/collab_xes_to_ocel.py input.xes output -v
 ```
 
+Same commands on Windows, once `.venv-mapping` is active
+(`.venv-mapping\Scripts\Activate.ps1` in PowerShell, or
+`.venv-mapping\Scripts\activate.bat` in `cmd.exe`); forward slashes in
+`input.xes`/`output` paths work fine on Windows too — no need to switch to
+backslashes.
+
 The extended XES source must use the `collab` extension attributes defined in
 `src/mapping/support/collab.xesext`: `collab:elemType` (`task` / `SendTask` /
 `ReceiveTask`), `collab:participant`, `collab:fromParticipant`, and
@@ -215,7 +301,8 @@ The extended XES source must use the `collab` extension attributes defined in
 | RQ1 | XES→OCEL transformation + checks | **converter (separate tool)** — out of scope here | — |
 | RQ2 | label fidelity (equivalence for the 14 tasks) | `ocpm_eval/rq2_fidelity.py` | `results/rq2_fidelity.csv` |
 | RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `ocpm_eval/rq3_pipeline.py` | `results/rq3_results.csv` |
-| RQ-EXT | object-enabled EXTENSION tasks (X-Inf, X-MSt) — **feasibility demo on a Healthcare variant**, not one of the four study logs; not part of the paper's evaluated RQ2/RQ3 | `ocpm_eval/rq_ext_pipeline.py` | `results/rq_ext_results_toy.csv` |
+| RQ-EXT | object-enabled EXTENSION tasks (X-Inf, X-MSt) — **feasibility demo on a toy log**, not one of the four study logs; not part of the paper's evaluated RQ2/RQ3 | `ocpm_eval/rq_ext_pipeline.py` | `results/rq_ext_results_toy.csv` |
+| RQ2/RQ3 (BPI2013) | real-world validation on BPI Challenge 2013 (incidents, collaborative) — **opt-in**, not one of the four study logs | `ocpm_eval/run_evaluation.py` (`run_bpi2013=True`) | `results/rq2_fidelity_bpi2013.csv`, `results/rq3_results_bpi2013.csv` |
 
 RQ2 *equivalence* (the 14 tasks vs the original collaborative log, R1) needs the
 converter's R1 reader; pass `r1_logs={name: ObjectCentricLog}` to

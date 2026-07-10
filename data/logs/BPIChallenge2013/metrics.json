@@ -2,22 +2,24 @@
   "collaboration_instances": 7554,
   "genuinely_collaborative_ci_ge2_participants": 2034,
   "single_participant_ci": 5520,
-  "events_total": 65533,
+  "events_total": 69584,
   "participants_distinct": 25,
   "local_cases_total": 9846,
   "messages_total": 4051,
   "receive_matched": 4051,
+  "send_synthesized": 4051,
   "elem_type_events": {
     "task": 61482,
-    "ReceiveTask": 4051
+    "ReceiveTask": 4051,
+    "SendTask": 4051
   },
   "participants_per_ci": {
     "mean": 1.303,
     "max": 5
   },
   "events_per_ci": {
-    "mean": 8.675,
-    "max": 123
+    "mean": 9.212,
+    "max": 135
   },
   "messages_per_ci": {
     "mean": 0.536,
@@ -25,9 +27,9 @@
     "ci_with_ge1_message": 1982
   },
   "local_case_length": {
-    "mean": 6.656,
+    "mean": 7.067,
     "median": 5,
-    "max": 86
+    "max": 87
   },
   "flags": {
     "queued_at_ci_entry_external_or_entry": 1156,
@@ -44,43 +46,43 @@
   "events_by_participant_top": [
     [
       "Org line C",
-      42189
+      44088
     ],
     [
       "Org line A2",
-      12508
+      13454
     ],
     [
       "Org line B",
-      4623
+      4887
     ],
     [
       "Other",
-      2319
+      2666
     ],
     [
       "Org line V7n",
-      893
+      1037
     ],
     [
       "Org line G4",
-      861
-    ],
-    [
-      "Org line V2",
-      605
+      954
     ],
     [
       "Org line V11",
-      480
+      634
+    ],
+    [
+      "Org line V2",
+      612
     ],
     [
       "Org line G1",
-      215
+      250
     ],
     [
       "Org line G2",
-      186
+      211
     ]
   ]
 }

@@ -4,7 +4,8 @@ object-centric model. Pure functions: no ML, no I/O, no OCEL library.
 
 Cut-point semantics. A target is evaluated at a *cut point* in a collaboration
 instance. The cut point is an index ``i`` (0-based) in the instance's global trace
-(its events ordered by (timestamp, event_id)); the prefix hd^k has k=i+1 and the
+(its events ordered by timestamp, ties broken by source/insertion order -- see
+Execution.__post_init__); the prefix hd^k has k=i+1 and the
 target is a function of the events AFTER the cut. This linear global trace is the
 basis the paper uses to DEFINE the targets (so they match the case-centric baseline)
 and is independent of how the observable prefix is ENCODED: with OCPA the observable
