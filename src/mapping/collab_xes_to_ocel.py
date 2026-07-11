@@ -577,12 +577,16 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
                       if cfg.from_key in work.columns else None)
             to_p = (_clean(row.get(cfg.to_key))
                     if cfg.to_key in work.columns else None)
-            # Def. app-r1 well-formedness (i)/(ii): part(e)=from(e) for a
-            # SendTask and part(e)=to(e) for a ReceiveTask; from/to are
-            # total on S_L u R_L. The source log may leave the "own side"
-            # of a send/receive event implicit (recording only the
-            # counterparty), relying on collab:participant to supply it;
-            # backfill it here so from/to are total, as M7/M8 assume.
+            # Normalization nu (appendix, after Def. app-r1): the source
+            # log may leave the "own side" of a send/receive event implicit
+            # (recording only the counterparty), relying on
+            # collab:participant to supply it. Backfill ONLY a missing own
+            # side; a recorded value is never overwritten, so a source
+            # value contradicting collab:participant surfaces in P1.3
+            # rather than being silently corrected. The counterparty side
+            # is never guessed: from/to remain genuinely partial when the
+            # source omits it (well-formedness (i)/(ii) constrain only the
+            # own side).
             if elem == ELEM_SEND and from_p is None:
                 from_p = participant
             if elem == ELEM_RECEIVE and to_p is None:
@@ -848,31 +852,58 @@ def run_consistency_checks(src_df: pd.DataFrame,
     obj = res.objects_df
 
     # Independently recompute the expected per-event identity (case, eid,
-    # activity, timestamp, prec_L order) straight from the source log, using
-    # the same normalization/ordering logic the transform itself uses. This
-    # is deliberately NOT read off `res`: P1.1/P1.2/P1.2b below compare the
-    # transform's output against this freshly-derived expectation, rather
-    # than against internal state the transform already trusted, so they
-    # catch defects that only checking cardinalities/timestamps would miss
-    # (e.g. a permuted activity or a swapped case membership that keeps
-    # every count the same).
+    # activity, timestamp, participant, elemType, prec_L order) straight from
+    # the source log, using the same normalization/ordering logic the
+    # transform itself uses. This is deliberately NOT read off `res`:
+    # P1.1/P1.2/P1.2b/P1.3 below compare the transform's output against this
+    # freshly-derived expectation, rather than against internal state the
+    # transform already trusted, so they catch defects that only checking
+    # cardinalities/timestamps would miss (e.g. a permuted activity, a
+    # swapped case membership that keeps every count the same, a stripped
+    # collab:participant attribute, or an elemType flipped to 'task' with
+    # its Message dropped -- the output cannot vouch for itself).
     expected_cases = _sorted_case_events(src_df, cfg)
-    expected_by_eid: Dict[str, Tuple[str, Any]] = {
-        e["eid"]: (str(e["activity"]), e["timestamp"])
+    expected_by_eid: Dict[str, Tuple[str, Any, Optional[str], str]] = {
+        e["eid"]: (str(e["activity"]), e["timestamp"], e["participant"], e["elem"])
         for evlist in expected_cases.values() for e in evlist}
     expected_eids_by_case: Dict[str, List[str]] = {
         case: [e["eid"] for e in evlist] for case, evlist in expected_cases.items()}
+    # Source-side sets of communication events (elem != task), used by P1.3,
+    # split by direction so the send/receive QUALIFIER of each edge can be
+    # compared against the source elemType, not merely event coverage.
+    expected_send_eids = {
+        e["eid"] for evlist in expected_cases.values() for e in evlist
+        if e["elem"] == ELEM_SEND}
+    expected_recv_eids = {
+        e["eid"] for evlist in expected_cases.values() for e in evlist
+        if e["elem"] == ELEM_RECEIVE}
+    expected_comm_eids = expected_send_eids | expected_recv_eids
 
     # ---- P1.1 Totality: one OCEL event per source event, same activity
-    # and timestamp as its source counterpart (checked by event identity,
-    # not merely by matching aggregate counts).
+    # and timestamp as its source counterpart, and the preserved structural
+    # attributes collab:participant and collab:elemType intact (checked by
+    # event identity, not merely by matching aggregate counts; part/elem are
+    # total in the source -- Definition 1 -- so a stripped or altered value
+    # is a construction defect, M8).
     n_src = len(src_df)
     n_ev = len(ev)
     ev_by_eid = ev.set_index(COL_EID) if not ev.empty else None
+
+    def _got_attr(eid_: str, col: str) -> Optional[str]:
+        if ev_by_eid is None or col not in ev_by_eid.columns:
+            return None
+        v = ev_by_eid.at[eid_, col]
+        if v is None or pd.isna(v):
+            return None
+        s = str(v).strip()
+        return s if s != "" else None
+
     missing_eids = 0
     activity_mismatches = 0
     timestamp_mismatches = 0
-    for eid, (exp_act, exp_ts) in expected_by_eid.items():
+    participant_mismatches = 0
+    elemtype_mismatches = 0
+    for eid, (exp_act, exp_ts, exp_part, exp_elem) in expected_by_eid.items():
         if ev_by_eid is None or eid not in ev_by_eid.index:
             missing_eids += 1
             continue
@@ -883,13 +914,24 @@ def run_consistency_checks(src_df: pd.DataFrame,
             timestamp_mismatches += 1
         elif pd.isna(exp_ts) != pd.isna(got_ts):
             timestamp_mismatches += 1
+        if _got_attr(eid, "participant") != exp_part:
+            participant_mismatches += 1
+        # Strict comparison, no fallback to 'task' on absence: the transform
+        # always materializes an explicit elemType (normalized to 'task',
+        # M5), so a missing value in the output is a preservation defect
+        # even for a plain task event, not an equivalent spelling of 'task'.
+        if _got_attr(eid, "elemType") != exp_elem:
+            elemtype_mismatches += 1
     p11 = (n_src == n_ev) and missing_eids == 0 \
-        and activity_mismatches == 0 and timestamp_mismatches == 0
+        and activity_mismatches == 0 and timestamp_mismatches == 0 \
+        and participant_mismatches == 0 and elemtype_mismatches == 0
     out.append(CheckResult(
         "P1.1 Totality",
         bool(p11),
         f"source events={n_src}, ocel events={n_ev}; missing event ids={missing_eids}; "
-        f"activity mismatches={activity_mismatches}; timestamp mismatches={timestamp_mismatches}."))
+        f"activity mismatches={activity_mismatches}; timestamp mismatches={timestamp_mismatches}; "
+        f"participant mismatches={participant_mismatches}; "
+        f"elemType mismatches={elemtype_mismatches}."))
 
     # ---- P1.2 Per-case partition: within-image of each cc equals the
     # exact SET of source event ids of that case (not merely its size, so a
@@ -982,22 +1024,44 @@ def run_consistency_checks(src_df: pd.DataFrame,
         if bad_xor:
             p13_ok = False
 
-        # Coverage (the converse of the above): every SendTask/ReceiveTask
-        # EVENT must itself be related to some Message by 'send'/'receive'
-        # (M4/M6, unconditionally -- unlike the counterparty endpoint, this
-        # does not depend on source completeness). The checks above only
-        # iterate existing Message OBJECTS, so a corruption that drops a
-        # Message and all its relations (rather than leaving one of its
-        # attributes partial) would otherwise go undetected.
-        covered_eids = set(send_edges[COL_EID]) | set(recv_edges[COL_EID])
-        if not ev.empty and "elemType" in ev.columns:
-            msg_event_ids = set(ev[ev["elemType"].isin([ELEM_SEND, ELEM_RECEIVE])][COL_EID])
-        else:
-            msg_event_ids = set()
-        uncovered_events = msg_event_ids - covered_eids
+        # Coverage and per-event multiplicity (the converse of the above):
+        # every source SendTask/ReceiveTask event must be related to EXACTLY
+        # ONE Message by 'send'/'receive' (M4/M6, unconditionally -- unlike
+        # the counterparty endpoint, this does not depend on source
+        # completeness), and no source 'task' event may carry such a
+        # relation. Which events are communication events is derived from
+        # the SOURCE log (expected_comm_eids), never from the output's own
+        # elemType column: an output corrupted by flipping elemType to
+        # 'task' and dropping the Message would otherwise vouch for itself
+        # and pass. The XOR check above only bounds edges per MESSAGE, so a
+        # second Message hanging off the same event (each with one edge)
+        # would also go undetected without the per-event count below.
+        send_covered = set(send_edges[COL_EID])
+        recv_covered = set(recv_edges[COL_EID])
+        covered_eids = send_covered | recv_covered
+        uncovered_events = expected_comm_eids - covered_eids
+        spurious_covered = covered_eids - expected_comm_eids
+        # Direction: the edge's QUALIFIER must match the source elemType --
+        # a SendTask event related by 'receive' (or vice versa) is a defect
+        # even when every count above is right, and it cannot be left to the
+        # participant/sender comparison further down, which is silently
+        # inconclusive when the counterparty endpoint is unrecorded or when
+        # sender == receiver (a self-message).
+        wrong_direction = ((send_covered & expected_recv_eids)
+                           | (recv_covered & expected_send_eids))
+        edge_counts = pd.concat([send_edges[COL_EID], recv_edges[COL_EID]]).value_counts()
+        multi_message_events = int((edge_counts > 1).sum())
         p13_detail_bits.append(
             f"send/receive events with no Message relation: {len(uncovered_events)}")
-        if uncovered_events:
+        p13_detail_bits.append(
+            f"non-communication events with a Message relation: {len(spurious_covered)}")
+        p13_detail_bits.append(
+            f"events whose send/receive qualifier contradicts the source "
+            f"elemType: {len(wrong_direction)}")
+        p13_detail_bits.append(
+            f"events related to more than one Message: {multi_message_events}")
+        if (uncovered_events or spurious_covered or wrong_direction
+                or multi_message_events):
             p13_ok = False
 
         # the single (event, qualifier) related to each Message
@@ -1018,6 +1082,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
             missing_receiver = 0
             inconsistent_partial = 0  # attribute defined but relation missing, or vice versa
             multiplicity_violations = 0  # more than one from/to O2O edge for a single Message
+            event_participant_missing = 0  # comm event lacking its participant attribute
             for m in msg_ids:
                 if m not in obj_idx.index:
                     continue
@@ -1076,6 +1141,13 @@ def run_consistency_checks(src_df: pd.DataFrame,
                     expected = sender if qual == Q_SEND else receiver
                     if pd.notna(expected) and str(ev_participant) != str(expected):
                         participant_disagreements += 1
+                else:
+                    # collab:participant is total in the source (Definition 1),
+                    # so a communication event without it is a preservation
+                    # defect (M8). Reported here explicitly (not silently
+                    # skipped); the per-event identity comparison in P1.1 is
+                    # what fails on it, against the source expectation.
+                    event_participant_missing += 1
 
             p13_detail_bits.append(f"from/to O2O vs sender/receiver: {oa_disagreements}")
             p13_detail_bits.append(
@@ -1091,6 +1163,9 @@ def run_consistency_checks(src_df: pd.DataFrame,
             p13_detail_bits.append(
                 f"from/to O2O multiplicity violations (>1 edge on one side): "
                 f"{multiplicity_violations}")
+            p13_detail_bits.append(
+                f"communication events missing their participant attribute "
+                f"(fails P1.1): {event_participant_missing}")
             if (oa_disagreements or ea_disagreements or participant_disagreements
                     or inconsistent_partial or multiplicity_violations):
                 p13_ok = False

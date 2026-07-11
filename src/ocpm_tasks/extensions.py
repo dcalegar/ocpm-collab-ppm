@@ -14,8 +14,10 @@ exercised only by a dedicated toy-log test (``tests/test_extensions_toy.py``).
 Two extensions with intentionally different correlation requirements:
 
 X-Inf — in-flight message backlog (CollaborationCase anchor, count regression).
-    Needs NO send/receive correlation: the in-flight level after an event is a
-    pure aggregate ``#send observations - #receive observations`` over the Message
+    Needs NO send/receive correlation: the in-flight level after an event is the
+    RUNNING send/receive balance up to that event (+1 per send observation, -1
+    per receive observation, clamped at 0 as it runs -- not a plain
+    ``#send - #receive`` difference; see ``in_flight_trajectory``) over the Message
     objects (M4). This is object-enabled because the receive observations belong to
     OTHER participants' projections, so no single participant-local case trace sees
     them. Target at cut ``i``: the PEAK in-flight backlog over the remainder of the

@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from mapping.collab_xes_to_ocel import (   # noqa: E402
     transform, run_consistency_checks, MappingConfig, TransformResult,
     COL_EID, COL_ACTIVITY, COL_TIMESTAMP, COL_OID, COL_OID2, COL_OTYPE, COL_QUALIFIER,
-    Q_WITHIN, Q_FROM, OT_CC, OT_MESSAGE,
+    Q_WITHIN, Q_FROM, Q_SEND, OT_CC, OT_MESSAGE,
 )
 
 CASE_KEY, ACT_KEY, TS_KEY = "case:concept:name", "concept:name", "time:timestamp"
@@ -206,6 +206,118 @@ def test_p13_catches_stripped_event_attribute():
     p13 = checks["P1.3 Message well-formedness"]
     assert not p13.passed
     assert "inconsistent partial state (attribute/relation disagree on definedness): 1" in p13.detail
+
+
+def test_p13_catches_duplicate_message_on_same_event():
+    """TWO Message objects, each with its own single 'send' edge, hanging off
+    the SAME send event: the XOR check (edges per MESSAGE) passes for both,
+    and set-based coverage sees the event as covered, so only the per-event
+    edge count catches it. P1.3 must fail."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    obj = res.objects_df.copy()
+    rel = res.relations_df.copy()
+    orig = obj[obj[COL_OTYPE] == OT_MESSAGE].iloc[0]
+    dup = orig.copy()
+    dup[COL_OID] = str(orig[COL_OID]) + "_dup"
+    obj.loc[len(obj)] = dup
+    edge = rel[(rel[COL_OID] == orig[COL_OID]) & (rel[COL_QUALIFIER] == Q_SEND)].iloc[0].copy()
+    edge[COL_OID] = dup[COL_OID]
+    rel.loc[len(rel)] = edge
+    extra_o2o = res.o2o_df[res.o2o_df[COL_OID] == orig[COL_OID]].copy()
+    extra_o2o[COL_OID] = dup[COL_OID]
+    corrupted = replace(res, objects_df=obj, relations_df=rel,
+                        o2o_df=pd.concat([res.o2o_df, extra_o2o], ignore_index=True))
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p13 = checks["P1.3 Message well-formedness"]
+    assert not p13.passed
+    assert "events related to more than one Message: 1" in p13.detail
+
+
+def test_p13_and_p11_catch_elemtype_flip_with_message_dropped():
+    """Flip a send event's elemType to 'task' in the OUTPUT and drop its
+    Message object with all relations. If the set of communication events
+    were read off the output's own elemType column, the corrupted output
+    would vouch for itself and every check would pass; deriving it from the
+    SOURCE makes P1.3 fail (uncovered comm event), and the per-event
+    attribute comparison makes P1.1 fail (elemType mismatch)."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    rel = res.relations_df
+    victim = rel[(rel[COL_OTYPE] == OT_MESSAGE) & (rel[COL_QUALIFIER] == Q_SEND)].iloc[0]
+    ev = res.events_df.copy()
+    ev.loc[ev[COL_EID] == victim[COL_EID], "elemType"] = "task"
+    corrupted = replace(
+        res, events_df=ev,
+        objects_df=res.objects_df[res.objects_df[COL_OID] != victim[COL_OID]],
+        relations_df=rel[rel[COL_OID] != victim[COL_OID]],
+        o2o_df=res.o2o_df[res.o2o_df[COL_OID] != victim[COL_OID]])
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    assert not checks["P1.1 Totality"].passed
+    assert "elemType mismatches=1" in checks["P1.1 Totality"].detail
+    p13 = checks["P1.3 Message well-formedness"]
+    assert not p13.passed
+    assert "send/receive events with no Message relation: 1" in p13.detail
+
+
+def test_p11_catches_stripped_participant_attribute():
+    """Stripping the preserved collab:participant attribute from the output
+    events must fail P1.1 (part is total in the source, Definition 1, and
+    M8 preserves it), not be silently skipped by comparisons that only run
+    when the attribute happens to be present."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    ev = res.events_df.copy()
+    ev["participant"] = None
+    corrupted = replace(res, events_df=ev)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p11 = checks["P1.1 Totality"]
+    assert not p11.passed
+    assert "participant mismatches=8" in p11.detail
+    # P1.3 also reports (though P1.1 is the failing check) the comm events
+    # that lost their participant attribute.
+    assert "communication events missing their participant attribute" \
+        in checks["P1.3 Message well-formedness"].detail
+
+
+def test_p11_catches_stripped_elemtype_on_task_event():
+    """Stripping the preserved collab:elemType attribute from a plain 'task'
+    event must fail P1.1: the transform always materializes an explicit
+    elemType (normalized to 'task', M5/M8), so its absence is a preservation
+    defect -- it must not be silently equated with 'task' by a fallback."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    ev = res.events_df.copy()
+    idx = ev[ev[COL_ACTIVITY] == "Start"].index[0]  # a task event
+    ev.loc[idx, "elemType"] = None
+    corrupted = replace(res, events_df=ev)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p11 = checks["P1.1 Totality"]
+    assert not p11.passed
+    assert "elemType mismatches=1" in p11.detail
+
+
+def test_p13_catches_send_edge_flipped_to_receive_when_receiver_undefined():
+    """Flip a send event's E2O qualifier from 'send' to 'receive' on a
+    Message whose receiver the source never recorded. The XOR, coverage,
+    and per-event counts all still hold, and the participant/sender
+    comparison is inconclusive (the receiver side is undefined), so only
+    the direction check -- edge qualifier vs source elemType -- catches
+    it. P1.3 must fail."""
+    src = _well_formed_log().copy()
+    src.loc[src[ACT_KEY] == "Send1", TO_KEY] = None  # receiver unrecorded
+    res = transform(src, MappingConfig())
+    rel = res.relations_df.copy()
+    obj = res.objects_df
+    victim_msg = obj[(obj[COL_OTYPE] == OT_MESSAGE) & (obj["receiver"].isna())][COL_OID].iloc[0]
+    mask = (rel[COL_OID] == victim_msg) & (rel[COL_QUALIFIER] == Q_SEND)
+    assert mask.sum() == 1
+    rel.loc[mask, COL_QUALIFIER] = "receive"
+    corrupted = replace(res, relations_df=rel)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p13 = checks["P1.3 Message well-formedness"]
+    assert not p13.passed
+    assert "send/receive qualifier contradicts the source elemType: 1" in p13.detail
 
 
 def _run_all():

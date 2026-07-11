@@ -1,10 +1,12 @@
 """
 Evaluation orchestrator. Runs the stages owned by the experimentation tool:
-  * RQ2 — label fidelity (equivalence: R1 and R2 both read from the OCEL logs),
+  * RQ2 — label fidelity (equivalence: R1 reads the source XES directly via the
+    source accessors, R2 reads the OCEL 2.0 SQLite; see rq2_fidelity.py),
   * RQ3 — end-to-end feasibility + descriptive metrics on the representative subset,
 
-RQ1 (XES->OCEL transformation, properties P1.1-P1.5, OCEL 2.0 schema validation) is
-produced by the CONVERTER (a separate tool) and is therefore out of scope here.
+RQ1 (XES->OCEL transformation, properties P1.1-P1.6 incl. the P1.2b order check,
+OCEL 2.0 schema validation) is produced by the CONVERTER (a separate tool) and is
+therefore out of scope here.
 
 RQ3 is run twice on the four study logs: once on the representative subset (paper
 Table tab:rq3subset, `rq3_results.csv`) and once on the full catalog of 14 tasks

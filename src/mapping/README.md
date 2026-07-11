@@ -56,14 +56,27 @@ E2O-related objects of an event pairwise and this edge would merge every
 
 ## Event order preservation (criterion P1.2)
 
-The per-case event order of the source XES log is preserved during transformation through **insertion order**: events are emitted in source order (sorted by timestamp, ties broken by appearance order), and both OCEL 2.0 serializations (JSON and SQLite) maintain this insertion order. 
+The per-case event order of the source XES log (timestamp order, ties broken by
+appearance order — the order ≺_L of the appendix) is encoded in the **event
+identifier itself**: ids are minted as `e::<case>::<idx>` with the per-case
+index **zero-padded** to the width needed for that case, so lexicographic
+identifier order agrees exactly with ≺_L (μ_E is an order-embedding; check
+P1.2b verifies this on every export).
 
 **Important precondition for trace reconstruction:**
-- Consumers reading the OCEL output must preserve insertion order when accessing events
-- Any reordering, sorting, or manipulation of events will lose the original trace order
-- The mapping does not emit an explicit order attribute; order is an implicit property of the serialization
+- Consumers must enumerate the events of a case **explicitly in identifier
+  order** (e.g. an `ORDER BY` on the event id when querying the SQLite
+  serialization, or sorting the id strings after reading the JSON)
+- Neither OCEL 2.0 serialization guarantees a canonical enumeration order for a
+  set of events on its own; **do not rely on insertion/row/array order** of an
+  unordered query or scan (SQLite gives no such guarantee without `ORDER BY`)
+- The mapping emits no separate order attribute; the zero-padded rank inside
+  the id is the order carrier
 
-This design keeps the transformation lightweight while relying on standard serialization semantics. Tools like OCPA that read OCEL from SQLite in insertion order will reconstruct traces correctly; tools that reorder events (e.g., by timestamp, activity, or ID) may produce different outputs.
+The project's own reader (`ocpm_tasks/adapters.py::from_ocel2_sqlite`) issues
+`ORDER BY ocel_id` accordingly. Third-party importers that scan tables
+unordered (e.g. pm4py's OCEL2-SQLite reader) should have their events re-sorted
+by event id after reading.
 
 ## Consistency checks (P1.1–P1.6)
 
@@ -76,10 +89,10 @@ not just aggregate counts read off the transform's own output.
 
 | Check | Verifies |
 |---|---|
-| P1.1 Totality | one OCEL event per source event, with the *same activity and timestamp* checked per event id (not just matching totals) |
+| P1.1 Totality | one OCEL event per source event, with the *same activity, timestamp, and preserved `collab:participant`/`collab:elemType`* checked per event id (not just matching totals) |
 | P1.2 Per-case partition | each `CollaborationCase`'s `within`-related events equal the *exact set* of that case's source event ids (not just a matching count), no dangling edges |
 | P1.2b Per-case order | the identifier order reproduces `prec_L` exactly, timestamp *and* its tie-break by source order (not just a non-decreasing-timestamp check, which a tie inversion would still pass) |
-| P1.3 Message well-formedness | every Message is related to exactly one event, by `send` **xor** `receive` (never both); `from`/`to` O2O relations agree with the Message's sender/receiver attributes and with the related event's preserved `fromParticipant`/`toParticipant` attributes whenever both are defined; the related event's participant is the sender (send) or the receiver (receive). Counterparty endpoints the source never recorded are reported explicitly (`n_messages_missing_sender`/`_receiver`) rather than silently skipped or treated as a disagreement; an attribute/relation pair that disagrees on whether it is defined at all *does* fail the check |
+| P1.3 Message well-formedness | every Message is related to exactly one event, by `send` **xor** `receive` (never both), and conversely every source send/receive event is related to *exactly one* Message (which events count as communication events is derived from the *source* log, not from the output's own `elemType`); `from`/`to` O2O relations agree with the Message's sender/receiver attributes and with the related event's preserved `fromParticipant`/`toParticipant` attributes whenever both are defined; the related event's participant is the sender (send) or the receiver (receive). Counterparty endpoints the source never recorded are reported explicitly (`n_messages_missing_sender`/`_receiver`) rather than silently skipped or treated as a disagreement; an attribute/relation pair that disagrees on whether it is defined at all *does* fail the check |
 | P1.4 Participant-projection coherence | `in_projection`/`projection_of` agree with `within`; each `ParticipantProjection` is `for_participant` exactly one `Participant`, name-consistent |
 | P1.5 No orphan objects | every object is referenced by at least one E2O or O2O relation |
 | P1.6 Participant coherence | for every event, the `Participant` reached by the direct `participant` edge equals the one reached via `in_projection -> for_participant` |

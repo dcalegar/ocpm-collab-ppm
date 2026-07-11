@@ -170,9 +170,10 @@ They are deliberately **not** part of `catalog.TASKS`/`EQUIVALENCE_TASKS`/
 `RQ3_SUBSET`, so importing/using them never mixes into the 14-task RQ2/RQ3
 evaluation:
 
-* **`X-Inf`** (`CollaborationCase` anchor, count regression) — the peak in-flight
-  backlog (`#send − #receive` observations) over the case's remainder after the
-  cut. Needs **no** send/receive correlation.
+* **`X-Inf`** (`CollaborationCase` anchor, count regression) — the peak, over the
+  case's remainder after the cut, of the *running* send/receive balance (+1 per
+  send, −1 per receive, clamped at 0 as it runs — not a plain `#send − #receive`
+  difference; see `in_flight_trajectory`). Needs **no** send/receive correlation.
 * **`X-MSt`** (`Message` anchor, time regression) — the latency between the next
   send after the cut and its matching receive; BOTTOM if that send is unmatched
   (still in flight) or if no correlation id is available. Needs `Event.corr_id`,

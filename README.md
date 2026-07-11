@@ -255,10 +255,15 @@ The command above does **not** run the opt-in BPI2013 real-world validation
 stage (`run_bpi2013=True`, ~36x larger than the study logs) — see
 [ocpm_eval's README](src/ocpm_eval/README.md#usage) for how to enable it.
 
-There is currently no automated test suite for `ocpm_tasks`/`ocpm_eval`; validate a
-change by running the evaluation above and inspecting the `results/*.csv` outputs
-(RQ2 fidelity's `agreement` column should be ~1.0; RQ3 rows should have
-`ran_end_to_end=True`).
+Automated regression tests live in [`tests/`](tests/): `test_mapping_checks.py`
+(the P1.1–P1.6 consistency checks of the converter, incl. deliberate-corruption
+scenarios) and `test_extensions_toy.py` (the X-Inf/X-MSt extension tasks of
+`ocpm_tasks/extensions.py`). Run them directly — `python tests/test_mapping_checks.py`
+and `python tests/test_extensions_toy.py` (also pytest-compatible; pytest is not
+installed in the provided venvs). The evaluation pipelines of `ocpm_eval` have no
+dedicated unit tests; validate a change there by running the evaluation above and
+inspecting the `results/*.csv` outputs (RQ2 fidelity's `agreement` column should
+be ~1.0; RQ3 rows should have `ran_end_to_end=True`).
 
 Point the evaluation at your own logs by editing the registry in
 `src/ocpm_eval/config.py` (`LogSpec(name, ocel_path)` with OCEL 2.0 `.sqlite` files).
@@ -318,9 +323,10 @@ converter's R1 reader; pass `r1_logs={name: ObjectCentricLog}` to
 over the same neutral model as the 14 reformulated tasks, but keeps them **out of
 `catalog.TASKS`/`EQUIVALENCE_TASKS`/`RQ3_SUBSET`** so they never mix into RQ2/RQ3:
 
-- **X-Inf** (in-flight backlog, `CollaborationCase` anchor, count regression) — peak
-  `#send − #receive` observations over the case's remainder after the cut. Needs **no**
-  send/receive correlation.
+- **X-Inf** (in-flight backlog, `CollaborationCase` anchor, count regression) — peak,
+  over the case's remainder after the cut, of the *running* send/receive balance
+  (+1 per send, −1 per receive, clamped at 0 as it runs — not a plain
+  `#send − #receive` difference). Needs **no** send/receive correlation.
 - **X-MSt** (message synchronization time, `Message` anchor, time regression) —
   latency of the next send's matching receive after the cut. Needs a native
   correlation id, which the core mapping (M4) deliberately does not infer; an opt-in
