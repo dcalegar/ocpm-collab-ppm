@@ -129,6 +129,25 @@ def test_x_mst_rejects_endpoint_mismatch():
     assert rows == []   # every cut BOTTOM: the only same-corr_id candidate has the wrong endpoints
 
 
+def test_x_mst_rejects_unknown_endpoints_on_both_sides():
+    """Send and receive both have UNDEFINED endpoints (msg_from/msg_to =
+    None, e.g. because the source never recorded the counterparty side --
+    appendixMapping.tex, Normalization). `None == None` must NOT be treated
+    as "endpoints match": neither side's endpoint is actually known, so
+    condition 3 of match(eps_j) cannot be verified and the match must be
+    rejected, not silently accepted."""
+    A, B = "A", "B"
+    ev = [
+        Event("t0", "Start", _t(0), A),
+        Event("s1", "SendP", _t(1), A, is_send=True, msg_from=None, msg_to=None, corr_id="u1"),
+        Event("r1", "RecvQ", _t(2), B, is_receive=True, msg_from=None, msg_to=None, corr_id="u1"),
+        Event("e1", "End", _t(3), B),
+    ]
+    log = ObjectCentricLog([Execution("C5", ev)])
+    rows = compute_ext_label_rows(log, X_MST)
+    assert rows == []   # BOTTOM: neither endpoint is positively known, so no verified match
+
+
 def test_x_mst_rejects_receive_before_send_despite_tied_timestamp():
     """A same-corr_id, same-endpoint receive that occurs BEFORE the send in
     the case's positional order (condition 4) must not be treated as its

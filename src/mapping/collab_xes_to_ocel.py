@@ -982,6 +982,24 @@ def run_consistency_checks(src_df: pd.DataFrame,
         if bad_xor:
             p13_ok = False
 
+        # Coverage (the converse of the above): every SendTask/ReceiveTask
+        # EVENT must itself be related to some Message by 'send'/'receive'
+        # (M4/M6, unconditionally -- unlike the counterparty endpoint, this
+        # does not depend on source completeness). The checks above only
+        # iterate existing Message OBJECTS, so a corruption that drops a
+        # Message and all its relations (rather than leaving one of its
+        # attributes partial) would otherwise go undetected.
+        covered_eids = set(send_edges[COL_EID]) | set(recv_edges[COL_EID])
+        if not ev.empty and "elemType" in ev.columns:
+            msg_event_ids = set(ev[ev["elemType"].isin([ELEM_SEND, ELEM_RECEIVE])][COL_EID])
+        else:
+            msg_event_ids = set()
+        uncovered_events = msg_event_ids - covered_eids
+        p13_detail_bits.append(
+            f"send/receive events with no Message relation: {len(uncovered_events)}")
+        if uncovered_events:
+            p13_ok = False
+
         # the single (event, qualifier) related to each Message
         msg_event: Dict[str, Tuple[str, str]] = {
             oid: (eid, Q_SEND) for oid, eid in zip(send_edges[COL_OID], send_edges[COL_EID])}
@@ -999,6 +1017,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
             missing_sender = 0
             missing_receiver = 0
             inconsistent_partial = 0  # attribute defined but relation missing, or vice versa
+            multiplicity_violations = 0  # more than one from/to O2O edge for a single Message
             for m in msg_ids:
                 if m not in obj_idx.index:
                     continue
@@ -1020,9 +1039,17 @@ def run_consistency_checks(src_df: pd.DataFrame,
                 if receiver_defined != to_defined:
                     inconsistent_partial += 1
 
-                if sender_defined and froms and froms[0] != _participant_id(str(sender)):
+                # Multiplicity: at most one 'from' and one 'to' edge per
+                # Message (M7). A second, contradictory edge on the same
+                # side must not be silently ignored by only ever comparing
+                # froms[0]/tos[0].
+                if len(froms) > 1:
+                    multiplicity_violations += 1
+                elif sender_defined and froms and froms[0] != _participant_id(str(sender)):
                     oa_disagreements += 1
-                if receiver_defined and tos and tos[0] != _participant_id(str(receiver)):
+                if len(tos) > 1:
+                    multiplicity_violations += 1
+                elif receiver_defined and tos and tos[0] != _participant_id(str(receiver)):
                     oa_disagreements += 1
 
                 eid_qual = msg_event.get(m)
@@ -1032,6 +1059,15 @@ def run_consistency_checks(src_df: pd.DataFrame,
                 ev_from = ev_idx.at[eid, "fromParticipant"] if "fromParticipant" in ev_idx.columns else None
                 ev_to = ev_idx.at[eid, "toParticipant"] if "toParticipant" in ev_idx.columns else None
                 ev_participant = ev_idx.at[eid, "participant"] if "participant" in ev_idx.columns else None
+                # M8 preserves fromParticipant/toParticipant on the event
+                # exactly when from(e)/to(e) is defined (appendix, Event
+                # attributes M5/M8): the object attribute and the preserved
+                # event attribute must agree on DEFINEDNESS, not only on
+                # value when both happen to be present.
+                if sender_defined != pd.notna(ev_from):
+                    inconsistent_partial += 1
+                if receiver_defined != pd.notna(ev_to):
+                    inconsistent_partial += 1
                 if pd.notna(sender) and pd.notna(ev_from) and str(ev_from) != str(sender):
                     ea_disagreements += 1
                 if pd.notna(receiver) and pd.notna(ev_to) and str(ev_to) != str(receiver):
@@ -1052,7 +1088,11 @@ def run_consistency_checks(src_df: pd.DataFrame,
             p13_detail_bits.append(
                 f"inconsistent partial state (attribute/relation disagree on definedness): "
                 f"{inconsistent_partial}")
-            if oa_disagreements or ea_disagreements or participant_disagreements or inconsistent_partial:
+            p13_detail_bits.append(
+                f"from/to O2O multiplicity violations (>1 edge on one side): "
+                f"{multiplicity_violations}")
+            if (oa_disagreements or ea_disagreements or participant_disagreements
+                    or inconsistent_partial or multiplicity_violations):
                 p13_ok = False
     out.append(CheckResult("P1.3 Message well-formedness", bool(p13_ok),
                            "; ".join(p13_detail_bits) or "no messages"))

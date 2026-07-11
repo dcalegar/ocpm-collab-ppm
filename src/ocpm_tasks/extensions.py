@@ -82,8 +82,16 @@ def _match_receive(ex: Execution, j: int) -> Optional[Event]:
     (e.g. a duplicated correlation id on two same-endpoint receives), the
     earliest qualifying candidate by position is returned deterministically,
     rather than silently keeping whichever receive a corr_id happened to
-    collide with last (as a ``{corr_id: receive}`` index would)."""
+    collide with last (as a ``{corr_id: receive}`` index would).
+
+    Both endpoints must be POSITIVELY known and equal, not merely
+    structurally equal: ``send.msg_from == r.msg_from`` alone would accept
+    two events that both have an undefined endpoint (``None == None``) as
+    a "match" on that side, when in fact neither endpoint is known -- the
+    condition-3 check would then be vacuous instead of a real guard."""
     send = ex.events[j]
+    if send.msg_from is None or send.msg_to is None:
+        return None            # counterparty endpoint unrecorded: cannot verify condition 3
     for r in ex.events[j + 1:]:
         if (r.is_receive and r.corr_id == send.corr_id
                 and r.msg_from == send.msg_from and r.msg_to == send.msg_to):

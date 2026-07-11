@@ -26,8 +26,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from mapping.collab_xes_to_ocel import (   # noqa: E402
     transform, run_consistency_checks, MappingConfig, TransformResult,
-    COL_EID, COL_ACTIVITY, COL_TIMESTAMP, COL_OID, COL_OTYPE, COL_QUALIFIER,
-    Q_WITHIN, OT_CC,
+    COL_EID, COL_ACTIVITY, COL_TIMESTAMP, COL_OID, COL_OID2, COL_OTYPE, COL_QUALIFIER,
+    Q_WITHIN, Q_FROM, OT_CC, OT_MESSAGE,
 )
 
 CASE_KEY, ACT_KEY, TS_KEY = "case:concept:name", "concept:name", "time:timestamp"
@@ -150,6 +150,62 @@ def test_p13_reports_missing_counterparty_without_failing():
     send1_msg = res.objects_df[(res.objects_df["ocel:type"] == "Message")
                                & (res.objects_df["receiver"].isna())]
     assert len(send1_msg) == 1
+
+
+def test_p13_catches_deleted_message_object():
+    """Deleting a Message object and ALL its relations (not merely leaving
+    one attribute partial) must fail P1.3: the send/receive EVENT is still
+    there, but nothing relates it to any Message at all. The checks above
+    only ever iterate the Message objects that still exist, so this needs
+    a separate coverage check from the event's side."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    obj = res.objects_df
+    msg_oid = obj[obj[COL_OTYPE] == OT_MESSAGE][COL_OID].iloc[0]
+    obj2 = obj[obj[COL_OID] != msg_oid].reset_index(drop=True)
+    rel2 = res.relations_df[res.relations_df[COL_OID] != msg_oid].reset_index(drop=True)
+    o2o2 = res.o2o_df[(res.o2o_df[COL_OID] != msg_oid)
+                      & (res.o2o_df[COL_OID2] != msg_oid)].reset_index(drop=True)
+    corrupted = replace(res, objects_df=obj2, relations_df=rel2, o2o_df=o2o2)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p13 = checks["P1.3 Message well-formedness"]
+    assert not p13.passed
+    assert "send/receive events with no Message relation: 1" in p13.detail
+
+
+def test_p13_catches_from_multiplicity_violation():
+    """A Message with TWO 'from' O2O edges, one of them contradictory, must
+    fail P1.3 -- not silently pass by only ever inspecting the first edge
+    found (froms[0])."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    obj = res.objects_df
+    msg_oid = obj[(obj[COL_OTYPE] == OT_MESSAGE) & (obj["sender"] == "A")][COL_OID].iloc[0]
+    extra = pd.DataFrame([{COL_OID: msg_oid, COL_OID2: "part::B", COL_QUALIFIER: Q_FROM}])
+    o2o2 = pd.concat([res.o2o_df, extra], ignore_index=True)
+    corrupted = replace(res, o2o_df=o2o2)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p13 = checks["P1.3 Message well-formedness"]
+    assert not p13.passed
+    assert "multiplicity violations (>1 edge on one side): 1" in p13.detail
+
+
+def test_p13_catches_stripped_event_attribute():
+    """The Message's 'sender' object attribute is defined, but the event's
+    preserved fromParticipant attribute is corrupted to missing: M8
+    guarantees these track each other's definedness, so this must fail
+    P1.3, not be silently skipped by only comparing when both happen to be
+    present."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    ev = res.events_df.copy()
+    idx = ev[ev[COL_ACTIVITY] == "Send1"].index[0]
+    ev.loc[idx, "fromParticipant"] = None
+    corrupted = replace(res, events_df=ev)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p13 = checks["P1.3 Message well-formedness"]
+    assert not p13.passed
+    assert "inconsistent partial state (attribute/relation disagree on definedness): 1" in p13.detail
 
 
 def _run_all():
