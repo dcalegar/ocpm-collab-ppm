@@ -27,7 +27,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from mapping.collab_xes_to_ocel import (   # noqa: E402
     transform, run_consistency_checks, MappingConfig, TransformResult,
     COL_EID, COL_ACTIVITY, COL_TIMESTAMP, COL_OID, COL_OID2, COL_OTYPE, COL_QUALIFIER,
-    Q_WITHIN, Q_FROM, Q_SEND, OT_CC, OT_MESSAGE,
+    Q_WITHIN, Q_FROM, Q_SEND, Q_PARTICIPANT, Q_IN_PROJECTION, Q_EXCHANGED_IN,
+    OT_CC, OT_MESSAGE, OT_PP,
 )
 
 CASE_KEY, ACT_KEY, TS_KEY = "case:concept:name", "concept:name", "time:timestamp"
@@ -318,6 +319,113 @@ def test_p13_catches_send_edge_flipped_to_receive_when_receiver_undefined():
     p13 = checks["P1.3 Message well-formedness"]
     assert not p13.passed
     assert "send/receive qualifier contradicts the source elemType: 1" in p13.detail
+
+
+# ---------------------------------------------------------------------
+# D24: the five confirmed false-positive scenarios (P1 all-PASS on
+# structurally corrupted output). Each test reproduces exactly one of
+# them and asserts the hardened check now fails, with the specific
+# counter that must have caught it.
+# ---------------------------------------------------------------------
+
+def test_p16_catches_simultaneous_participant_and_inprojection_removal():
+    """Deleting BOTH the direct 'participant' edge and the 'in_projection'
+    edge for one event. Before D24, P1.6's universe of checked events was
+    the union of eids that still had at least one of the two edges, so
+    removing both together removed that event from the universe entirely
+    instead of being caught by 'missing one side'."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    rel = res.relations_df.copy()
+    eid = rel[rel[COL_QUALIFIER] == Q_PARTICIPANT][COL_EID].iloc[0]
+    rel2 = rel[~((rel[COL_EID] == eid)
+                & (rel[COL_QUALIFIER].isin([Q_PARTICIPANT, Q_IN_PROJECTION])))]
+    corrupted = replace(res, relations_df=rel2)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p16 = checks["P1.6 Participant coherence"]
+    assert not p16.passed
+    assert "missing one side=1" in p16.detail
+
+
+def test_p15_catches_dangling_relation_target():
+    """A relation edge whose target object id was never materialized (e.g.
+    left over after a partial deletion): distinct from an orphan object
+    (P1.5's original statement). Before D24, no check verified that E2O/O2O
+    TARGETS actually resolve to an existing object."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    rel = res.relations_df.copy()
+    send_mask = (rel[COL_OTYPE] == OT_MESSAGE) & (rel[COL_QUALIFIER] == Q_SEND)
+    idx = rel[send_mask].index[0]
+    rel.loc[idx, COL_OID] = "msg::DOES_NOT_EXIST"
+    corrupted = replace(res, relations_df=rel)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p15 = checks["P1.5 No orphan objects"]
+    assert not p15.passed
+    assert "dangling E2O object targets=1" in p15.detail
+
+
+def test_p13_catches_corrupted_exchanged_in():
+    """A Message's 'exchanged_in' O2O edge retargeted to a different but
+    EXISTING CollaborationCase. The Message keeps its send/receive edge and
+    its from/to endpoints, so it is not an orphan, and before D24 nothing
+    checked the exchanged_in target at all."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    o2o = res.o2o_df.copy()
+    msg_oid = res.objects_df[res.objects_df[COL_OTYPE] == OT_MESSAGE][COL_OID].iloc[0]
+    mask = (o2o[COL_OID] == msg_oid) & (o2o[COL_QUALIFIER] == Q_EXCHANGED_IN)
+    assert mask.sum() == 1
+    o2o.loc[mask, COL_OID2] = "cc::C2"  # wrong, but an existing CC
+    corrupted = replace(res, o2o_df=o2o)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p13 = checks["P1.3 Message well-formedness"]
+    assert not p13.passed
+    assert "exchanged_in disagreements with the related event's case: 1" in p13.detail
+
+
+def test_p11_catches_dropped_residual_attribute():
+    """A residual (M8) source attribute -- preserved verbatim, not consumed
+    by M1-M8 -- silently dropped from the OUTPUT event. Before D24, no
+    check compared residual attributes at all, only the fixed structural
+    ones (activity/timestamp/participant/elemType)."""
+    src = _well_formed_log().copy()
+    src.loc[src[ACT_KEY] == "Send1", "msgInstanceId"] = "prescription_1"
+    res = transform(src, MappingConfig())
+    ev = res.events_df.copy()
+    idx = ev[ev[COL_ACTIVITY] == "Send1"].index[0]
+    assert ev.loc[idx, "msgInstanceId"] == "prescription_1"
+    ev.loc[idx, "msgInstanceId"] = None
+    corrupted = replace(res, events_df=ev)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p11 = checks["P1.1 Totality"]
+    assert not p11.passed
+    assert "residual (M8) attribute mismatches=1" in p11.detail
+
+
+def test_p12_and_p14_catch_altered_caseid():
+    """Corrupting the caseId attribute of a CollaborationCase object (P1.2)
+    or a ParticipantProjection object (P1.4). caseId affects no relation,
+    so every edge/set-based check stays green; before D24 this was
+    invisible to all six checks."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    obj = res.objects_df.copy()
+    cc_idx = obj[(obj[COL_OTYPE] == OT_CC) & (obj[COL_OID] == "cc::C1")].index[0]
+    obj.loc[cc_idx, "caseId"] = "C2"
+    pp_idx = obj[obj[COL_OTYPE] == OT_PP].index[0]
+    obj.loc[pp_idx, "caseId"] = "WRONG"
+    corrupted = replace(res, objects_df=obj)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p12 = checks["P1.2 Per-case partition"]
+    p14 = checks["P1.4 Participant-projection coherence"]
+    assert not p12.passed
+    assert "caseId disagreements=1" in p12.detail
+    assert not p14.passed
+    # The corrupted PP object is shared by both C1 events with participant
+    # "A" (Start and Send1), so the source-driven identity check flags it
+    # once per event that references it.
+    assert "caseId/participant identity disagreements=2" in p14.detail
 
 
 def _run_all():

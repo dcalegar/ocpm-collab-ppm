@@ -851,6 +851,16 @@ def run_consistency_checks(src_df: pd.DataFrame,
     o2o = res.o2o_df
     obj = res.objects_df
 
+    # Indexes reused by several checks below (D24 hardening): the object
+    # table by oid, and the event->CollaborationCase ('within') map. Built
+    # once here instead of locally inside P1.4, so P1.2/P1.3/P1.5/P1.6 can
+    # also use them without re-deriving from `rel`/`obj` each time.
+    obj_idx_all = obj.set_index(COL_OID) if not obj.empty else None
+    ev_within: Dict[str, str] = (
+        dict(zip(rel[rel[COL_QUALIFIER] == Q_WITHIN][COL_EID],
+                rel[rel[COL_QUALIFIER] == Q_WITHIN][COL_OID]))
+        if not rel.empty else {})
+
     # Independently recompute the expected per-event identity (case, eid,
     # activity, timestamp, participant, elemType, prec_L order) straight from
     # the source log, using the same normalization/ordering logic the
@@ -868,6 +878,18 @@ def run_consistency_checks(src_df: pd.DataFrame,
         for evlist in expected_cases.values() for e in evlist}
     expected_eids_by_case: Dict[str, List[str]] = {
         case: [e["eid"] for e in evlist] for case, evlist in expected_cases.items()}
+    case_by_eid: Dict[str, str] = {
+        e["eid"]: case for case, evlist in expected_cases.items() for e in evlist}
+    # Raw source row per event id (D24: residual-attribute preservation
+    # check in P1.1) and the residual (M8) attribute names -- the same
+    # exclusion logic `transform()` uses, so this checks exactly the
+    # columns the mapping is supposed to re-emit verbatim.
+    expected_row_by_eid: Dict[str, Any] = {
+        e["eid"]: e["row"] for evlist in expected_cases.values() for e in evlist}
+    residual_keys = [c for c in src_df.columns
+                     if c not in cfg.consumed_keys
+                     and c != cfg.elemtype_key
+                     and not str(c).startswith("__")]
     # Source-side sets of communication events (elem != task), used by P1.3,
     # split by direction so the send/receive QUALIFIER of each edge can be
     # compared against the source elemType, not merely event coverage.
@@ -903,6 +925,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
     timestamp_mismatches = 0
     participant_mismatches = 0
     elemtype_mismatches = 0
+    residual_mismatches = 0
     for eid, (exp_act, exp_ts, exp_part, exp_elem) in expected_by_eid.items():
         if ev_by_eid is None or eid not in ev_by_eid.index:
             missing_eids += 1
@@ -922,16 +945,31 @@ def run_consistency_checks(src_df: pd.DataFrame,
         # even for a plain task event, not an equivalent spelling of 'task'.
         if _got_attr(eid, "elemType") != exp_elem:
             elemtype_mismatches += 1
+        # D24: residual (M8) source attributes must survive unchanged. Only
+        # checked when the source actually carries a value for that column
+        # on this event -- an attribute the source never set is not a
+        # preservation defect if it is also absent downstream (P1.1 must
+        # not fail on the ordinary case of per-activity-type attributes).
+        src_row = expected_row_by_eid.get(eid)
+        if src_row is not None:
+            for k in residual_keys:
+                src_val = src_row.get(k)
+                if pd.isna(src_val):
+                    continue
+                if _got_attr(eid, k) != str(src_val).strip():
+                    residual_mismatches += 1
     p11 = (n_src == n_ev) and missing_eids == 0 \
         and activity_mismatches == 0 and timestamp_mismatches == 0 \
-        and participant_mismatches == 0 and elemtype_mismatches == 0
+        and participant_mismatches == 0 and elemtype_mismatches == 0 \
+        and residual_mismatches == 0
     out.append(CheckResult(
         "P1.1 Totality",
         bool(p11),
         f"source events={n_src}, ocel events={n_ev}; missing event ids={missing_eids}; "
         f"activity mismatches={activity_mismatches}; timestamp mismatches={timestamp_mismatches}; "
         f"participant mismatches={participant_mismatches}; "
-        f"elemType mismatches={elemtype_mismatches}."))
+        f"elemType mismatches={elemtype_mismatches}; "
+        f"residual (M8) attribute mismatches={residual_mismatches}."))
 
     # ---- P1.2 Per-case partition: within-image of each cc equals the
     # exact SET of source event ids of that case (not merely its size, so a
@@ -948,12 +986,23 @@ def run_consistency_checks(src_df: pd.DataFrame,
     # also: every within edge points at an existing CC object
     cc_ids = set(obj[obj[COL_OTYPE] == OT_CC][COL_OID]) if not obj.empty else set()
     dangling = set(within_sets) - cc_ids
-    p12 = (len(mismatches) == 0) and (len(dangling) == 0)
+    # D24: the CollaborationCase object's own `caseId` attribute must agree
+    # with the case it was built from -- a corrupted caseId keeps every
+    # within edge and set-membership check above intact, so it is otherwise
+    # invisible to P1.2.
+    bad_cc_caseid = 0
+    for case in expected_eids_by_case:
+        cc_oid = _cc_id(case)
+        if obj_idx_all is not None and cc_oid in obj_idx_all.index:
+            got = obj_idx_all.at[cc_oid, "caseId"] if "caseId" in obj_idx_all.columns else None
+            if got is not None and pd.notna(got) and str(got) != case:
+                bad_cc_caseid += 1
+    p12 = (len(mismatches) == 0) and (len(dangling) == 0) and (bad_cc_caseid == 0)
     out.append(CheckResult(
         "P1.2 Per-case partition",
         bool(p12),
         f"CC objects={len(cc_ids)}; set mismatches={len(mismatches)}; "
-        f"dangling within-targets={len(dangling)}."
+        f"dangling within-targets={len(dangling)}; caseId disagreements={bad_cc_caseid}."
         + ("" if p12 else f" first mismatches={dict(list(mismatches.items())[:5])}")))
 
     # ---- P1.2b Per-case order: identifier order equals prec_L exactly
@@ -1070,6 +1119,23 @@ def run_consistency_checks(src_df: pd.DataFrame,
         msg_event.update({oid: (eid, Q_RECEIVE)
                           for oid, eid in zip(recv_edges[COL_OID], recv_edges[COL_EID])})
 
+        # D24: every Message's `exchanged_in` O2O relation (M7) must target
+        # the SAME CollaborationCase as the `within` edge of its related
+        # event -- a deleted or retargeted exchanged_in edge is otherwise
+        # invisible (the Message still has its send/receive edge and its
+        # from/to endpoints, so it is not an orphan under P1.5).
+        exch_target: Dict[str, str] = (
+            dict(zip(o2o[o2o[COL_QUALIFIER] == Q_EXCHANGED_IN][COL_OID],
+                    o2o[o2o[COL_QUALIFIER] == Q_EXCHANGED_IN][COL_OID2]))
+            if not o2o.empty else {})
+        bad_exchanged_in = sum(
+            1 for m, (eid, _q) in msg_event.items()
+            if ev_within.get(eid) != exch_target.get(m))
+        p13_detail_bits.append(
+            f"exchanged_in disagreements with the related event's case: {bad_exchanged_in}")
+        if bad_exchanged_in:
+            p13_ok = False
+
         if not obj.empty:
             obj_idx = obj.set_index(COL_OID)
             ev_idx = ev.set_index(COL_EID) if not ev.empty else None
@@ -1173,36 +1239,60 @@ def run_consistency_checks(src_df: pd.DataFrame,
                            "; ".join(p13_detail_bits) or "no messages"))
 
     # ---- P1.4 Participant-projection coherence ----------------------
-    # Checked in two parts:
-    #  (a) for every event with an 'in_projection' object pp, pp is
+    # Checked in three parts:
+    #  (a) totality: every event with a defined participant has EXACTLY ONE
+    #      'in_projection' edge, targeting the ParticipantProjection its
+    #      source (case, participant) pair implies (M3/M6, checked against
+    #      the source-derived expectation, not the output's own edges --
+    #      D24: a mutation that deletes an event's in_projection edge,
+    #      e.g. together with its 'participant' edge, used to be invisible
+    #      because this check only ever iterated over edges that survived);
+    #  (b) for every existing 'in_projection' edge, its target pp is
     #      'projection_of' the event's 'within' object (the collaboration
     #      case);
-    #  (b) every ParticipantProjection is 'for_participant' exactly one
-    #      Participant, and that Participant's name equals the
-    #      ParticipantProjection's 'participant' attribute.
+    #  (c) every ParticipantProjection is 'for_participant' exactly one
+    #      Participant, that Participant's name equals the
+    #      ParticipantProjection's 'participant' attribute, and the
+    #      ParticipantProjection's own caseId/participant attributes agree
+    #      with the (case, participant) pair it was minted for (D24: a
+    #      corrupted caseId/participant attribute affects no edge, so it
+    #      was otherwise invisible to every check).
     p14_ok = True
     p14_detail = ""
-    if not rel.empty and not o2o.empty:
-        ev_inproj = rel[(rel[COL_QUALIFIER] == Q_IN_PROJECTION)][[COL_EID, COL_OID]]
-        ev_within = dict(zip(
-            rel[rel[COL_QUALIFIER] == Q_WITHIN][COL_EID],
-            rel[rel[COL_QUALIFIER] == Q_WITHIN][COL_OID]))
-        projection_of = {(r[COL_OID]): r[COL_OID2] for _, r in
+    if not rel.empty:
+        inproj_rows = rel[rel[COL_QUALIFIER] == Q_IN_PROJECTION]
+        ev_inproj = dict(zip(inproj_rows[COL_EID], inproj_rows[COL_OID]))
+        inproj_counts = inproj_rows.groupby(COL_EID).size().to_dict()
+        projection_of = ({r[COL_OID]: r[COL_OID2] for _, r in
                          o2o[o2o[COL_QUALIFIER] == Q_PROJECTION_OF].iterrows()}
+                         if not o2o.empty else {})
 
-        # (a) in_projection/within coherence
-        bad_projof = 0
-        for _, r in ev_inproj.iterrows():
-            eid, pp = r[COL_EID], r[COL_OID]
-            if projection_of.get(pp) != ev_within.get(eid):
-                bad_projof += 1
+        # (a) totality + target identity, against the source expectation
+        missing_inproj = 0
+        wrong_pp_target = 0
+        multi_inproj = 0
+        for eid, (_, _, exp_part, _) in expected_by_eid.items():
+            if exp_part is None:
+                continue
+            if int(inproj_counts.get(eid, 0)) > 1:
+                multi_inproj += 1
+                continue
+            got_pp = ev_inproj.get(eid)
+            if got_pp is None:
+                missing_inproj += 1
+            elif got_pp != _pp_id(case_by_eid[eid], exp_part):
+                wrong_pp_target += 1
 
-        # (b) for_participant well-formedness, per ParticipantProjection
+        # (b) in_projection/within coherence, for existing edges
+        bad_projof = sum(1 for eid, pp in ev_inproj.items()
+                         if projection_of.get(pp) != ev_within.get(eid))
+
+        # (c) for_participant well-formedness + PP identity, per PP object
         pp_ids = set(obj[obj[COL_OTYPE] == OT_PP][COL_OID]) if not obj.empty else set()
-        forpart_edges = o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT]
+        forpart_edges = (o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT] if not o2o.empty
+                         else pd.DataFrame(columns=[COL_OID, COL_OID2]))
         forpart_counts = forpart_edges.groupby(COL_OID).size().to_dict()
         forpart_target = dict(zip(forpart_edges[COL_OID], forpart_edges[COL_OID2]))
-        obj_idx = obj.set_index(COL_OID) if not obj.empty else None
         bad_forpart = 0
         bad_name = 0
         for pp in pp_ids:
@@ -1211,19 +1301,45 @@ def run_consistency_checks(src_df: pd.DataFrame,
                 continue
             # name agreement: for_participant target's 'name' == pp.participant
             tgt = forpart_target.get(pp)
-            if obj_idx is not None and tgt in obj_idx.index:
-                tgt_name = obj_idx.at[tgt, "name"] if "name" in obj_idx.columns else None
-                pp_part = obj_idx.at[pp, "participant"] if "participant" in obj_idx.columns else None
+            if obj_idx_all is not None and tgt in obj_idx_all.index:
+                tgt_name = obj_idx_all.at[tgt, "name"] if "name" in obj_idx_all.columns else None
+                pp_part = obj_idx_all.at[pp, "participant"] if "participant" in obj_idx_all.columns else None
                 if tgt_name is not None and pp_part is not None and str(tgt_name) != str(pp_part):
                     bad_name += 1
 
-        p14_ok = (bad_projof == 0) and (bad_forpart == 0) and (bad_name == 0)
-        p14_detail = (f"in_projection/within mismatches={bad_projof}; "
+        bad_pp_identity = 0
+        for eid, (_, _, exp_part, _) in expected_by_eid.items():
+            if exp_part is None:
+                continue
+            pp_oid = _pp_id(case_by_eid[eid], exp_part)
+            if obj_idx_all is not None and pp_oid in obj_idx_all.index:
+                got_case = obj_idx_all.at[pp_oid, "caseId"] if "caseId" in obj_idx_all.columns else None
+                got_part = obj_idx_all.at[pp_oid, "participant"] if "participant" in obj_idx_all.columns else None
+                if got_case is not None and pd.notna(got_case) and str(got_case) != case_by_eid[eid]:
+                    bad_pp_identity += 1
+                if got_part is not None and pd.notna(got_part) and str(got_part) != exp_part:
+                    bad_pp_identity += 1
+
+        p14_ok = (missing_inproj == 0 and wrong_pp_target == 0 and multi_inproj == 0
+                 and bad_projof == 0 and bad_forpart == 0 and bad_name == 0
+                 and bad_pp_identity == 0)
+        p14_detail = (f"events missing in_projection={missing_inproj}; "
+                      f"in_projection wrong target={wrong_pp_target}; "
+                      f"events with >1 in_projection edge={multi_inproj}; "
+                      f"in_projection/within mismatches={bad_projof}; "
                       f"projections !=1 for_participant={bad_forpart}; "
-                      f"for_participant name disagreements={bad_name}")
+                      f"for_participant name disagreements={bad_name}; "
+                      f"ParticipantProjection caseId/participant identity disagreements={bad_pp_identity}")
     out.append(CheckResult("P1.4 Participant-projection coherence", bool(p14_ok), p14_detail))
 
-    # ---- P1.5 No orphan objects ------------------------------------
+    # ---- P1.5 No orphan objects (+ D24: no dangling relations) ------
+    # Orphans (an object with no relation at all) is the formal P1.5
+    # statement. D24 adds the converse, which P1.5 never checked: a
+    # relation whose target does not exist as an object (E2O's oid, or
+    # O2O's oid/oid2) is a construction defect just as much as an orphan
+    # object is, and neither the per-relation checks above (which only
+    # ever compare edges that ARE present) nor "no orphan objects" catches
+    # a relation pointing at an id that was never materialized.
     related_oids = set()
     if not rel.empty:
         related_oids |= set(rel[COL_OID])
@@ -1231,14 +1347,29 @@ def run_consistency_checks(src_df: pd.DataFrame,
         related_oids |= set(o2o[COL_OID]) | set(o2o[COL_OID2])
     all_oids = set(obj[COL_OID]) if not obj.empty else set()
     orphans = all_oids - related_oids
-    out.append(CheckResult("P1.5 No orphan objects", len(orphans) == 0,
+    all_eids_actual = set(ev[COL_EID]) if not ev.empty else set()
+    dangling_e2o_eid = (set(rel[COL_EID]) - all_eids_actual) if not rel.empty else set()
+    dangling_e2o_oid = (set(rel[COL_OID]) - all_oids) if not rel.empty else set()
+    dangling_o2o = ((set(o2o[COL_OID]) | set(o2o[COL_OID2])) - all_oids) if not o2o.empty else set()
+    p15_ok = (len(orphans) == 0 and len(dangling_e2o_eid) == 0
+             and len(dangling_e2o_oid) == 0 and len(dangling_o2o) == 0)
+    out.append(CheckResult("P1.5 No orphan objects", bool(p15_ok),
                            f"objects={len(all_oids)}; orphans={len(orphans)}"
-                           + ("" if not orphans else f"; e.g. {list(orphans)[:5]}")))
+                           + ("" if not orphans else f"; e.g. {list(orphans)[:5]}")
+                           + f"; dangling E2O event ids={len(dangling_e2o_eid)}"
+                           + f"; dangling E2O object targets={len(dangling_e2o_oid)}"
+                           + f"; dangling O2O targets={len(dangling_o2o)}"))
 
     # ---- P1.6 Participant coherence ---------------------------------
     # For every event, the Participant reached by the direct 'participant'
     # E2O edge must equal the Participant reached via the two-step
-    # 'in_projection' -> 'for_participant' path.
+    # 'in_projection' -> 'for_participant' path. D24: the universe of
+    # events checked is every source event with a defined participant
+    # (from `expected_by_eid`), not the union of eids that happen to still
+    # have a 'participant' or 'in_projection' edge -- the previous universe
+    # meant that deleting BOTH edges for one event removed it from the
+    # universe entirely, so the mutation passed vacuously instead of being
+    # caught by "missing one side".
     p16_ok = True
     p16_detail = ""
     if not rel.empty:
@@ -1251,7 +1382,8 @@ def run_consistency_checks(src_df: pd.DataFrame,
         forpart_target = (dict(zip(o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT][COL_OID],
                                    o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT][COL_OID2]))
                           if not o2o.empty else {})
-        all_eids = set(ev_participant) | set(ev_inproj)
+        all_eids = {eid for eid, (_, _, exp_part, _) in expected_by_eid.items()
+                   if exp_part is not None}
         mismatches6 = 0
         missing_one_side = 0
         for eid in all_eids:
