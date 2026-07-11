@@ -19,15 +19,32 @@ from ocpm_tasks.model import ObjectCentricLog
 # CollaborationCase's process execution with every other one that shares
 # a Participant -- and since a handful of Participants are shared across
 # the whole log, every execution collapses into (almost) the entire log,
-# which is what makes feature extraction stall. Strip it before handing
-# the file to OCPA; this is an OCPA-specific import workaround, not a
-# change to the conceptual model.
+# which is what makes feature extraction stall. Strip it (mostly) before
+# handing the file to OCPA; this is an OCPA-specific import workaround,
+# not a change to the conceptual model.
+#
+# OCPA's own SQLite importer (ocpa/objects/log/importer/ocel2/sqlite/...)
+# builds its object table (``OCEL.obj.raw.objects``) exclusively from rows
+# surviving in ``event_object``: an object type with no surviving E2O row
+# at all is dropped from that table entirely, even though it may still be
+# present, correctly typed, in ``object`` and referenced by O2O edges in
+# ``object_object`` (``o2o_graph`` is read from ``object_object`` directly
+# and is unaffected). Deleting EVERY 'participant' row therefore drops
+# every Participant object from OCPA's object table, so any O2O lookup
+# that must confirm a target's type is Participant (e.g. Message
+# from/to, used by the X-MSt extension) silently fails even though the
+# O2O edge itself is intact. Keeping exactly one witness row per distinct
+# Participant object avoids this: that participant is still E2O-linked to
+# a single event (so OCPA's object table keeps it, correctly typed), while
+# every other occurrence -- the ones that would otherwise transitively
+# merge unrelated CollaborationCase executions -- is still removed.
 _E2O_PARTICIPANT_QUALIFIER = "participant"
 
 
 def _strip_participant_e2o(path: str) -> str:
     """Return a temp path to a copy of the SQLite file with the direct
-    'participant' E2O rows removed (see _E2O_PARTICIPANT_QUALIFIER above).
+    'participant' E2O rows removed, except for one witness row per
+    distinct Participant object (see _E2O_PARTICIPANT_QUALIFIER above).
     Returns ``path`` unchanged if there is nothing to strip."""
     import sqlite3, shutil, tempfile
 
@@ -46,8 +63,14 @@ def _strip_participant_e2o(path: str) -> str:
     shutil.copyfile(path, tmp)
     con = sqlite3.connect(tmp)
     try:
-        con.execute("DELETE FROM event_object WHERE ocel_qualifier = ?",
-                    (_E2O_PARTICIPANT_QUALIFIER,))
+        keep_rowids = [r[0] for r in con.execute(
+            "SELECT MIN(rowid) FROM event_object WHERE ocel_qualifier = ? "
+            "GROUP BY ocel_object_id", (_E2O_PARTICIPANT_QUALIFIER,))]
+        placeholders = ",".join("?" * len(keep_rowids))
+        con.execute(
+            f"DELETE FROM event_object WHERE ocel_qualifier = ? "
+            f"AND rowid NOT IN ({placeholders})",
+            (_E2O_PARTICIPANT_QUALIFIER, *keep_rowids))
         con.commit()
     finally:
         con.close()
