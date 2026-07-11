@@ -6,6 +6,7 @@ the same library used for feature extraction, so both sides share the same readi
 can be loaded once and passed to both label and feature extraction.
 """
 import os
+from typing import Dict, List, Tuple
 from ocpm_tasks.adapters import from_ocpa, from_ocel2_sqlite, _normalize_ocel_sqlite_timestamps
 from ocpm_tasks.model import ObjectCentricLog
 
@@ -77,22 +78,127 @@ def _strip_participant_e2o(path: str) -> str:
     return tmp
 
 
+def _break_timestamp_ties(path: str) -> str:
+    """Return a temp path to a copy of the SQLite file with per-event
+    timestamps nudged by whole microseconds so that no two events of the
+    SAME CollaborationCase share an identical ``ocel_time`` (D23).
+
+    Rationale: OCPA's positional features (``previous_type_count``, used
+    for X-Inf/OB-M/NV-* etc. via ``features_ocpa.build_feature_set``) cut
+    the prefix with ``event_timestamp <= cut_time``
+    (ocpa/algo/predictive_monitoring/event_based_features/
+    extraction_functions.py::_get_recent_events), NOT with the total order
+    prec_L (Definition 1) the paper's feature definitions rely on
+    (tasks.tex). When two events of the same execution share a timestamp,
+    ``<=`` includes BOTH at each other's cut point, leaking one event's
+    existence into the other's "past" count. This is a real, non-uniform
+    effect in BPIC2013 (4,051 same-instant Send/Receive pairs); the four
+    study logs and ToyCollab have no ties and are unaffected (this
+    function is then a no-op and returns ``path`` unchanged).
+
+    The nudge uses ``ocel_id``, which already encodes the correct
+    within-case order prec_L (``_event_id`` in collab_xes_to_ocel.py:
+    ``e::{case}::{idx}``, idx zero-padded so lexicographic order agrees
+    with prec_L -- see the "Verificado y correcto" note on order-embedding
+    in the mapping). Events tied within a case are reassigned strictly
+    increasing offsets of whole microseconds in idx order (first event of
+    a tied run keeps its original timestamp), which resolves the ``<=``
+    ambiguity while shifting EVENT_ELAPSED_TIME/EVENT_REMAINING_TIME by at
+    most a few microseconds per run -- far below the already-documented
+    1s tolerance (C18) and negligible next to this data's second-level
+    timestamp granularity. Must run AFTER ``_normalize_ocel_sqlite_timestamps``
+    so every ``ocel_time`` carries an explicit ``.NNNNNN`` microsecond
+    field the increment can be parsed against.
+
+    Only affects the copy handed to OCPA (feature extraction + the
+    ground-truth labels derived from the same ``ocpa_ocel`` object via
+    ``from_ocpa``, so oracle/labels/features stay mutually consistent);
+    RQ2's ``from_ocel2_sqlite`` reads the untouched original file directly
+    and is unaffected."""
+    import sqlite3, os, shutil, tempfile
+    from datetime import datetime, timedelta
+
+    con = sqlite3.connect(path)
+    try:
+        suffixes = [r[0] for r in con.execute(
+            "SELECT ocel_type_map FROM event_map_type")]
+        rows = []  # (suffix, ocel_id, case, idx, time_str)
+        for suffix in suffixes:
+            for ocel_id, time_str in con.execute(
+                    f'SELECT ocel_id, ocel_time FROM "event_{suffix}" '
+                    f'WHERE ocel_time IS NOT NULL'):
+                case, _, idx = ocel_id.rpartition("::")
+                if not idx.isdigit():
+                    continue
+                rows.append((suffix, ocel_id, case, int(idx), time_str))
+    finally:
+        con.close()
+
+    by_case: Dict[str, List[Tuple[int, str, str, str]]] = {}
+    for suffix, ocel_id, case, idx, time_str in rows:
+        by_case.setdefault(case, []).append((idx, suffix, ocel_id, time_str))
+
+    updates = []  # (suffix, ocel_id, new_time_str)
+    for case_rows in by_case.values():
+        case_rows.sort(key=lambda r: r[0])  # idx order == prec_L within the case
+        run: List[Tuple[int, str, str, str]] = []
+
+        def _flush(run):
+            if len(run) < 2:
+                return
+            base = datetime.fromisoformat(run[0][3])
+            for offset, (_, suffix, ocel_id, _) in enumerate(run):
+                if offset == 0:
+                    continue
+                new_dt = base + timedelta(microseconds=offset)
+                updates.append((suffix, ocel_id, new_dt.isoformat(sep=" ")))
+
+        prev_time = None
+        for entry in case_rows:
+            if prev_time is not None and entry[3] != prev_time:
+                _flush(run)
+                run = []
+            run.append(entry)
+            prev_time = entry[3]
+        _flush(run)
+
+    if not updates:
+        return path
+
+    fd, tmp = tempfile.mkstemp(suffix=".sqlite")
+    os.close(fd)
+    shutil.copyfile(path, tmp)
+    con = sqlite3.connect(tmp)
+    try:
+        for suffix, ocel_id, new_time_str in updates:
+            con.execute(
+                f'UPDATE "event_{suffix}" SET ocel_time = ? WHERE ocel_id = ?',
+                (new_time_str, ocel_id))
+        con.commit()
+    finally:
+        con.close()
+    return tmp
+
+
 def load_ocpa_ocel(schema, path: str):
     """Load an OCEL 2.0 SQLite log via OCPA's native importer with leading-type
     execution extraction (one process execution per CollaborationCase)."""
     from ocpa.objects.log.importer.ocel2.sqlite import factory as ocel2_import_factory
     stripped_path = _strip_participant_e2o(path)
     norm_path = _normalize_ocel_sqlite_timestamps(stripped_path)
+    tie_broken_path = _break_timestamp_ties(norm_path)
     params = {"execution_extraction": "leading_type", "leading_type": schema.ot_cc}
     try:
         try:
-            return ocel2_import_factory.apply(norm_path, parameters=params)
+            return ocel2_import_factory.apply(tie_broken_path, parameters=params)
         except TypeError:
             # Older OCPA signature without parameters: import with default extraction.
             # NOTE: default "connected components" may merge instances sharing a Participant;
             # verify the partitioning (the alignment oracle in features_ocpa will flag it).
-            return ocel2_import_factory.apply(norm_path)
+            return ocel2_import_factory.apply(tie_broken_path)
     finally:
+        if tie_broken_path != norm_path:
+            os.unlink(tie_broken_path)
         if norm_path != stripped_path:
             os.unlink(norm_path)
         if stripped_path != path:
