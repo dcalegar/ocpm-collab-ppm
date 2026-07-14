@@ -24,6 +24,44 @@ from ocpm_tasks.model import ObjectCentricLog
 # handing the file to OCPA; this is an OCPA-specific import workaround,
 # not a change to the conceptual model.
 #
+# Concrete example (Healthcare log): Participant["Gynecologist"] is a
+# single, log-wide object (M2 scope), and it performs events in many
+# different CollaborationCases -- say case 459 (events e2, e3) and case
+# 460 (events e5, e6). With the direct edge kept, the event-object graph
+# has e2/e3 --participant--> Participant["Gynecologist"] <--participant--
+# e5/e6: a path connects an event of case 459 to an event of case 460
+# through that single shared object. OCPA's leading-type extraction
+# treats such a path as evidence the two belong to the same process
+# execution, so it merges case 459 and case 460 (and, transitively,
+# every other case the same Gynecologist appears in) into one execution
+# -- prefixes/timestamps from unrelated cases get mixed, remaining-time
+# targets become meaningless, and the per-case grouped-CV assumption
+# (Section threats.tex, Internal validity) silently breaks. Removing the
+# edge for every occurrence except one witness per Participant leaves no
+# live edge shared between two DIFFERENT cases, so case 459 and case 460
+# no longer connect through Participant["Gynecologist"] -- while the one
+# surviving witness edge (on whichever event happens to keep it) still
+# lets OCPA's importer register the object at all (see the paragraph
+# below on OCPA's object-table construction).
+#
+# The same merging risk applies to the D25 witness E2O edges
+# (mapping.collab_xes_to_ocel._add_export_reachability_witnesses): those
+# reuse the O2O qualifier ('from'/'to') at the E2O level to keep an
+# endpoint-only Participant (one that is always a message counterparty
+# and never itself collab:participant of an event) from being dropped by
+# pm4py's exporter. Such a Participant is log-wide (M2 scope) just like
+# any other, so if it is the counterparty of messages in more than one
+# CollaborationCase, each referencing event gets its own witness edge and
+# the same cross-case path reappears -- this time through 'from'/'to'
+# instead of 'participant'. The core mapping (M6) never emits 'from'/'to'
+# as an E2O qualifier itself (only within/in_projection/participant/send/
+# receive, appendixMapping.tex), so every E2O row under these two
+# qualifiers is, by construction, a D25 witness row; and D25 only adds a
+# witness for an object with zero prior E2O rows, so an object is never
+# reached by both 'participant' and a 'from'/'to' witness at once. Both
+# patterns are stripped identically below (keep one witness row per
+# distinct object).
+#
 # OCPA's own SQLite importer (ocpa/objects/log/importer/ocel2/sqlite/...)
 # builds its object table (``OCEL.obj.raw.objects``) exclusively from rows
 # surviving in ``event_object``: an object type with no surviving E2O row
@@ -40,23 +78,27 @@ from ocpm_tasks.model import ObjectCentricLog
 # every other occurrence -- the ones that would otherwise transitively
 # merge unrelated CollaborationCase executions -- is still removed.
 _E2O_PARTICIPANT_QUALIFIER = "participant"
+_E2O_CROSS_CASE_QUALIFIERS = (_E2O_PARTICIPANT_QUALIFIER, "from", "to")
 
 
 def _strip_participant_e2o(path: str) -> str:
-    """Return a temp path to a copy of the SQLite file with the direct
-    'participant' E2O rows removed, except for one witness row per
-    distinct Participant object (see _E2O_PARTICIPANT_QUALIFIER above).
+    """Return a temp path to a copy of the SQLite file with the E2O rows
+    that can reconnect distinct CollaborationCase executions through a
+    shared, log-wide object removed -- the direct 'participant' edge (M6)
+    and the D25 'from'/'to' witness edges alike -- except for one witness
+    row per distinct object (see _E2O_CROSS_CASE_QUALIFIERS above).
     Returns ``path`` unchanged if there is nothing to strip."""
     import sqlite3, shutil, tempfile
 
+    qual_placeholders = ",".join("?" * len(_E2O_CROSS_CASE_QUALIFIERS))
     con = sqlite3.connect(path)
     try:
-        has_participant = con.execute(
-            "SELECT 1 FROM event_object WHERE ocel_qualifier = ? LIMIT 1",
-            (_E2O_PARTICIPANT_QUALIFIER,)).fetchone()
+        has_any = con.execute(
+            f"SELECT 1 FROM event_object WHERE ocel_qualifier IN ({qual_placeholders}) LIMIT 1",
+            _E2O_CROSS_CASE_QUALIFIERS).fetchone()
     finally:
         con.close()
-    if not has_participant:
+    if not has_any:
         return path
 
     fd, tmp = tempfile.mkstemp(suffix=".sqlite")
@@ -65,13 +107,13 @@ def _strip_participant_e2o(path: str) -> str:
     con = sqlite3.connect(tmp)
     try:
         keep_rowids = [r[0] for r in con.execute(
-            "SELECT MIN(rowid) FROM event_object WHERE ocel_qualifier = ? "
-            "GROUP BY ocel_object_id", (_E2O_PARTICIPANT_QUALIFIER,))]
-        placeholders = ",".join("?" * len(keep_rowids))
+            f"SELECT MIN(rowid) FROM event_object WHERE ocel_qualifier IN ({qual_placeholders}) "
+            "GROUP BY ocel_object_id", _E2O_CROSS_CASE_QUALIFIERS)]
+        keep_placeholders = ",".join("?" * len(keep_rowids))
         con.execute(
-            f"DELETE FROM event_object WHERE ocel_qualifier = ? "
-            f"AND rowid NOT IN ({placeholders})",
-            (_E2O_PARTICIPANT_QUALIFIER, *keep_rowids))
+            f"DELETE FROM event_object WHERE ocel_qualifier IN ({qual_placeholders}) "
+            f"AND rowid NOT IN ({keep_placeholders})",
+            (*_E2O_CROSS_CASE_QUALIFIERS, *keep_rowids))
         con.commit()
     finally:
         con.close()
@@ -141,26 +183,28 @@ def _break_timestamp_ties(path: str) -> str:
     updates = []  # (suffix, ocel_id, new_time_str)
     for case_rows in by_case.values():
         case_rows.sort(key=lambda r: r[0])  # idx order == prec_L within the case
-        run: List[Tuple[int, str, str, str]] = []
-
-        def _flush(run):
-            if len(run) < 2:
-                return
-            base = datetime.fromisoformat(run[0][3])
-            for offset, (_, suffix, ocel_id, _) in enumerate(run):
-                if offset == 0:
-                    continue
-                new_dt = base + timedelta(microseconds=offset)
-                updates.append((suffix, ocel_id, new_dt.isoformat(sep=" ")))
-
-        prev_time = None
-        for entry in case_rows:
-            if prev_time is not None and entry[3] != prev_time:
-                _flush(run)
-                run = []
-            run.append(entry)
-            prev_time = entry[3]
-        _flush(run)
+        # Single forward pass in prec_L order enforcing a STRICTLY increasing
+        # ocel_time: each event keeps its own timestamp unless that would be
+        # <= the previous (already-placed) event's, in which case it is
+        # nudged to prev + 1 microsecond. This resolves ties generally,
+        # including the cascade the previous per-run implementation missed
+        # (D23/B9 reviewer round 2): shifting a tied run by offsets from its
+        # own base alone could push its last member ONTO the next distinct
+        # timestamp, e.g. [0us, 0us, 1us] -> [0us, 1us, 1us], reintroducing a
+        # tie. Comparing against the running previous value instead closes
+        # that: [0us, 0us, 1us] -> [0us, 1us, 2us]. Untied cases never enter
+        # the `dt <= prev_dt` branch, so `updates` stays empty and the file
+        # is returned unchanged (no-op). The accumulated shift is bounded by
+        # the length of a same-instant run in whole microseconds -- still far
+        # below the 1s tolerance (C18) and this data's second-level
+        # timestamp granularity.
+        prev_dt = None
+        for idx, suffix, ocel_id, time_str in case_rows:
+            dt = datetime.fromisoformat(time_str)
+            if prev_dt is not None and dt <= prev_dt:
+                dt = prev_dt + timedelta(microseconds=1)
+                updates.append((suffix, ocel_id, dt.isoformat(sep=" ")))
+            prev_dt = dt
 
     if not updates:
         return path

@@ -35,7 +35,8 @@ class Event:
 @dataclass
 class Execution:
     """A collaboration case under the *global-trace viewpoint*: its events as a
-    linear sequence ordered by (timestamp, event_id). This linear order is the basis
+    linear sequence ordered by timestamp (a stable sort; source/insertion order
+    breaks ties -- see below and __post_init__, no secondary key). This linear order is the basis
     on which the paper defines prefixes hd^k and the prediction targets (it mirrors
     the case-centric baseline). It does NOT constrain how the observable prefix is
     encoded: in R2 the observable prefix is the object-centric execution graph, and
@@ -43,7 +44,23 @@ class Execution:
     linear order here is used only to define ground-truth targets at each cut point.
     Ties on timestamp keep the adapter's original (source/insertion) order --
     a stable sort on timestamp alone, no secondary key -- so cut points are
-    deterministic.
+    deterministic PROVIDED that order already agrees with prec_L (B9).
+    ``from_ocel2_sqlite`` (RQ2/R2) guarantees this directly, with an explicit
+    ``ORDER BY ocel_id`` (ocel_id sorts consistently with prec_L once created
+    with zero-padded indices, mapping.collab_xes_to_ocel._event_id).
+    ``from_ocpa`` (RQ3/RQ-EXT) does not sort by ocel_id itself and inherits
+    whatever row order OCPA's importer used -- but by construction it never
+    receives a log with within-case timestamp ties to begin with:
+    ``ocpm_eval.io_ocel._break_timestamp_ties`` (D23) nudges every tied
+    within-case timestamp to a strictly increasing value in ocel_id/prec_L
+    order before OCPA ever imports the file, so there is nothing left for
+    OCPA's unverified row order to get wrong. Verified empirically on
+    BPIC2013 (the only evaluated log with real ties, 4,051 same-instant
+    pairs): 0 mismatches between this sort's output order and prec_L across
+    all 7,554 executions. This guarantee holds only as long as every
+    ``from_ocpa`` caller goes through ``load_ocpa_ocel`` (which always
+    applies ``_break_timestamp_ties``); a caller that imports via OCPA
+    directly, bypassing that helper, would reintroduce B9's original risk.
     """
     case_id: str
     events: List[Event]
@@ -57,17 +74,13 @@ class Execution:
         # once ids differ in digit count, e.g. "e::case::10" sorts before
         # "e::case::9" -- which silently reversed a synthesized
         # SendTask/ReceiveTask pair sharing one timestamp (they are
-        # minted as consecutive indices, so this triggers whenever the
+        # created as consecutive indices, so this triggers whenever the
         # pair straddles a power-of-10 boundary).
         self.events = sorted(self.events, key=lambda e: e.timestamp)
 
     @property
     def n(self) -> int:
         return len(self.events)
-
-    @property
-    def messages(self) -> List[Event]:
-        return [e for e in self.events if e.is_send]
 
 
 class ObjectCentricLog:

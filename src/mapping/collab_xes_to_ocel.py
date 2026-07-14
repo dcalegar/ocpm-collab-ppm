@@ -25,7 +25,7 @@ extension, carries these event-level string attributes:
 plus the XES keys for activity, timestamp, and global case id.
 
 The Message object represents a single communication OBSERVATION, not a
-correlated message instance: rule M4 mints one Message per send event and
+correlated message instance: rule M4 creates one Message per send event and
 one Message per receive event, each related to exactly its own event (by
 `send` or `receive`) and carrying that event's recorded sender/receiver --
 when the source records the counterparty side; when it does not, the
@@ -133,6 +133,14 @@ ELEM_TASK = "task"
 ELEM_SEND = "SendTask"
 ELEM_RECEIVE = "ReceiveTask"
 
+# --- Fixed event-attribute names M8 writes for the consumed source keys
+# (elemType/participant/from/toParticipant, unprefixed). A residual source
+# column that happens to share one of these bare names (distinct from its
+# prefixed cfg.*_key counterpart, which IS excluded from residual_keys)
+# would silently overwrite the consumed value instead of being preserved
+# alongside it (E30); transform() raises on this instead of masking it.
+RESERVED_EVENT_OUTPUT_KEYS = ("elemType", "participant", "fromParticipant", "toParticipant")
+
 # --- OCEL 2.0 object types ------------------------------------------
 OT_CC = "CollaborationCase"
 OT_PARTICIPANT = "Participant"
@@ -197,11 +205,11 @@ class MappingConfig:
 
 
 # =====================================================================
-# Identifier minting (disjoint object-id ranges; Appendix A)
+# Identifier creation (disjoint object-id ranges; Appendix A)
 # =====================================================================
 # Source identifiers are stored as attribute VALUES, never reused as
 # object ids (U_obj and U_val are disjoint in OCEL 2.0). We therefore
-# mint type-prefixed object ids.
+# create type-prefixed object ids.
 
 def _cc_id(case: str) -> str:
     return f"cc::{case}"
@@ -210,7 +218,14 @@ def _participant_id(p: str) -> str:
     return f"part::{p}"
 
 def _pp_id(case: str, p: str) -> str:
-    return f"pp::{case}::{p}"
+    # Escape "\" and ":" in each component before joining with the
+    # unescaped delimiter "::": without this, _pp_id("x", "y::z") and
+    # _pp_id("x::y", "z") both create "pp::x::y::z" (E30) -- a real
+    # injectivity failure of the id-creation scheme, though vacuous on the
+    # 6 evaluated logs (no case id or participant name contains ":").
+    def esc(s: str) -> str:
+        return s.replace("\\", "\\\\").replace(":", "\\:")
+    return f"pp::{esc(case)}::{esc(p)}"
 
 def _message_id(eid: str) -> str:
     # One Message per send OR receive event (M4, m_e for e in S_L u R_L);
@@ -222,8 +237,10 @@ def _event_id(case: str, idx: int, width: int = 1) -> str:
     # Stable per-case event id. idx is the within-case source order (the
     # rank of e in prec_L, Definition 1). Zero-padded to `width` digits so
     # that lexicographic string order on the id agrees with numeric idx
-    # order -- required for mu_E to be an order-embedding of prec_L:
-    # without padding, "e::459::10" sorts before "e::459::9".
+    # order -- required for mu_E to be order-preserving on prec_L (appendix,
+    # Identifier creation -- deliberately not "order-embedding", since the
+    # converse fails across cases): without padding, "e::459::10" sorts
+    # before "e::459::9".
     return f"e::{case}::{str(idx).zfill(width)}"
 
 
@@ -235,13 +252,25 @@ def _raw_timestamps_in_file_order(path: str) -> List[str]:
     """Extract every event's raw time:timestamp attribute string directly
     from the XML, in exact file order (trace-by-trace, event-by-event),
     bypassing pm4py's datetime parser entirely -- see _correct_utc_timestamps
-    for why."""
+    for why.
+
+    Namespace-aware (D26): a XES file may declare a default namespace on
+    the root <log> element (e.g. xmlns="http://www.xes-standard.org/",
+    as pm4py's own XES writer does -- toy_collab.xes is generated this
+    way). When it does, every element's actual tag is
+    "{namespace-uri}trace"/"{namespace-uri}event"/etc., not the bare
+    name; an unqualified findall("trace") then silently matches zero
+    elements. The namespace (if any) is read once from the root tag and
+    prefixed onto every findall so both namespaced and un-namespaced XES
+    (the source format does not mandate one) parse identically.
+    """
     from lxml import etree
     root = etree.parse(path).getroot()
+    ns = root.tag.split("}")[0] + "}" if root.tag.startswith("{") else ""
     out: List[str] = []
-    for trace in root.findall("trace"):
-        for ev in trace.findall("event"):
-            for d in ev.findall("date"):
+    for trace in root.findall(f"{ns}trace"):
+        for ev in trace.findall(f"{ns}event"):
+            for d in ev.findall(f"{ns}date"):
                 if d.get("key") == TIMESTAMP_KEY:
                     out.append(d.get("value"))
                     break
@@ -469,6 +498,85 @@ def _stringify_attribute_columns(df: pd.DataFrame, reserved: Tuple[str, ...]) ->
     return df
 
 
+def _add_export_reachability_witnesses(objects_df: pd.DataFrame,
+                                       relations_df: pd.DataFrame,
+                                       o2o_df: pd.DataFrame) -> pd.DataFrame:
+    """Return relations_df augmented with witness E2O edges for objects
+    that transform() correctly materializes but that are reachable ONLY
+    via O2O relations -- e.g. a Participant that is always a message
+    counterparty (collab:toParticipant/fromParticipant) and never itself
+    collab:participant of any event, so M6 never gives it the direct
+    `participant` edge (nor in_projection -> for_participant, which
+    requires the participant to own an event too). pm4py's OCEL 2.0
+    exporters call filtering_utils.propagate_relations_filtering(),
+    which drops every object absent from the E2O relations table
+    regardless of O2O reachability (see module docstring NOTE); without
+    this, such Participants -- and the O2O edges pointing at them --
+    are silently lost on export even though transform()/P1 correctly
+    account for them (D25).
+
+    This is an export-completeness patch, not a mapping rule change: it
+    does not modify relations_df as returned by transform(), so P1 and
+    all downstream evaluation code keep seeing exactly the E2O set M6
+    defines; it only feeds a superset into the pm4py OCEL object built
+    right before write_ocel2_json/write_ocel2_sqlite. The witness edge
+    reuses the O2O qualifier itself (`from`/`to`) applied at the E2O
+    level, anchored on the very send/receive event whose Message O2O
+    relation references the otherwise-unreachable object -- the same
+    "keep one edge so the exporter doesn't drop the object" rationale
+    already used for the direct `participant` edge (M6, see module
+    docstring) and for BPIC's Participant objects in
+    ocpm_eval.io_ocel._strip_participant_e2o.
+    """
+    if objects_df.empty or relations_df.empty or o2o_df.empty:
+        return relations_df
+
+    reachable = set(relations_df[COL_OID])
+    orphan_oids = set(objects_df[COL_OID]) - reachable
+    if not orphan_oids:
+        return relations_df
+
+    oid_to_otype = dict(zip(objects_df[COL_OID], objects_df[COL_OTYPE]))
+
+    # Message object id -> the event it was created from (its send/receive
+    # E2O edge), so a witness edge can be anchored on that same event.
+    msg_to_event = {
+        row[COL_OID]: row[COL_EID]
+        for row in relations_df.loc[
+            relations_df[COL_QUALIFIER].isin((Q_SEND, Q_RECEIVE))
+        ].to_dict("records")
+    }
+
+    witness_rows = []
+    seen = set()
+    for row in o2o_df.to_dict("records"):
+        target = row[COL_OID2]
+        qualifier = row[COL_QUALIFIER]
+        if target not in orphan_oids or qualifier not in (Q_FROM, Q_TO):
+            continue
+        if target in seen:
+            continue
+        eid = msg_to_event.get(row[COL_OID])
+        if eid is None:
+            continue
+        # One witness row per ORPHAN OBJECT, not per (event, object): a single
+        # E2O edge already suffices for pm4py's exporter to keep the object
+        # (and for OCPA's object table, cf. ocpm_eval.io_ocel._strip_participant_e2o,
+        # which reduces to exactly one row per object on read). Deduplicating on
+        # the target here keeps the count of non-M6 rows in the serialized OCEL
+        # minimal -- an endpoint-only Participant shared across N CollaborationCases
+        # contributes 1 witness row, not N -- so the exported artefact stays as
+        # close as possible to the E2O set of mu(L) (D25).
+        seen.add(target)
+        witness_rows.append({COL_EID: eid, COL_OID: target,
+                             COL_OTYPE: oid_to_otype.get(target, OT_PARTICIPANT),
+                             COL_QUALIFIER: qualifier})
+
+    if not witness_rows:
+        return relations_df
+    return pd.concat([relations_df, pd.DataFrame(witness_rows)], ignore_index=True)
+
+
 def build_ocel_object(events_df: pd.DataFrame,
                       objects_df: pd.DataFrame,
                       relations_df: pd.DataFrame,
@@ -533,15 +641,15 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
     breaking ties by the original source appearance order (the per-case
     order prec_L of Definition 1). Ordering by timestamp with a stable
     tie-break guarantees the trace order is preserved before and after
-    the mapping; event ids are minted in this order, so reconstruction
+    the mapping; event ids are created in this order, so reconstruction
     (P1.2) reads the event-identifier order without re-sorting by
     timestamp.
-    Returns, per case, a list of event dicts enriched with a minted eid
+    Returns, per case, a list of event dicts enriched with a created eid
     and the within-case index.
     """
     def _clean(v: Any) -> Optional[str]:
         # Treat NaN, None, and empty/whitespace strings as absent, so a
-        # blank fromParticipant/toParticipant/participant never mints a
+        # blank fromParticipant/toParticipant/participant never creates a
         # spurious object (e.g. an empty-named Participant).
         if v is None or (isinstance(v, float) and pd.isna(v)):
             return None
@@ -571,7 +679,13 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
         idx_width = max(1, len(str(max(len(grp) - 1, 0))))
         evlist: List[Dict[str, Any]] = []
         for idx, (_, row) in enumerate(grp.iterrows()):
-            elem = _clean(row.get(cfg.elemtype_key)) or ELEM_TASK
+            # elem_raw is the cleaned but NOT-yet-defaulted value (None when
+            # the source leaves elemType absent/empty/whitespace); elem is the
+            # value transform() builds on, defaulted to 'task'. Both are kept
+            # so the E30 domain check in run_consistency_checks can flag an
+            # ABSENT elemType too, instead of the default silently masking it.
+            elem_raw = _clean(row.get(cfg.elemtype_key))
+            elem = elem_raw or ELEM_TASK
             participant = _clean(row.get(cfg.participant_key))
             from_p = (_clean(row.get(cfg.from_key))
                       if cfg.from_key in work.columns else None)
@@ -598,6 +712,7 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
                 "activity": row[cfg.activity_key],
                 "timestamp": row[cfg.timestamp_key],
                 "elem": elem,
+                "elem_raw": elem_raw,
                 "participant": participant,
                 "from": from_p,
                 "to": to_p,
@@ -644,6 +759,12 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
                      if c not in cfg.consumed_keys
                      and c not in (cfg.elemtype_key,)  # elemType handled by M5
                      and not c.startswith("__")]
+    _colliding = [c for c in residual_keys if c in RESERVED_EVENT_OUTPUT_KEYS]
+    if _colliding:
+        raise ValueError(
+            f"Residual source column(s) {_colliding} collide with the fixed "
+            f"M8 output attribute name(s) of the same name -- rename the "
+            f"source column(s) before mapping (E30).")
 
     participant_seen: set = set()
     n_messages = 0
@@ -670,7 +791,7 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
         _ensure_object(cc_oid, OT_CC, {"caseId": case})
 
         # ---- M4: Message objects (one per send OR receive event) ----
-        # Each communication event mints its OWN Message observation
+        # Each communication event creates its OWN Message observation
         # object (m_e for e in S_L u R_L); the core mapping does not
         # infer any correspondence between a send and a receive
         # observation, since the source logs do not guarantee message
@@ -873,9 +994,23 @@ def run_consistency_checks(src_df: pd.DataFrame,
     # collab:participant attribute, or an elemType flipped to 'task' with
     # its Message dropped -- the output cannot vouch for itself).
     expected_cases = _sorted_case_events(src_df, cfg)
-    expected_by_eid: Dict[str, Tuple[str, Any, Optional[str], str]] = {
-        e["eid"]: (str(e["activity"]), e["timestamp"], e["participant"], e["elem"])
+    # D24 (reviewer round 2): from/to are included here too (positions 4/5)
+    # so P1.3 can compare the transform's event/Message/O2O endpoint
+    # representations against the SOURCE-derived value directly, rather
+    # than only against each other -- a mutation that coherently rewrites
+    # all three representations to the same wrong value would otherwise
+    # agree with itself and pass.
+    expected_by_eid: Dict[str, Tuple[str, Any, Optional[str], str, Optional[str], Optional[str]]] = {
+        e["eid"]: (str(e["activity"]), e["timestamp"], e["participant"], e["elem"],
+                   e["from"], e["to"])
         for evlist in expected_cases.values() for e in evlist}
+    expected_endpoints_by_eid: Dict[str, Tuple[Optional[str], Optional[str]]] = {
+        e["eid"]: (e["from"], e["to"]) for evlist in expected_cases.values() for e in evlist}
+    # E30: the RAW (pre-default) elemType per event -- None when the source
+    # left it absent/empty/whitespace. Used by the domain check in P1.1 so
+    # an absent elemType is flagged, not masked by the 'task' default.
+    expected_elem_raw_by_eid: Dict[str, Optional[str]] = {
+        e["eid"]: e["elem_raw"] for evlist in expected_cases.values() for e in evlist}
     expected_eids_by_case: Dict[str, List[str]] = {
         case: [e["eid"] for e in evlist] for case, evlist in expected_cases.items()}
     case_by_eid: Dict[str, str] = {
@@ -926,7 +1061,37 @@ def run_consistency_checks(src_df: pd.DataFrame,
     participant_mismatches = 0
     elemtype_mismatches = 0
     residual_mismatches = 0
-    for eid, (exp_act, exp_ts, exp_part, exp_elem) in expected_by_eid.items():
+    # B14: Definition app-r1 declares `part` a TOTAL function on E_L (unlike
+    # from/to, which the Normalization paragraph explicitly allows to be
+    # partial on the counterparty side). A source event whose collab:participant
+    # is itself absent violates that precondition; the transform still
+    # propagates the absence faithfully (no participant/in_projection edge is
+    # created, M6), so participant_mismatches above stays 0 (None == None) and
+    # this would otherwise pass unnoticed -- surfaced here as its own count,
+    # separate from preservation mismatches, since it flags a source
+    # precondition violation, not a construction defect.
+    part_undefined_in_source = 0
+    # E30: _require_columns only checks that collab:elemType is PRESENT, not
+    # that its values lie in the codomain {task, SendTask, ReceiveTask} that
+    # appendixMapping.tex assumes; an out-of-domain value (e.g. a typo) is
+    # silently treated as a plain task by the send/receive comparisons
+    # (M5/M6) while the raw garbage string is still preserved verbatim as
+    # the output elemType attribute -- so elemtype_mismatches above would
+    # stay 0 (both sides preserve the same string) and this would pass
+    # unnoticed. Counted separately since it flags a source precondition
+    # violation, same category as B14's part_undefined_in_source.
+    # E30 (reviewer round 2): the check reads the RAW pre-default value
+    # (expected_elem_raw_by_eid, None when the source left elemType
+    # absent/empty/whitespace) rather than exp_elem -- otherwise the
+    # 'task' default in _sorted_case_events coerces an ABSENT value to
+    # 'task' before this check runs, masking it (only a non-empty bogus
+    # string like 'BogusTask' survived to be caught).
+    elemtype_out_of_domain = 0
+    for eid, (exp_act, exp_ts, exp_part, exp_elem, _, _) in expected_by_eid.items():
+        if exp_part is None:
+            part_undefined_in_source += 1
+        if expected_elem_raw_by_eid.get(eid) not in (ELEM_TASK, ELEM_SEND, ELEM_RECEIVE):
+            elemtype_out_of_domain += 1
         if ev_by_eid is None or eid not in ev_by_eid.index:
             missing_eids += 1
             continue
@@ -961,7 +1126,8 @@ def run_consistency_checks(src_df: pd.DataFrame,
     p11 = (n_src == n_ev) and missing_eids == 0 \
         and activity_mismatches == 0 and timestamp_mismatches == 0 \
         and participant_mismatches == 0 and elemtype_mismatches == 0 \
-        and residual_mismatches == 0
+        and residual_mismatches == 0 and part_undefined_in_source == 0 \
+        and elemtype_out_of_domain == 0
     out.append(CheckResult(
         "P1.1 Totality",
         bool(p11),
@@ -969,7 +1135,11 @@ def run_consistency_checks(src_df: pd.DataFrame,
         f"activity mismatches={activity_mismatches}; timestamp mismatches={timestamp_mismatches}; "
         f"participant mismatches={participant_mismatches}; "
         f"elemType mismatches={elemtype_mismatches}; "
-        f"residual (M8) attribute mismatches={residual_mismatches}."))
+        f"residual (M8) attribute mismatches={residual_mismatches}; "
+        f"source events with collab:participant undefined (violates the "
+        f"total-function precondition of Definition app-r1)={part_undefined_in_source}; "
+        f"source events with collab:elemType absent or outside "
+        f"{{task, SendTask, ReceiveTask}}={elemtype_out_of_domain}."))
 
     # ---- P1.2 Per-case partition: within-image of each cc equals the
     # exact SET of source event ids of that case (not merely its size, so a
@@ -989,14 +1159,18 @@ def run_consistency_checks(src_df: pd.DataFrame,
     # D24: the CollaborationCase object's own `caseId` attribute must agree
     # with the case it was built from -- a corrupted caseId keeps every
     # within edge and set-membership check above intact, so it is otherwise
-    # invisible to P1.2.
+    # invisible to P1.2. `caseId` is always set at object-creation time
+    # (M1), so a MISSING value is itself the defect (D24 reviewer round 2:
+    # comparing only when present let a deleted caseId pass vacuously).
     bad_cc_caseid = 0
     for case in expected_eids_by_case:
         cc_oid = _cc_id(case)
         if obj_idx_all is not None and cc_oid in obj_idx_all.index:
             got = obj_idx_all.at[cc_oid, "caseId"] if "caseId" in obj_idx_all.columns else None
-            if got is not None and pd.notna(got) and str(got) != case:
+            if pd.isna(got) or str(got) != case:
                 bad_cc_caseid += 1
+        else:
+            bad_cc_caseid += 1
     p12 = (len(mismatches) == 0) and (len(dangling) == 0) and (bad_cc_caseid == 0)
     out.append(CheckResult(
         "P1.2 Per-case partition",
@@ -1012,7 +1186,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
     # decrease -- silently violating the tie-break half of prec_L that
     # criterion P1.2/M5 also promises. Instead, compare the identifier
     # order directly against `expected_eids_by_case`, which is prec_L
-    # itself (timestamp, then __src_order__): identifiers are minted in
+    # itself (timestamp, then __src_order__): identifiers are created in
     # that exact sequence (M5), so this also re-catches the id-padding
     # regression that motivated fixed-width `_event_id` (e.g. "e::9"
     # sorting after "e::10" under an unpadded scheme) as a special case.
@@ -1149,6 +1323,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
             inconsistent_partial = 0  # attribute defined but relation missing, or vice versa
             multiplicity_violations = 0  # more than one from/to O2O edge for a single Message
             event_participant_missing = 0  # comm event lacking its participant attribute
+            source_endpoint_mismatches = 0  # any endpoint representation vs the SOURCE value
             for m in msg_ids:
                 if m not in obj_idx.index:
                     continue
@@ -1215,6 +1390,30 @@ def run_consistency_checks(src_df: pd.DataFrame,
                     # what fails on it, against the source expectation.
                     event_participant_missing += 1
 
+                # D24 (reviewer round 2): every comparison above is between
+                # the transform's OWN representations (Message attribute,
+                # event attribute, O2O target) -- a mutation that coherently
+                # rewrites all three to the SAME wrong value for one
+                # endpoint agrees with itself on every check above and
+                # would otherwise pass. Re-derive the expected endpoint
+                # straight from the source log (expected_endpoints_by_eid,
+                # the same normalization _sorted_case_events/nu already
+                # applies) and compare each representation against it
+                # independently.
+                exp_from, exp_to = expected_endpoints_by_eid.get(eid, (None, None))
+                sender_val = str(sender) if pd.notna(sender) else None
+                receiver_val = str(receiver) if pd.notna(receiver) else None
+                ev_from_val = str(ev_from) if pd.notna(ev_from) else None
+                ev_to_val = str(ev_to) if pd.notna(ev_to) else None
+                if sender_val != exp_from:
+                    source_endpoint_mismatches += 1
+                if receiver_val != exp_to:
+                    source_endpoint_mismatches += 1
+                if ev_from_val != exp_from:
+                    source_endpoint_mismatches += 1
+                if ev_to_val != exp_to:
+                    source_endpoint_mismatches += 1
+
             p13_detail_bits.append(f"from/to O2O vs sender/receiver: {oa_disagreements}")
             p13_detail_bits.append(
                 f"sender/receiver vs event fromParticipant/toParticipant: {ea_disagreements}")
@@ -1232,8 +1431,12 @@ def run_consistency_checks(src_df: pd.DataFrame,
             p13_detail_bits.append(
                 f"communication events missing their participant attribute "
                 f"(fails P1.1): {event_participant_missing}")
+            p13_detail_bits.append(
+                f"endpoint representations (event/Message/O2O) disagreeing with "
+                f"the source value: {source_endpoint_mismatches}")
             if (oa_disagreements or ea_disagreements or participant_disagreements
-                    or inconsistent_partial or multiplicity_violations):
+                    or inconsistent_partial or multiplicity_violations
+                    or source_endpoint_mismatches):
                 p13_ok = False
     out.append(CheckResult("P1.3 Message well-formedness", bool(p13_ok),
                            "; ".join(p13_detail_bits) or "no messages"))
@@ -1254,7 +1457,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
     #      Participant, that Participant's name equals the
     #      ParticipantProjection's 'participant' attribute, and the
     #      ParticipantProjection's own caseId/participant attributes agree
-    #      with the (case, participant) pair it was minted for (D24: a
+    #      with the (case, participant) pair it was created for (D24: a
     #      corrupted caseId/participant attribute affects no edge, so it
     #      was otherwise invisible to every check).
     p14_ok = True
@@ -1271,7 +1474,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
         missing_inproj = 0
         wrong_pp_target = 0
         multi_inproj = 0
-        for eid, (_, _, exp_part, _) in expected_by_eid.items():
+        for eid, (_, _, exp_part, _, _, _) in expected_by_eid.items():
             if exp_part is None:
                 continue
             if int(inproj_counts.get(eid, 0)) > 1:
@@ -1299,26 +1502,36 @@ def run_consistency_checks(src_df: pd.DataFrame,
             if int(forpart_counts.get(pp, 0)) != 1:
                 bad_forpart += 1
                 continue
-            # name agreement: for_participant target's 'name' == pp.participant
+            # name agreement: for_participant target's 'name' == pp.participant.
+            # D24 (reviewer round 2): 'name'/'participant' are always set at
+            # object-creation time (M2/M3), so a MISSING value is itself a
+            # construction defect, not merely inconclusive -- comparing only
+            # when both happen to be present let a deleted attribute pass
+            # vacuously (reproduced: deleting Participant.name or PP.caseId/
+            # participant kept every check above PASS).
             tgt = forpart_target.get(pp)
             if obj_idx_all is not None and tgt in obj_idx_all.index:
                 tgt_name = obj_idx_all.at[tgt, "name"] if "name" in obj_idx_all.columns else None
                 pp_part = obj_idx_all.at[pp, "participant"] if "participant" in obj_idx_all.columns else None
-                if tgt_name is not None and pp_part is not None and str(tgt_name) != str(pp_part):
+                if pd.isna(tgt_name) or pd.isna(pp_part) or str(tgt_name) != str(pp_part):
                     bad_name += 1
+            else:
+                bad_name += 1
 
         bad_pp_identity = 0
-        for eid, (_, _, exp_part, _) in expected_by_eid.items():
+        for eid, (_, _, exp_part, _, _, _) in expected_by_eid.items():
             if exp_part is None:
                 continue
             pp_oid = _pp_id(case_by_eid[eid], exp_part)
             if obj_idx_all is not None and pp_oid in obj_idx_all.index:
                 got_case = obj_idx_all.at[pp_oid, "caseId"] if "caseId" in obj_idx_all.columns else None
                 got_part = obj_idx_all.at[pp_oid, "participant"] if "participant" in obj_idx_all.columns else None
-                if got_case is not None and pd.notna(got_case) and str(got_case) != case_by_eid[eid]:
+                if pd.isna(got_case) or str(got_case) != case_by_eid[eid]:
                     bad_pp_identity += 1
-                if got_part is not None and pd.notna(got_part) and str(got_part) != exp_part:
+                if pd.isna(got_part) or str(got_part) != exp_part:
                     bad_pp_identity += 1
+            else:
+                bad_pp_identity += 1
 
         p14_ok = (missing_inproj == 0 and wrong_pp_target == 0 and multi_inproj == 0
                  and bad_projof == 0 and bad_forpart == 0 and bad_name == 0
@@ -1373,20 +1586,31 @@ def run_consistency_checks(src_df: pd.DataFrame,
     p16_ok = True
     p16_detail = ""
     if not rel.empty:
-        ev_participant = dict(zip(
-            rel[(rel[COL_QUALIFIER] == Q_PARTICIPANT) & (rel[COL_OTYPE] == OT_PARTICIPANT)][COL_EID],
-            rel[(rel[COL_QUALIFIER] == Q_PARTICIPANT) & (rel[COL_OTYPE] == OT_PARTICIPANT)][COL_OID]))
+        participant_rows = rel[(rel[COL_QUALIFIER] == Q_PARTICIPANT) & (rel[COL_OTYPE] == OT_PARTICIPANT)]
+        ev_participant = dict(zip(participant_rows[COL_EID], participant_rows[COL_OID]))
+        # D24 (reviewer round 2): `dict(zip(...))` above silently collapses
+        # a SECOND, contradictory 'participant' edge for the same event to
+        # whichever row pandas iterates last -- a duplicate-edge mutation
+        # could therefore agree with the (arbitrarily chosen) surviving
+        # value and pass. Count distinct targets per event id separately so
+        # ambiguity itself is caught, independent of which value the dict
+        # happened to keep.
+        participant_targets_per_eid = participant_rows.groupby(COL_EID)[COL_OID].nunique().to_dict()
         ev_inproj = dict(zip(
             rel[rel[COL_QUALIFIER] == Q_IN_PROJECTION][COL_EID],
             rel[rel[COL_QUALIFIER] == Q_IN_PROJECTION][COL_OID]))
         forpart_target = (dict(zip(o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT][COL_OID],
                                    o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT][COL_OID2]))
                           if not o2o.empty else {})
-        all_eids = {eid for eid, (_, _, exp_part, _) in expected_by_eid.items()
+        all_eids = {eid for eid, (_, _, exp_part, _, _, _) in expected_by_eid.items()
                    if exp_part is not None}
         mismatches6 = 0
         missing_one_side = 0
+        ambiguous_participant_edge = 0
         for eid in all_eids:
+            if participant_targets_per_eid.get(eid, 0) > 1:
+                ambiguous_participant_edge += 1
+                continue
             direct = ev_participant.get(eid)
             pp_oid = ev_inproj.get(eid)
             indirect = forpart_target.get(pp_oid) if pp_oid is not None else None
@@ -1395,10 +1619,11 @@ def run_consistency_checks(src_df: pd.DataFrame,
                 continue
             if direct != indirect:
                 mismatches6 += 1
-        p16_ok = (mismatches6 == 0) and (missing_one_side == 0)
+        p16_ok = (mismatches6 == 0) and (missing_one_side == 0) and (ambiguous_participant_edge == 0)
         p16_detail = (f"events checked={len(all_eids)}; "
                       f"direct/indirect mismatches={mismatches6}; "
-                      f"missing one side={missing_one_side}")
+                      f"missing one side={missing_one_side}; "
+                      f"events with >1 distinct 'participant' edge target={ambiguous_participant_edge}")
     out.append(CheckResult("P1.6 Participant coherence", bool(p16_ok), p16_detail))
 
     return out
@@ -1454,8 +1679,14 @@ def convert(input_xes: str,
     all_ok = print_check_report(checks, res.stats)
     if strict and not all_ok:
         raise RuntimeError("Consistency checks failed under strict mode; not exporting.")
+    # D25: witness E2O edges only for the pm4py write path, so objects
+    # reachable exclusively via O2O (e.g. endpoint-only Participants)
+    # survive export; res.relations_df itself (returned to the caller,
+    # and already used above by run_consistency_checks) is untouched.
+    export_relations_df = _add_export_reachability_witnesses(
+        res.objects_df, res.relations_df, res.o2o_df)
     ocel = build_ocel_object(res.events_df, res.objects_df,
-                             res.relations_df, res.o2o_df)
+                             export_relations_df, res.o2o_df)
     write_ocel2_json(ocel, json_path)
     write_ocel2_sqlite(ocel, sqlite_path)
 

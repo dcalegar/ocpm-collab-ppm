@@ -58,7 +58,7 @@ E2O-related objects of an event pairwise and this edge would merge every
 
 The per-case event order of the source XES log (timestamp order, ties broken by
 appearance order — the order ≺_L of the appendix) is encoded in the **event
-identifier itself**: ids are minted as `e::<case>::<idx>` with the per-case
+identifier itself**: ids are created as `e::<case>::<idx>` with the per-case
 index **zero-padded** to the width needed for that case, so lexicographic
 identifier order agrees exactly with ≺_L (μ_E is an order-embedding; check
 P1.2b verifies this on every export).

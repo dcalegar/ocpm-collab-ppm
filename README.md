@@ -252,7 +252,7 @@ in PowerShell, or `.venv\Scripts\activate.bat` in `cmd.exe` — see
 [Setup](#setup-virtual-environments)).
 
 The command above does **not** run the opt-in BPI2013 real-world validation
-stage (`run_bpi2013=True`, ~36x larger than the study logs) — see
+stage (`run_bpi2013=True`, ~29.5x larger than the study logs by events) — see
 [ocpm_eval's README](src/ocpm_eval/README.md#usage) for how to enable it.
 
 Automated regression tests live in [`tests/`](tests/): `test_mapping_checks.py`

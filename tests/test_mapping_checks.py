@@ -18,6 +18,7 @@ Run directly: python tests/test_mapping_checks.py   (also pytest-compatible)
 """
 import os
 import sys
+import tempfile
 from dataclasses import replace
 
 import pandas as pd
@@ -26,9 +27,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from mapping.collab_xes_to_ocel import (   # noqa: E402
     transform, run_consistency_checks, MappingConfig, TransformResult,
+    _add_export_reachability_witnesses, _raw_timestamps_in_file_order,
     COL_EID, COL_ACTIVITY, COL_TIMESTAMP, COL_OID, COL_OID2, COL_OTYPE, COL_QUALIFIER,
-    Q_WITHIN, Q_FROM, Q_SEND, Q_PARTICIPANT, Q_IN_PROJECTION, Q_EXCHANGED_IN,
-    OT_CC, OT_MESSAGE, OT_PP,
+    Q_WITHIN, Q_FROM, Q_TO, Q_SEND, Q_PARTICIPANT, Q_IN_PROJECTION, Q_EXCHANGED_IN,
+    OT_CC, OT_MESSAGE, OT_PP, OT_PARTICIPANT,
 )
 
 CASE_KEY, ACT_KEY, TS_KEY = "case:concept:name", "concept:name", "time:timestamp"
@@ -426,6 +428,337 @@ def test_p12_and_p14_catch_altered_caseid():
     # "A" (Start and Send1), so the source-driven identity check flags it
     # once per event that references it.
     assert "caseId/participant identity disagreements=2" in p14.detail
+
+
+def test_export_witness_recovers_endpoint_only_participant():
+    """D25: a participant that is only ever a message counterparty (never
+    collab:participant of its own event) is correctly materialized by
+    transform() -- Participant B, plus the O2O `to` edge from the Message to
+    it -- but M6's direct `participant` E2O edge only covers participants
+    that own at least one event, so B is reachable via relations_df (E2O)
+    not at all. Before D25, exporting such a log with pm4py's OCEL 2.0
+    writers silently dropped B, because they discard every object absent
+    from the E2O table (filtering_utils.propagate_relations_filtering),
+    regardless of O2O reachability -- confirmed by reading the installed
+    pm4py source, not just the module docstring's claim. This locks in the
+    export-time fix without needing pm4py installed:
+    _add_export_reachability_witnesses augments a COPY of relations_df with
+    a witness edge anchored on the Send event, while leaving
+    res.relations_df (P1's input) untouched.
+    """
+    rows = [
+        _row("C1", "Start", "2024-01-01T00:00:00Z", "A"),
+        _row("C1", "Send1", "2024-01-01T00:00:01Z", "A", "SendTask", frm="A", to="B"),
+        _row("C1", "End", "2024-01-01T00:00:02Z", "A"),
+    ]
+    src = pd.DataFrame(rows)
+    res = transform(src, MappingConfig())
+
+    b_oid = "part::B"
+    assert b_oid in set(res.objects_df[COL_OID])         # M2/M7: B is materialized
+    assert b_oid not in set(res.relations_df[COL_OID])   # but unreachable via E2O
+
+    checks = _checks_by_name(run_consistency_checks(src, res, MappingConfig()))
+    assert all(c.passed for c in checks.values())  # P1 is unaffected -- this is an export-only gap
+
+    augmented = _add_export_reachability_witnesses(res.objects_df, res.relations_df, res.o2o_df)
+    assert b_oid not in set(res.relations_df[COL_OID])   # original left untouched by the patch
+    witness = augmented[augmented[COL_OID] == b_oid]
+    assert len(witness) == 1
+    assert witness.iloc[0][COL_QUALIFIER] == Q_TO
+    assert witness.iloc[0][COL_OTYPE] == OT_PARTICIPANT
+    send_eid = res.events_df.loc[res.events_df[COL_ACTIVITY] == "Send1", COL_EID].iloc[0]
+    assert witness.iloc[0][COL_EID] == send_eid
+
+
+def test_export_witness_is_one_row_per_object_across_cases():
+    """D25: an endpoint-only Participant shared across two different
+    CollaborationCases (B is a message counterparty in both C1 and C2, never
+    collab:participant of its own event) must receive EXACTLY ONE witness E2O
+    row, not one per referencing event. A single E2O edge already suffices for
+    pm4py's exporter to keep the object, so emitting one per (event, object)
+    would only add more non-M6 `to`/`from` rows to the serialized OCEL -- rows
+    an external consumer could misread as semantic -- pushing the exported
+    artefact further from the E2O set of mu(L) for no benefit. Deduplicating on
+    the target object keeps that surplus at its minimum (1 row) and matches the
+    per-object reduction the read-side strip already performs.
+    """
+    rows = [
+        _row("C1", "Send1", "2024-01-01T00:00:00Z", "A", "SendTask", frm="A", to="B"),
+        _row("C2", "Send2", "2024-01-02T00:00:00Z", "C", "SendTask", frm="C", to="B"),
+    ]
+    src = pd.DataFrame(rows)
+    res = transform(src, MappingConfig())
+
+    b_oid = "part::B"
+    assert b_oid in set(res.objects_df[COL_OID])         # materialized in both cases
+    assert b_oid not in set(res.relations_df[COL_OID])   # but endpoint-only, no E2O
+
+    augmented = _add_export_reachability_witnesses(res.objects_df, res.relations_df, res.o2o_df)
+    witness = augmented[augmented[COL_OID] == b_oid]
+    assert len(witness) == 1                              # one row per object, not per event
+    assert witness.iloc[0][COL_QUALIFIER] == Q_TO
+
+
+_XES_TEMPLATE = """<?xml version="1.0" encoding="utf-8" ?>
+<log{ns}>
+  <trace>
+    <string key="concept:name" value="C1" />
+    <event>
+      <date key="time:timestamp" value="2024-01-01T00:00:00.000000+00:00" />
+    </event>
+    <event>
+      <date key="time:timestamp" value="2024-01-01T00:00:01.000000+00:00" />
+    </event>
+  </trace>
+  <trace>
+    <string key="concept:name" value="C2" />
+    <event>
+      <date key="time:timestamp" value="2024-01-02T00:00:00.000000+00:00" />
+    </event>
+  </trace>
+</log>
+"""
+
+
+def _write_temp_xes(namespaced: bool) -> str:
+    ns = ' xmlns="http://www.xes-standard.org/"' if namespaced else ""
+    content = _XES_TEMPLATE.format(ns=ns)
+    fd, path = tempfile.mkstemp(suffix=".xes")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    return path
+
+
+def test_raw_timestamps_namespace_aware():
+    """D26: a XES file may declare a default namespace on the root <log>
+    element (xmlns=...), as pm4py's own XES writer does -- toy_collab.xes
+    is generated this way. Before D26, _raw_timestamps_in_file_order()
+    searched for bare tag names ("trace"/"event"/"date"), which silently
+    match nothing once every element's real tag is "{namespace-uri}trace"
+    etc., so a namespaced file produced 0 timestamps against N parsed
+    events and _correct_utc_timestamps aborted. Both variants must yield
+    the same 3 timestamps in file order.
+    """
+    expected = [
+        "2024-01-01T00:00:00.000000+00:00",
+        "2024-01-01T00:00:01.000000+00:00",
+        "2024-01-02T00:00:00.000000+00:00",
+    ]
+    for namespaced in (False, True):
+        path = _write_temp_xes(namespaced)
+        try:
+            assert _raw_timestamps_in_file_order(path) == expected, (
+                f"namespaced={namespaced}")
+        finally:
+            os.remove(path)
+
+
+def test_p11_catches_undefined_source_participant():
+    """B14: Definition app-r1 declares `part` a TOTAL function on E_L, unlike
+    `from`/`to` (which the Normalization paragraph explicitly allows to be
+    partial on the counterparty side). A source event with no
+    collab:participant value at all violates this precondition. Before B14,
+    transform() silently propagated the absence (no participant/in_projection
+    edge created, M6) and P1.1 never flagged it -- the output's participant
+    attribute is equally absent, so the existing mismatch counter saw
+    None == None and stayed green.
+    """
+    src = _well_formed_log().copy()
+    idx = src[src[ACT_KEY] == "Start"].index[0]
+    assert src.loc[idx, PART_KEY] == "A"
+    src.loc[idx, PART_KEY] = None
+    res = transform(src, MappingConfig())
+    checks = _checks_by_name(run_consistency_checks(src, res, MappingConfig()))
+    p11 = checks["P1.1 Totality"]
+    assert not p11.passed
+    assert "collab:participant undefined" in p11.detail
+    assert "undefined (violates the total-function precondition of Definition app-r1)=1" in p11.detail
+
+
+def test_p11_catches_elemtype_out_of_domain():
+    """E30: _require_columns only checks that collab:elemType is present, not
+    that its values lie in {task, SendTask, ReceiveTask}. An out-of-domain
+    value is silently treated as a plain task by M5/M6 while the garbage
+    string is preserved verbatim as the output elemType attribute, so the
+    existing elemtype_mismatches counter stays 0 (both sides agree on the
+    same string) -- surfaced here as its own count.
+    """
+    src = _well_formed_log().copy()
+    idx = src[src[ACT_KEY] == "Start"].index[0]
+    src.loc[idx, ELEM_KEY] = "BogusTask"
+    res = transform(src, MappingConfig())
+    checks = _checks_by_name(run_consistency_checks(src, res, MappingConfig()))
+    p11 = checks["P1.1 Totality"]
+    assert not p11.passed
+    assert "elemType absent or outside" in p11.detail
+    assert p11.detail.rstrip(".").endswith("=1")
+
+
+def test_p11_catches_absent_and_blank_elemtype():
+    """E30 (reviewer round 2): an ABSENT/empty/whitespace collab:elemType is
+    silently defaulted to 'task' by _sorted_case_events before the domain
+    check runs, so before this fix only a non-empty bogus string like
+    'BogusTask' was ever flagged; None/''/'   ' passed vacuously (the
+    default made both source and output read 'task'). The domain check now
+    reads the RAW pre-default value, so an absent/blank elemType is counted
+    too."""
+    for bad in (None, "", "   "):
+        src = _well_formed_log().copy()
+        # Use a plain 'task' event so no Message/send/receive machinery is
+        # involved -- isolates the elemType-absence signal itself.
+        idx = src[src[ACT_KEY] == "Start"].index[0]
+        src.loc[idx, ELEM_KEY] = bad
+        res = transform(src, MappingConfig())
+        checks = _checks_by_name(run_consistency_checks(src, res, MappingConfig()))
+        p11 = checks["P1.1 Totality"]
+        assert not p11.passed, f"expected P1.1 to fail for elemType={bad!r}"
+        assert "elemType absent or outside" in p11.detail
+        assert p11.detail.rstrip(".").endswith("=1"), \
+            f"expected exactly one out-of-domain elemType for {bad!r}: {p11.detail}"
+
+
+def test_transform_rejects_residual_attribute_name_collision():
+    """E30: a residual (M8) source column with the bare name "participant"
+    (distinct from the prefixed collab:participant, which is excluded from
+    residual_keys) is not filtered out by consumed_keys, and the residual
+    loop in transform() runs AFTER the reserved output attribute of the same
+    name is set -- before this fix it silently overwrote the mapped
+    collab:participant value in ev_row, and P1.1's residual check (reading
+    that same clobbered cell) would not catch it since both comparisons hit
+    the identical overwritten value. transform() now raises instead of
+    materializing this ambiguity.
+    """
+    src = _well_formed_log().copy()
+    src["participant"] = "SPURIOUS"
+    try:
+        transform(src, MappingConfig())
+        assert False, "expected ValueError for reserved-name collision"
+    except ValueError as ex:
+        assert "participant" in str(ex)
+
+
+def test_pp_id_no_separator_collision():
+    """E30: _pp_id joined case/participant with an unescaped "::", so
+    _pp_id("x", "y::z") and _pp_id("x::y", "z") both created "pp::x::y::z" --
+    two distinct (case, participant) pairs colliding on one object id.
+    Vacuous on the 6 evaluated logs (no case id or participant name contains
+    ":"), but a real injectivity gap in the id-creation scheme. After the
+    fix, escaping "\\" and ":" per component before joining makes distinct
+    pairs create distinct ids even when a component itself contains "::".
+    """
+    from mapping.collab_xes_to_ocel import _pp_id
+    assert _pp_id("x", "y::z") != _pp_id("x::y", "z")
+    # Still stable/unaffected for the common case (no separator inside components).
+    assert _pp_id("case_1", "PartyA") == "pp::case_1::PartyA"
+
+
+def test_p12_catches_deleted_caseid():
+    """Deleting (not merely altering) the caseId attribute of a
+    CollaborationCase object. Before the D24 reviewer round-2 fix, P1.2's
+    comparison only ran when the attribute happened to be present
+    (`pd.notna(got)`), so a deleted caseId passed vacuously -- distinct from
+    test_p12_and_p14_catch_altered_caseid, which corrupts the value to a
+    different but PRESENT string."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    obj = res.objects_df.copy()
+    cc_idx = obj[(obj[COL_OTYPE] == OT_CC) & (obj[COL_OID] == "cc::C1")].index[0]
+    obj.loc[cc_idx, "caseId"] = None
+    corrupted = replace(res, objects_df=obj)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p12 = checks["P1.2 Per-case partition"]
+    assert not p12.passed
+    assert "caseId disagreements=1" in p12.detail
+
+
+def test_p14_catches_deleted_pp_participant_attribute():
+    """Deleting a ParticipantProjection's own `participant` attribute.
+    Before the D24 reviewer round-2 fix, both the for_participant name
+    check and the PP identity check only ran when the attribute was
+    present, so a deleted value passed P1.4 vacuously."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    obj = res.objects_df.copy()
+    pp_idx = obj[obj[COL_OTYPE] == OT_PP].index[0]
+    obj.loc[pp_idx, "participant"] = None
+    corrupted = replace(res, objects_df=obj)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p14 = checks["P1.4 Participant-projection coherence"]
+    assert not p14.passed
+    assert "for_participant name disagreements=1" in p14.detail
+    assert "caseId/participant identity disagreements=2" in p14.detail
+
+
+def test_p14_catches_deleted_participant_name():
+    """Deleting a Participant object's own `name` attribute. Reached by
+    BOTH C1's and C2's ParticipantProjection for that participant, so
+    every for_participant edge into it is affected."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    obj = res.objects_df.copy()
+    part_idx = obj[obj[COL_OTYPE] == OT_PARTICIPANT].index[0]
+    obj.loc[part_idx, "name"] = None
+    corrupted = replace(res, objects_df=obj)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p14 = checks["P1.4 Participant-projection coherence"]
+    assert not p14.passed
+    assert "for_participant name disagreements=2" in p14.detail
+
+
+def test_p16_catches_contradictory_duplicate_participant_edge():
+    """Adding a SECOND, contradictory 'participant' E2O edge for the same
+    event (pointing at a different Participant than the correct one).
+    Before the D24 reviewer round-2 fix, P1.6 built its per-event lookup
+    with `dict(zip(eids, oids))`, which silently collapsed the duplicate to
+    whichever edge pandas iterated last -- the ambiguity itself was never
+    reported, only whatever value happened to survive the collapse."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    rel = res.relations_df.copy()
+    row = rel[rel[COL_QUALIFIER] == Q_PARTICIPANT].iloc[0].copy()
+    row[COL_OID] = "part::B" if row[COL_OID] != "part::B" else "part::A"
+    rel2 = pd.concat([rel, pd.DataFrame([row])], ignore_index=True)
+    corrupted = replace(res, relations_df=rel2)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p16 = checks["P1.6 Participant coherence"]
+    assert not p16.passed
+    assert "events with >1 distinct 'participant' edge target=1" in p16.detail
+
+
+def test_p13_catches_coherent_endpoint_corruption_vs_source():
+    """Coherently rewriting one endpoint's value across ALL THREE
+    representations (event fromParticipant attribute, Message.sender
+    attribute, and the O2O 'from' edge target) to the SAME wrong
+    participant "Z". Before the D24 reviewer round-2 fix, P1.3 only
+    compared these three representations against EACH OTHER, so a mutation
+    that changes them together in lockstep agreed with itself on every
+    comparison and passed; P1.3 must also compare each representation
+    against the value re-derived independently from the SOURCE log."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    send_eid = res.events_df[res.events_df[COL_ACTIVITY] == "Send1"][COL_EID].iloc[0]
+    msg_oid = res.relations_df[
+        (res.relations_df[COL_EID] == send_eid) & (res.relations_df[COL_QUALIFIER] == Q_SEND)
+    ][COL_OID].iloc[0]
+
+    ev = res.events_df.copy()
+    ev.loc[ev[COL_EID] == send_eid, "fromParticipant"] = "Z"
+
+    obj = res.objects_df.copy()
+    obj.loc[obj[COL_OID] == msg_oid, "sender"] = "Z"
+    obj = pd.concat([obj, pd.DataFrame([
+        {COL_OID: "part::Z", COL_OTYPE: OT_PARTICIPANT, "name": "Z"}])], ignore_index=True)
+
+    o2o = res.o2o_df.copy()
+    mask = (o2o[COL_OID] == msg_oid) & (o2o[COL_QUALIFIER] == Q_FROM)
+    o2o.loc[mask, COL_OID2] = "part::Z"
+
+    corrupted = replace(res, events_df=ev, objects_df=obj, o2o_df=o2o)
+    checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
+    p13 = checks["P1.3 Message well-formedness"]
+    assert not p13.passed
+    assert "endpoint representations (event/Message/O2O) disagreeing with the source value: 2" in p13.detail
 
 
 def _run_all():

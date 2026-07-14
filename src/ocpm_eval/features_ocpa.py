@@ -43,7 +43,7 @@ def build_feature_set(ocel, schema):
     event->Participant E2O edge before import (to stop OCPA's leading-type
     extraction from merging every CollaborationCase that shares a Participant),
     so Participant never appears in event_objects and a count over it is always
-    0. ParticipantProjection is untouched by that strip and is minted 1:1 with
+    0. ParticipantProjection is untouched by that strip and is created 1:1 with
     (case, participant) by the converter (collab_xes_to_ocel._pp_id), so a
     previous-ParticipantProjection-count within one execution equals the
     previous-Participant-count it was meant to capture."""

@@ -18,7 +18,7 @@ Design decisions (consistent with the project bitacora):
   * Message detection: an event whose activity status is ``Queued`` and whose
     participant differs from the immediately preceding event's participant is
     read as a *receive* observation of a ticket hand-over. One Message is
-    minted per such observation, correlating exactly two observations:
+    created per such observation, correlating exactly two observations:
       - a ``ReceiveTask`` (the real, recorded ``Queued`` event), with
         toParticipant = the receiving line (the event's own participant) and
         fromParticipant = the previous event's participant (DERIVED; declared
@@ -153,7 +153,7 @@ def transform(traces):
         "group_to_lines": defaultdict(set),  # (iv) org:group -> {organization involved}
     }
 
-    eid = 0  # global event id, minted in order of appearance (D15)
+    eid = 0  # global event id, created in order of appearance (D15)
     mid = 0  # global message id
 
     for case_id, events in traces:
@@ -192,7 +192,7 @@ def transform(traces):
                     # Queued at CI entry: no observed predecessor.
                     stats["flag_queued_first_of_ci"] += 1
                 elif is_line_change:
-                    # Receive observation -> mint one Message, correlating a
+                    # Receive observation -> create one Message, correlating a
                     # real ReceiveTask with a synthesized SendTask.
                     mid += 1
                     n_msg_ci += 1
@@ -238,7 +238,7 @@ def transform(traces):
                 # else: same-line Queued -> internal re-queue, stays a task
             elif is_line_change:
                 # Hand-over NOT surfaced as a Queued event: flagged residual,
-                # NOT minted as a message under the stated algorithm.
+                # NOT created as a message under the stated algorithm.
                 stats["flag_line_change_non_queued"] += 1
 
             eid += 1

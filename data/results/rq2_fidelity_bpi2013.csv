@@ -110,4 +110,7 @@ OB-P,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Org line V7n
 OB-P,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Org line V8
 OB-P,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Org line V9
 OB-P,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Other
+OB-M,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Accepted
+OB-M,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Completed
 OB-M,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Queued
+OB-M,equivalence,62030,62030,0,1.0,0,0,[],BPI2013,Unmatched

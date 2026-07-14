@@ -27,8 +27,12 @@ OB-P,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Hospital
 OB-P,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Laboratory
 OB-P,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Patient
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Admit patient
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Analyse blood sample
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Blood draw
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Communicate disease
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Communicate the need to hospitalise
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Create medical record
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Examine patient
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Forward patient analysis results
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Hospitalisation needed
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Receive admission info
@@ -37,6 +41,7 @@ OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Receive blood sample
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Receive disease info
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Receive patient results
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Receive prescription
+OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Request blood analysis
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Require patient admission
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Send admission info
 OB-M,equivalence,1350,1350,0,1.0,0,0,[],Healthcare,Send blood sample
@@ -61,10 +66,14 @@ NV-NMPa,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyA
 NV-NMPa,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyC
 OB-P,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyA
 OB-P,equivalence,700,700,0,1.0,0,0,[],Artificial1,PartyC
+OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity A
+OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity B
+OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity BZ
 OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity C
 OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity CZ
 OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity D
 OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity DZ
+OB-M,equivalence,700,700,0,1.0,0,0,[],Artificial1,Activity ZA
 NE-NEPr,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,
 NE-NPaA,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,
 NE-NEPa,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,
@@ -92,16 +101,32 @@ OB-P,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyA
 OB-P,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyB
 OB-P,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyC
 OB-P,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,PartyD
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity A
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity AA
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity B
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity BB
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity BZ
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity C
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity CC
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity CZ
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity D
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity DD
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity DZ
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity E
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity EE
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity F
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity FF
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity G
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity H
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity I
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity J
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity K
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity L
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity M
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity N
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity O
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity ZA
+OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Activity ZAZ
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Start
 OB-M,equivalence,2260,2260,0,1.0,0,0,[],Artificial5,Start2
 NE-NEPr,equivalence,1700,1700,0,1.0,0,0,[],Real4,
@@ -129,9 +154,20 @@ OB-P,equivalence,1700,1700,0,1.0,0,0,[],Real4,Visitor
 OB-P,equivalence,1700,1700,0,1.0,0,0,[],Real4,Zoo
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Card received?
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Change account
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Decide individual or family ticket
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Deliver Zooclub card
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Enter customer data into the system
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Forward information to making department
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Go home
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Mail ZooClub magazine
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Payment confirmed
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Prepare family's information
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Prepare personal information
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Process payment information
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Receive payment request
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Receive visitor information
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Send information to the ZooClub department
 OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Send payment request
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Send request to billing department
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Wait for card
+OB-M,equivalence,1700,1700,0,1.0,0,0,[],Real4,Wait fot payment

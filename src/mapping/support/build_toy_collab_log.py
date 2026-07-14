@@ -25,7 +25,7 @@ observed prefix, so the targets carry a genuine, learnable signal:
 Each Send/Receive event carries a residual "msgId" attribute (NOT part of the
 core M1-M8 vocabulary) that a downstream ENRICHMENT step (ocpm_tasks.adapters,
 ``corr_attr="msgId"``) uses to populate Event.corr_id for X-MSt. The core
-mapping (M4) still mints one independent Message object per send/receive
+mapping (M4) still creates one independent Message object per send/receive
 observation and infers no correspondence on its own -- msgId is an extra,
 explicit, opt-in correlation source.
 

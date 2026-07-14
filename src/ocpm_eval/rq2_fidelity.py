@@ -45,10 +45,29 @@ def _clean(v) -> Optional[str]:
 def _read_xes_cases(path: str) -> Dict[str, List[dict]]:
     """Read XES and return per-case sorted event dicts using source accessors."""
     import pm4py
+    from mapping.collab_xes_to_ocel import _correct_utc_timestamps
     log = pm4py.read_xes(path)
     df = pm4py.convert_to_dataframe(log)
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame(df)
+    df = df.reset_index(drop=True)
+    # B11: pm4py's ISO8601 parser mislabels a non-zero UTC offset without
+    # shifting the clock (see collab_xes_to_ocel._correct_utc_timestamps for
+    # the root cause), so raw pm4py timestamps are wrong whenever a source
+    # log's offset is non-zero. A log with ONE fixed offset throughout still
+    # gives correct label VALUES here, because every timestamp carries the
+    # same additive error, which cancels out in every difference the 14
+    # tasks compute (R1 never reads an absolute timestamp, only diffs) --
+    # this covers the 4 baseline logs and ToyCollab. It does NOT cancel when
+    # a single collaboration case spans more than one offset, e.g. a DST
+    # transition: BPI Challenge 2013 mixes +01:00/+02:00 within 254 of its
+    # 7,554 cases, and the resulting hour-scale errors do not cancel in
+    # diffs that straddle the transition. Confirmed empirically before this
+    # fix: thousands of false RQ2 mismatches (NV-PrT/NV-PaT/NV-TNE/NV-TNM)
+    # against R2, which already reads the corrected copy. Re-deriving R1's
+    # timestamps the same way R2's are derived keeps both readers on the
+    # identical clock regardless of a log's offset structure.
+    df["time:timestamp"] = _correct_utc_timestamps(path, len(df))
 
     cases: Dict[str, List[dict]] = {}
     for case_id, grp in df.groupby("case:concept:name", sort=False):
@@ -70,35 +89,7 @@ def _read_xes_cases(path: str) -> Dict[str, List[dict]]:
     return cases
 
 
-def _correlate(evs: List[dict]) -> Dict[int, int]:
-    """M4 heuristic ρ for one case: send_pos -> recv_pos."""
-    rho: Dict[int, int] = {}
-    matched: set = set()
-    recvs = [(i, e) for i, e in enumerate(evs) if e["elem"] == _ELEM_RECV]
-    for i, ev in enumerate(evs):
-        if ev["elem"] != _ELEM_SEND:
-            continue
-        sender, receiver = ev["participant"], ev["to"]
-        best_pos, best_ts = None, None
-        for j, rv in recvs:
-            if j in matched:
-                continue
-            if rv["timestamp"] < ev["timestamp"]:
-                continue
-            if rv["from"] is not None and sender and rv["from"] != sender:
-                continue
-            if rv["to"] is not None and receiver is not None and rv["to"] != receiver:
-                continue
-            if best_pos is None or (rv["timestamp"], j) < (best_ts, best_pos):
-                best_pos, best_ts = j, rv["timestamp"]
-        if best_pos is not None:
-            rho[i] = best_pos
-            matched.add(best_pos)
-    return rho
-
-
-def _src_label(key: str, evs: List[dict], i: int, param, bottom: str,
-               rho: Dict[int, int]) -> object:
+def _src_label(key: str, evs: List[dict], i: int, param, bottom: str) -> object:
     """Θ_τ^L for one cut point i in one case (Definition 1 / Proposition P2)."""
     n = len(evs)
 
@@ -109,8 +100,11 @@ def _src_label(key: str, evs: List[dict], i: int, param, bottom: str,
         return evs[i + 1]["participant"] if i + 1 < n else bottom
 
     if key == "NE-NEPa":
+        # Pair (evtype, pa), per appendixTasks.tex Def. NE-NEPa -- must match
+        # labels._NE_NEPa's representation (B13: a concatenated string is not
+        # injective).
         if i + 1 < n:
-            return f"{evs[i + 1]['activity']}||{evs[i + 1]['participant']}"
+            return (evs[i + 1]["activity"], evs[i + 1]["participant"])
         return bottom
 
     if key == "NE-NPaM":
@@ -191,9 +185,8 @@ def _compute_source_rows(xes_path: str, task, param, bottom: str) -> List[Row]:
     rows: List[Row] = []
     for case_id, evs in _read_xes_cases(xes_path).items():
         n = len(evs)
-        rho: Dict[int, int] = {}   # only computed for tasks that need M4
         for i in range(n - 1):
-            y = _src_label(task.key, evs, i, param, bottom, rho)
+            y = _src_label(task.key, evs, i, param, bottom)
             rows.append((case_id, f"{case_id}::{i}", i + 1, y))
     return rows
 
@@ -215,14 +208,25 @@ def _params_for(task, ocel_log, cfg):
     if task.key in _DIRECTION_TASKS:
         return ["send", "receive"]
     if task.param == "activity":
-        # OB-M's own definition triggers on a message sent OR received (is_msg),
-        # so the swept activities must include receive-only ones too, not just
-        # send activities.
-        acts = sorted({e.activity for ex in ocel_log for e in ex.events if e.is_msg})
+        # OB-M's own definition (appendixTasks.tex, Def. OB-M) quantifies
+        # hat{a} over the FULL activity alphabet A_L, not only message
+        # activities: a non-message hat{a} is a well-defined parameter value
+        # for which Theta_OBM is always False (no message ever has that
+        # evtype). Sweeping the full alphabet (E28) tests that boundary
+        # instead of silently excluding it from RQ2's coverage.
+        acts = sorted({e.activity for ex in ocel_log for e in ex.events})
         return acts or [None]
     if task.param == "participant":
-        ps = sorted({e.actor for ex in ocel_log for e in ex.events if e.actor})
-        return ps or [None]
+        # P_L = part(E_L) u ran(from) u ran(to) (appendixMapping.tex): a
+        # participant that is only ever a message counterparty (never an
+        # event's own actor) is still in P_L and is a valid parameter value
+        # for NE-NMPa/NV-PaT/NV-NMPa/OB-P (appendixTasks.tex, "Participant
+        # projection domain"). Sourcing the domain from e.actor alone omits
+        # such endpoint-only participants (E28); union in msg_from/msg_to.
+        ps = {e.actor for ex in ocel_log for e in ex.events if e.actor}
+        ps |= {e.msg_from for ex in ocel_log for e in ex.events if e.msg_from}
+        ps |= {e.msg_to for ex in ocel_log for e in ex.events if e.msg_to}
+        return sorted(ps) or [None]
     return [None]
 
 

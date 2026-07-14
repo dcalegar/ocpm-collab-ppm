@@ -46,21 +46,28 @@ def _NE_NPaA(ctx, ex, i, p):
     return ex.events[i + 1].actor if i + 1 < ex.n else ctx.bottom
 
 def _NE_NEPa(ctx, ex, i, p):
+    # Returns the pair (evtype, pa), per appendixTasks.tex Def. NE-NEPa. A
+    # concatenated string ("act||actor") is not injective: ("A||B","C") and
+    # ("A","B||C") both encode to "A||B||C" -- confirmed collision (B13).
     if i + 1 < ex.n:
         e = ex.events[i + 1]
-        return f"{e.activity}||{e.actor}"
+        return (e.activity, e.actor)
     return ctx.bottom
 
 def _NE_NPaM(ctx, ex, i, p):
     """Next participant to send (p="send", default) or receive (p="receive") a
     message: the message-object endpoint, `from` for send / `to` for receive
-    (tasks.tex, NE-NPaM), read via msg_from/msg_to, falling back to the
-    event's own actor (equal by P1.3 when both are defined)."""
+    (tasks.tex, NE-NPaM), read via msg_from/msg_to. No fallback to the event's
+    own actor: `from` on a send event (resp. `to` on a receive event) is
+    always the event's own side, so under a correct construction this is
+    never undefined (P1.3). If it ever is, that signals a construction
+    defect (e.g. a lost O2O edge) that R2 should surface, not silently mask
+    with a same-valued-by-P1.3-but-not-actually-the-relation substitute."""
     want_send = (p or "send") == "send"
     for j in range(i + 1, ex.n):
         e = ex.events[j]
         if e.is_send if want_send else e.is_receive:
-            return (e.msg_from if want_send else e.msg_to) or e.actor
+            return e.msg_from if want_send else e.msg_to
     return ctx.bottom
 
 def _NE_NMPa(ctx, ex, i, p):
@@ -108,6 +115,11 @@ def _NV_TNM(ctx, ex, i, p):
 def _NV_NMPr(ctx, ex, i, p):
     # Delgado et al. 2025, Table 2: "Number of remaining/total messages
     # (send/receive)" -- both directions count, not sends only.
+    # tasks.tex quantifies over Msgs(c) via pos(m)>k; counting communication
+    # events with is_msg here is equivalent, not an approximation, because
+    # M4 creates exactly one Message object per send/receive event (a
+    # bijection between E^snd_L u E^rcv_L and Msgs(c)) -- there is no
+    # separate exchanged_in traversal that could disagree with this count.
     return sum(1 for j in range(i + 1, ex.n) if ex.events[j].is_msg)
 
 def _NV_NMPa(ctx, ex, i, p):
@@ -127,7 +139,8 @@ def _OB_M(ctx, ex, i, p):
     if p is None:
         raise ValueError("OB-M requires param = message-activity label (a_hat).")
     # Delgado et al. 2025, Table 2: "If a particular message will be
-    # sent/received" -- both directions count, not sends only.
+    # sent/received" -- both directions count, not sends only. Same
+    # events-for-objects equivalence as _NV_NMPr (M4 bijection).
     return any(ex.events[j].is_msg and ex.events[j].activity == p
                for j in range(i + 1, ex.n))
 

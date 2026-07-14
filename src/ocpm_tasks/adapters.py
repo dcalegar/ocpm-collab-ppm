@@ -173,14 +173,14 @@ def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
                 is_send, msg_oid = True, oid
             elif q == sch.q_receive and t == sch.ot_message:
                 is_recv, msg_oid = True, oid
-            elif t == sch.ot_participant:
+            elif q == sch.q_participant and t == sch.ot_participant:
+                # Must match the qualifier, not just the target type: an
+                # exported log may carry a D25 witness edge (qualifier
+                # 'from'/'to') from this same event to a counterparty-only
+                # Participant, which also has otype Participant but is not
+                # pa(eps) (Definition, accessors over mu(L) -- the
+                # 'participant' qualifier, M6).
                 pa_oid = oid
-        if not (is_send or is_recv):
-            elem = ev.attrs.get(sch.ea_elemtype)
-            if elem == sch.elem_send:
-                is_send = True
-            elif elem == sch.elem_receive:
-                is_recv = True
         if cc_oid is None:
             continue
         if cc_oid not in cc_caseid:
@@ -351,7 +351,7 @@ def from_ocel2_sqlite(path: str, schema: "Schema | None" = None,
     # without an explicit ORDER BY. `events` (built below, in the order of
     # this dict) must reproduce prec_L so Execution's stable timestamp sort
     # (model.py) breaks ties correctly; ocel_id sorts consistently with
-    # prec_L once minted with zero-padded indices (see
+    # prec_L once created with zero-padded indices (see
     # mapping.collab_xes_to_ocel._event_id).
     ev_type = {r["ocel_id"]: r["ocel_type"]
                for r in cur.execute("SELECT ocel_id, ocel_type FROM event "

@@ -77,9 +77,11 @@ def main(cfg: Optional[ExperimentConfig] = None,
         print("\n########## RQ-EXT — object-enabled extensions X-Inf/X-MSt (TOY LOG demo) ##########")
         results["rq_ext_toy"] = run_rq_ext_pipeline(ext_cfg or ExtExperimentConfig())
     if run_bpi2013:
-        # Opt-in: BPI2013 is ~36x larger than the largest study log (7,554 cases /
-        # 65,533 events); OCPA feature extraction + RandomForest fitting time is
-        # untested at this scale, so this stage is not run by default. Kept in a
+        # Opt-in: BPI2013 is ~29.5x larger than the largest study log by events
+        # (69,584 OCEL events vs. Artificial5's 2,360), across 7,554 cases --
+        # 65,533 source events plus 4,051 synthesized
+        # SendTask events; OCPA feature extraction + RandomForest fitting time
+        # is untested at this scale, so this stage is not run by default. Kept in a
         # separate stage/config and separate output CSVs since BPI2013 does not
         # share provenance with the four study logs reused from Delgado et al.
         # (2025) -- see data/logs/BPIChallenge2013/collab_convert.py.
@@ -91,7 +93,7 @@ def main(cfg: Optional[ExperimentConfig] = None,
             # Separate opt-in on top of run_bpi2013: the full 14-task catalog
             # (vs. the 6-task representative subset above) roughly doubles the
             # OCPA feature extraction + RandomForest fitting cost on a log that
-            # is already ~36x the largest study log, so it is not run by default
+            # is already ~29.5x the largest study log by events, so it is not run by default
             # even when run_bpi2013=True.
             print("\n########## RQ3 — full catalog, real-world validation (BPI2013) ##########")
             bpi_full_cfg = replace(bpi_cfg, rq3_tasks=list(EQUIVALENCE_TASKS))

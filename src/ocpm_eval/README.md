@@ -121,8 +121,9 @@ main(run_predictcollab=False, run_rq_ext=False,
 ### With BPI2013 (opt-in real-world validation)
 
 BPI2013 (`data/logs/BPIChallenge2013/`, registered in
-`config.py::real_world_ocel_logs()`) is ~36x larger than the largest study log
-(7,554 cases / 65,533 events vs. up to ~100 cases / ~1,800 events), so its
+`config.py::real_world_ocel_logs()`) is ~29.5x larger than the largest study log
+by events (7,554 cases / 69,584 OCEL events vs. Artificial5's 100 cases /
+2,360 events), so its
 OCPA feature extraction + RandomForest fitting time is significantly longer;
 `run_bpi2013` defaults to `False` for that reason. It does not share
 provenance with the four study logs reused from Delgado et al. (2025), so it
