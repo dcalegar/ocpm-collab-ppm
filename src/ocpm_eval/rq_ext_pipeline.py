@@ -16,7 +16,7 @@ descriptive-metric protocol), but:
     ExperimentConfig/rq3_results*.csv entirely.
 
 Because it reuses the exact same feature-extraction/model-fitting building
-blocks as the paper's RQ3, a task passing through here demonstrates it can run
+blocks as RQ3, a task passing through here demonstrates it can run
 in the same native OCPA pipeline -- it is not a different, easier code path.
 """
 import os
@@ -29,7 +29,7 @@ from ocpm_tasks import extensions as EXT
 from .config import ExtExperimentConfig, LogSpec
 from .io_ocel import load_ocpa_ocel, read_ocel2_labels
 from .features_ocpa import extract_feature_table
-from .models import fit_and_score_fold
+from .predictors.dispatch import resolve as resolve_predictor
 
 
 def run_one_log(spec: LogSpec, cfg: ExtExperimentConfig) -> List[dict]:
@@ -41,6 +41,7 @@ def run_one_log(spec: LogSpec, cfg: ExtExperimentConfig) -> List[dict]:
     feats = extract_feature_table(spec.name, cfg.schema, spec.ocel_path, ocel_log,
                                   ocpa_ocel=ocpa_ocel)
     table, feature_cols = feats["table"], feats["feature_cols"]
+    fit_fn = resolve_predictor(cfg.predictor)
 
     rows: List[dict] = []
     for key in cfg.ext_tasks:
@@ -52,8 +53,8 @@ def run_one_log(spec: LogSpec, cfg: ExtExperimentConfig) -> List[dict]:
         tt = tt[tt["_y"].notna()].reset_index(drop=True)
 
         rec = {"log": spec.name, "task": key, "anchor": task.anchor,
-               "problem_type": task.problem_type, "samples": int(len(tt)),
-               "ran_end_to_end": len(tt) > 0}
+               "problem_type": task.problem_type, "predictor": cfg.predictor,
+               "samples": int(len(tt)), "ran_end_to_end": len(tt) > 0}
         if len(tt) == 0:
             rec["note"] = "no labelled rows (e.g. X-MSt with no corr_attr)"
             rows.append(rec)
@@ -74,8 +75,8 @@ def run_one_log(spec: LogSpec, cfg: ExtExperimentConfig) -> List[dict]:
         for tr, te in gkf.split(idx, groups=groups):
             train_mask = pd.Series(False, index=tt.index); train_mask.iloc[tr] = True
             test_mask = pd.Series(False, index=tt.index); test_mask.iloc[te] = True
-            r = fit_and_score_fold(tt, feature_cols, "_y", task,
-                                   train_mask, test_mask, cfg)
+            r = fit_fn(tt, feature_cols, "_y", task,
+                      train_mask, test_mask, cfg)
             if r:
                 ms.append(r["metric"]); bs.append(r["baseline"])
         rec["metric_name"] = metric_name

@@ -37,7 +37,7 @@ class Execution:
     """A collaboration case under the *global-trace viewpoint*: its events as a
     linear sequence ordered by timestamp (a stable sort; source/insertion order
     breaks ties -- see below and __post_init__, no secondary key). This linear order is the basis
-    on which the paper defines prefixes hd^k and the prediction targets (it mirrors
+    on which prefixes hd^k and the prediction targets are defined (it mirrors
     the case-centric baseline). It does NOT constrain how the observable prefix is
     encoded: in R2 the observable prefix is the object-centric execution graph, and
     the features (e.g. via OCPA) are graph-based, not a linear-prefix encoding. The

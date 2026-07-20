@@ -24,18 +24,18 @@ package is the fuller, cross-validated version of the same pattern.
 | `config.py` | `ExperimentConfig`, `LogSpec` — log registry, CV/learner hyperparameters, output dir |
 | `io_ocel.py` | `load_ocpa_ocel` / `read_ocel2_labels` — OCEL 2.0 SQLite → OCPA object (features) and → neutral model (labels), sharing one read path |
 | `features_ocpa.py` | `extract_feature_table` — native OCPA past-relative features (RQ3), with the event-id alignment oracle |
-| `models.py` | `fit_and_score_fold` — one fixed RandomForest per problem type, fit + **predict** + score, plus a trivial baseline |
+| `predictors/` | one fit-and-score module per learner (`random_forest.py` today), behind `dispatch.PREDICTOR_REGISTRY` keyed by `ExperimentConfig.predictor` — fit + **predict** + score, plus a trivial baseline |
 | `rq2_fidelity.py` | RQ2 — label-fidelity: R1 (source XES) vs R2 (OCEL) equivalence for the 14 tasks |
 | `rq3_pipeline.py` | RQ3 — end-to-end feasibility: features + labels joined, 5-fold `GroupKFold` CV grouped by `CollaborationCase` |
-| `run_evaluation.py` | orchestrator — runs RQ2 → RQ3 (subset + full catalog) and writes all CSVs |
+| `run_evaluation.py` | orchestrator — runs the requested (rq, log_group, rq3_scope) combinations and writes all CSVs |
 
 | Stage | Module | Output |
 |---|---|---|
 | **RQ2** label fidelity | `rq2_fidelity.py` | `results/rq2_fidelity.csv` |
-| **RQ3** end-to-end feasibility (representative subset, in-paper) | `rq3_pipeline.py` | `results/rq3_results.csv` |
-| **RQ3** full catalog (supplementary coverage, 14 tasks × 4 logs) | `rq3_pipeline.py` via `run_evaluation.py` | `results/rq3_results_full.csv` |
+| **RQ3** end-to-end feasibility (representative subset) | `rq3_pipeline.py` | `results/rq3_results_{predictor}.csv` (e.g. `rq3_results_random_forest.csv`) |
+| **RQ3** full catalog (supplementary coverage, 14 tasks × 4 logs) | `rq3_pipeline.py` via `run_evaluation.py` (`rq3_scopes=("partial","full")`) | `results/rq3_results_{predictor}_full.csv` |
 | RQ1 transformation + P1 | — | [`mapping`](../mapping/README.md) (separate tool) |
-| **RQ2/RQ3 on BPI2013** (opt-in real-world validation, see below) | `rq2_fidelity.py`/`rq3_pipeline.py` via `run_evaluation.py` (`run_bpi2013=True`) | `results/rq2_fidelity_bpi2013.csv`, `results/rq3_results_bpi2013.csv` |
+| **RQ2/RQ3 on BPI2013** (opt-in real-world validation, see below) | `rq2_fidelity.py`/`rq3_pipeline.py` via `run_evaluation.py` (`log_groups=("bpi2013",)`) | `results/rq2_fidelity_bpi2013.csv`, `results/rq3_results_{predictor}_bpi2013.csv` |
 
 ## Reading path
 
@@ -66,8 +66,10 @@ cannot read it:
 ## Usage
 
 ```bash
-# full evaluation (RQ2 + RQ3 + RQ-EXT), WITHOUT BPI2013 — RQ3 requires OCPA
-# installed; run from the repo root with .venv active. Writes CSVs to results/.
+# default evaluation: RQ2 + RQ3 (partial scope) on the four Predict-Collab
+# study logs, + RQ-EXT on the toy log — WITHOUT BPI2013 or the RQ3 full
+# catalog. RQ3 requires OCPA installed; run from the repo root with .venv
+# active. Writes CSVs to results/.
 python -m ocpm_eval.run_evaluation
 ```
 
@@ -83,7 +85,7 @@ from ocpm_eval.config import ExperimentConfig
 from ocpm_eval.rq3_pipeline import run_rq3
 
 cfg = ExperimentConfig()          # edit logs/hyperparameters here, or pass overrides
-df = run_rq3(cfg)                 # -> pandas.DataFrame, also written to results/rq3_results.csv
+df = run_rq3(cfg)                 # -> pandas.DataFrame, also written to results/rq3_results_random_forest.csv
 ```
 
 `ocpm_tasks` has automated regression tests in the repo's `tests/` directory
@@ -101,21 +103,30 @@ comparison).
 
 ### Selecting stages individually
 
-`run_evaluation.main` accepts one bool flag per stage, all combinable:
-`run_predictcollab: bool = True` (RQ2 + RQ3 subset + RQ3 full on the four
-Predict-Collab study logs), `run_rq_ext: bool = True` (RQ-EXT on the toy log),
-`run_bpi2013: bool = False`, `run_bpi2013_full: bool = False` (see below).
+`run_evaluation.main` exposes three independent axes plus one unrelated flag:
+
+- `rqs: Iterable["RQ2"|"RQ3"] = ("RQ2", "RQ3")`
+- `log_groups: Iterable["predictcollab"|"bpi2013"] = ("predictcollab",)`
+- `rq3_scopes: Iterable["partial"|"full"] = ("partial",)` — RQ3 only, ignored for RQ2
+- `predictor: Optional[str] = None` — key into `predictors.dispatch.PREDICTOR_REGISTRY`
+  (e.g. `"random_forest"`, the only one implemented today); `None` leaves
+  `cfg.predictor` (also default `"random_forest"`) untouched, so it only
+  overrides when explicitly passed. Feeds the `rq3_results_{predictor}*.csv`
+  filenames.
+- `run_rq_ext: bool = True` — RQ-EXT on the toy log; independent of the three axes above (see below)
+
 There is no CLI flag for this yet — enable/disable stages by calling `main`
 programmatically:
 
 ```python
 from ocpm_eval.run_evaluation import main
 
-main()                                                  # default: Predict-Collab + RQ-EXT, no BPI2013
-main(run_bpi2013=True)                                  # + RQ2/RQ3 on BPI2013 as well
-main(run_predictcollab=False, run_bpi2013=True)         # BPI2013 only (skips the four study logs)
-main(run_predictcollab=False, run_rq_ext=False,
-     run_bpi2013=True, run_bpi2013_full=True)           # BPI2013 (subset + full catalog) only
+main()                                                    # default: Predict-Collab, RQ2+RQ3 partial, + RQ-EXT
+main(rq3_scopes=("partial", "full"))                      # + RQ3 full catalog on Predict-Collab
+main(log_groups=("predictcollab", "bpi2013"))              # + RQ2/RQ3 on BPI2013 as well
+main(log_groups=("bpi2013",), run_rq_ext=False)            # BPI2013 only (skips the four study logs)
+main(log_groups=("bpi2013",), rq3_scopes=("partial", "full"),
+     run_rq_ext=False)                                     # BPI2013 (subset + full catalog) only
 ```
 
 ### With BPI2013 (opt-in real-world validation)
@@ -125,12 +136,12 @@ BPI2013 (`data/logs/BPIChallenge2013/`, registered in
 by events (7,554 cases / 69,584 OCEL events vs. Artificial5's 100 cases /
 2,360 events), so its
 OCPA feature extraction + RandomForest fitting time is significantly longer;
-`run_bpi2013` defaults to `False` for that reason. It does not share
-provenance with the four study logs reused from Delgado et al. (2025), so it
-always runs as a separate stage against a separate config
+`"bpi2013"` is opt-in (not in `log_groups`'s default) for that reason. It does
+not share provenance with the four study logs reused from Delgado et al.
+(2025), so it always runs as a separate stage against a separate config
 (`replace(cfg, logs=real_world_ocel_logs())`) and writes to separate CSVs
-(`rq2_fidelity_bpi2013.csv`, `rq3_results_bpi2013.csv`), never mixing into
-`rq2_fidelity.csv`/`rq3_results*.csv`.
+(`rq2_fidelity_bpi2013.csv`, `rq3_results_random_forest_bpi2013.csv`), never
+mixing into `rq2_fidelity.csv`/`rq3_results*.csv`.
 
 See [data/logs/README.md](../../data/logs/README.md#bpichallenge2013--real-life-application-log)
 for the log's provenance and the synthesized-`SendTask` design, and
@@ -150,9 +161,10 @@ computation times are reported (V4 profile).
 
 `run_rq3` is task-agnostic (it just loops `cfg.rq3_tasks`), so the same
 protocol extends to the full catalog without any pipeline changes —
-`run_evaluation.main` also runs it over `ocpm_tasks.catalog.EQUIVALENCE_TASKS`
-(all 14 tasks) and writes `rq3_results_full.csv`, intended as supplementary
-material rather than an in-paper table: it confirms all (task, log)
+passing `rq3_scopes=("partial", "full")` to `run_evaluation.main` also runs it
+over `ocpm_tasks.catalog.EQUIVALENCE_TASKS` (all 14 tasks) and writes
+`rq3_results_random_forest_full.csv`, intended as supplementary coverage rather than a
+curated result: it confirms all (task, log)
 combinations run end-to-end, but a few of the non-curated tasks (e.g.
 `NV-TNE`, `NV-TNM`) land close to or slightly worse than their trivial
 baseline in some logs — unlike the subset, which was picked to show clear
@@ -170,8 +182,9 @@ For the 14 tasks: compare Θ_τ^L (labels computed directly from the source
 XES via `rq2_fidelity._src_label`, no intermediate object-centric model)
 against Θ_τ (labels computed from the OCEL 2.0 log via
 `ocpm_tasks.labels.compute_label_rows`), row-aligned by `(case_id, k)`.
-Proposition P2 (see the paper) guarantees these are equal; empirical
-agreement ≈ 1.0 is the expected/verifying outcome, not a tunable metric.
+The mapping preserves event order and label semantics by construction, so
+these are expected to be equal; empirical agreement ≈ 1.0 is the
+expected/verifying outcome, not a tunable metric.
 
 RQ2 *equivalence* needs the original XES (R1); pass `xes_path` in each
 `LogSpec`. The bundled example logs in `data/logs/` include both the

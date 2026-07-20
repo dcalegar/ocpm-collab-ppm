@@ -3,12 +3,14 @@ RQ2 — label fidelity of the reformulated tasks (predictor-independent).
 
 For the 14 tasks the check is label EQUIVALENCE between:
   R1 — Θ_τ^L: labels computed directly from the collaborative XES log using the
-       source accessors act/time_L/part/elem (Definition 1 of the appendix). No
-       intermediate ObjectCentricLog is built; each task definition is evaluated
-       on the sorted per-case event sequence from the XES file.
+       source accessors act/time_L/part/elem (the source log's total event
+       order, prec_L). No intermediate ObjectCentricLog is built; each task
+       definition is evaluated on the sorted per-case event sequence from the
+       XES file.
   R2 — Θ_τ: labels computed from the OCEL 2.0 SQLite via the OCEL accessors
        evtype/time/pa/snd/rcv/msg/Msgs/pos, using labels.compute_label_rows.
-Proposition P2 guarantees Θ_τ = Θ_τ^L; empirical agreement=1.0 is expected.
+The mapping preserves prec_L and label semantics by construction, so
+Θ_τ = Θ_τ^L; empirical agreement=1.0 is expected.
 """
 import os
 from datetime import datetime
@@ -90,7 +92,7 @@ def _read_xes_cases(path: str) -> Dict[str, List[dict]]:
 
 
 def _src_label(key: str, evs: List[dict], i: int, param, bottom: str) -> object:
-    """Θ_τ^L for one cut point i in one case (Definition 1 / Proposition P2)."""
+    """Θ_τ^L for one cut point i in one case, computed on the source total event order (prec_L)."""
     n = len(evs)
 
     if key == "NE-NEPr":
@@ -100,9 +102,8 @@ def _src_label(key: str, evs: List[dict], i: int, param, bottom: str) -> object:
         return evs[i + 1]["participant"] if i + 1 < n else bottom
 
     if key == "NE-NEPa":
-        # Pair (evtype, pa), per appendixTasks.tex Def. NE-NEPa -- must match
-        # labels._NE_NEPa's representation (B13: a concatenated string is not
-        # injective).
+        # Pair (evtype, pa) of the next event -- must match labels._NE_NEPa's
+        # representation (B13: a concatenated string is not injective).
         if i + 1 < n:
             return (evs[i + 1]["activity"], evs[i + 1]["participant"])
         return bottom
@@ -195,11 +196,10 @@ def _compute_source_rows(xes_path: str, task, param, bottom: str) -> List[Row]:
 # RQ2 orchestration
 # ---------------------------------------------------------------------------
 
-# NE-NPaM and NV-TNM are parameterized by message direction d in {send, receive}
-# (tasks.tex); the evaluation's RQ3 pipeline only instantiates send (matching
-# Predict-Collab, a deliberate empirical scope decision documented in
-# evaluation.tex), but RQ2's label-equivalence check tests both, since
-# Proposition P2 covers both directions and neither should go unverified.
+# NE-NPaM and NV-TNM are parameterized by message direction d in {send, receive};
+# the evaluation's RQ3 pipeline only instantiates send (matching Predict-Collab,
+# a deliberate empirical scope decision), but RQ2's label-equivalence check
+# tests both directions, since neither should go unverified.
 _DIRECTION_TASKS = {"NE-NPaM", "NV-TNM"}
 
 
@@ -208,21 +208,19 @@ def _params_for(task, ocel_log, cfg):
     if task.key in _DIRECTION_TASKS:
         return ["send", "receive"]
     if task.param == "activity":
-        # OB-M's own definition (appendixTasks.tex, Def. OB-M) quantifies
-        # hat{a} over the FULL activity alphabet A_L, not only message
-        # activities: a non-message hat{a} is a well-defined parameter value
-        # for which Theta_OBM is always False (no message ever has that
+        # OB-M quantifies hat{a} over the FULL activity alphabet A_L, not only
+        # message activities: a non-message hat{a} is a well-defined parameter
+        # value for which Theta_OBM is always False (no message ever has that
         # evtype). Sweeping the full alphabet (E28) tests that boundary
         # instead of silently excluding it from RQ2's coverage.
         acts = sorted({e.activity for ex in ocel_log for e in ex.events})
         return acts or [None]
     if task.param == "participant":
-        # P_L = part(E_L) u ran(from) u ran(to) (appendixMapping.tex): a
-        # participant that is only ever a message counterparty (never an
-        # event's own actor) is still in P_L and is a valid parameter value
-        # for NE-NMPa/NV-PaT/NV-NMPa/OB-P (appendixTasks.tex, "Participant
-        # projection domain"). Sourcing the domain from e.actor alone omits
-        # such endpoint-only participants (E28); union in msg_from/msg_to.
+        # P_L = part(E_L) u ran(from) u ran(to): a participant that is only
+        # ever a message counterparty (never an event's own actor) is still in
+        # P_L and is a valid parameter value for NE-NMPa/NV-PaT/NV-NMPa/OB-P.
+        # Sourcing the domain from e.actor alone omits such endpoint-only
+        # participants (E28); union in msg_from/msg_to.
         ps = {e.actor for ex in ocel_log for e in ex.events if e.actor}
         ps |= {e.msg_from for ex in ocel_log for e in ex.events if e.msg_from}
         ps |= {e.msg_to for ex in ocel_log for e in ex.events if e.msg_to}

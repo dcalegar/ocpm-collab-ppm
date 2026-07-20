@@ -2,7 +2,7 @@
 ocpm_tasks — object-centric collaborative prediction-task library.
 
 A standalone, dependency-light library that defines the 14 reformulated prediction
-tasks of the paper and computes their ground-truth labels over a neutral
+tasks and computes their ground-truth labels over a neutral
 object-centric model. It is decoupled from the experimentation: it can be used inside
 OCPA- or pm4py-based pipelines by building the model with the adapters and calling the
 label functions.

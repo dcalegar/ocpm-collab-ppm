@@ -5,7 +5,10 @@ the same library used for feature extraction, so both sides share the same readi
 ``load_ocpa_ocel`` is also imported by features_ocpa and rq3_pipeline so the OCEL object
 can be loaded once and passed to both label and feature extraction.
 """
+import gc
 import os
+import time
+import warnings
 from typing import Dict, List, Tuple
 from ocpm_tasks.adapters import from_ocpa, from_ocel2_sqlite, _normalize_ocel_sqlite_timestamps
 from ocpm_tasks.model import ObjectCentricLog
@@ -36,7 +39,7 @@ from ocpm_tasks.model import ObjectCentricLog
 # every other case the same Gynecologist appears in) into one execution
 # -- prefixes/timestamps from unrelated cases get mixed, remaining-time
 # targets become meaningless, and the per-case grouped-CV assumption
-# (Section threats.tex, Internal validity) silently breaks. Removing the
+# (that all prefixes of one case stay within a single fold) silently breaks. Removing the
 # edge for every occurrence except one witness per Participant leaves no
 # live edge shared between two DIFFERENT cases, so case 459 and case 460
 # no longer connect through Participant["Gynecologist"] -- while the one
@@ -55,7 +58,7 @@ from ocpm_tasks.model import ObjectCentricLog
 # the same cross-case path reappears -- this time through 'from'/'to'
 # instead of 'participant'. The core mapping (M6) never emits 'from'/'to'
 # as an E2O qualifier itself (only within/in_projection/participant/send/
-# receive, appendixMapping.tex), so every E2O row under these two
+# receive), so every E2O row under these two
 # qualifiers is, by construction, a D25 witness row; and D25 only adds a
 # witness for an object with zero prior E2O rows, so an object is never
 # reached by both 'participant' and a 'from'/'to' witness at once. Both
@@ -129,9 +132,9 @@ def _break_timestamp_ties(path: str) -> str:
     for X-Inf/OB-M/NV-* etc. via ``features_ocpa.build_feature_set``) cut
     the prefix with ``event_timestamp <= cut_time``
     (ocpa/algo/predictive_monitoring/event_based_features/
-    extraction_functions.py::_get_recent_events), NOT with the total order
-    prec_L (Definition 1) the paper's feature definitions rely on
-    (tasks.tex). When two events of the same execution share a timestamp,
+    extraction_functions.py::_get_recent_events), NOT with the source log's
+    total event order prec_L the feature definitions rely on. When two
+    events of the same execution share a timestamp,
     ``<=`` includes BOTH at each other's cut point, leaking one event's
     existence into the other's "past" count. This is a real, non-uniform
     effect in BPIC2013 (4,051 same-instant Send/Receive pairs); the four
@@ -224,6 +227,40 @@ def _break_timestamp_ties(path: str) -> str:
     return tmp
 
 
+def _unlink_temp_sqlite(path: str, attempts: int = 10, delay: float = 0.2) -> None:
+    """Delete a temp SQLite file created by this module, tolerating Windows'
+    file-locking semantics.
+
+    On POSIX (Mac/Linux) unlinking a file while another handle is still open
+    on it is harmless -- the OS keeps the inode alive until the last handle
+    closes, so ``os.unlink`` always succeeds immediately. On Windows the same
+    call raises ``PermissionError`` ([WinError 32]) if ANY handle, including
+    one held by this same process, is still open -- notably a ``sqlite3``
+    connection that OCPA's importer (``ocel2_import_factory.apply`` in
+    ``load_ocpa_ocel`` below) may keep alive on the returned OCEL object and
+    only release when that connection is garbage-collected. ``gc.collect()``
+    forces those lingering connections closed via their ``__del__``; retrying
+    briefly covers the rest (e.g. antivirus/indexer scans transiently holding
+    the file open on Windows). If the file is still locked after all
+    attempts, warn and leave it for the OS temp-dir cleanup rather than
+    failing the whole evaluation over a leftover temp file.
+    """
+    for attempt in range(attempts):
+        try:
+            os.unlink(path)
+            return
+        except PermissionError:
+            gc.collect()
+            if attempt == attempts - 1:
+                warnings.warn(
+                    f"Could not delete temporary file {path!r} "
+                    "(still locked by another handle); leaving it in place.")
+                return
+            time.sleep(delay)
+        except FileNotFoundError:
+            return
+
+
 def load_ocpa_ocel(schema, path: str):
     """Load an OCEL 2.0 SQLite log via OCPA's native importer with leading-type
     execution extraction (one process execution per CollaborationCase)."""
@@ -242,11 +279,11 @@ def load_ocpa_ocel(schema, path: str):
             return ocel2_import_factory.apply(tie_broken_path)
     finally:
         if tie_broken_path != norm_path:
-            os.unlink(tie_broken_path)
+            _unlink_temp_sqlite(tie_broken_path)
         if norm_path != stripped_path:
-            os.unlink(norm_path)
+            _unlink_temp_sqlite(norm_path)
         if stripped_path != path:
-            os.unlink(stripped_path)
+            _unlink_temp_sqlite(stripped_path)
 
 
 def read_ocel2_labels(path: str, schema,

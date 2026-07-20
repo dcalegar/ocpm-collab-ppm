@@ -242,8 +242,9 @@ path to running things.
 ### Evaluation ([`ocpm_eval`](src/ocpm_eval/README.md) + [`ocpm_tasks`](src/ocpm_tasks/README.md))
 
 ```bash
-# full evaluation (RQ2 + RQ3) — RQ3 requires OCPA installed; run from
-# the repo root with .venv active. Writes CSVs to results/ (see table below).
+# full evaluation (RQ2 + RQ3, partial scope, on the four Predict-Collab study
+# logs) — RQ3 requires OCPA installed; run from the repo root with .venv
+# active. Writes CSVs to results/ (see table below).
 python -m ocpm_eval.run_evaluation
 ```
 
@@ -251,9 +252,11 @@ Same command on Windows, once `.venv` is active (`.venv\Scripts\Activate.ps1`
 in PowerShell, or `.venv\Scripts\activate.bat` in `cmd.exe` — see
 [Setup](#setup-virtual-environments)).
 
-The command above does **not** run the opt-in BPI2013 real-world validation
-stage (`run_bpi2013=True`, ~29.5x larger than the study logs by events) — see
-[ocpm_eval's README](src/ocpm_eval/README.md#usage) for how to enable it.
+The command above does **not** run the RQ3 full-catalog scope
+(`rq3_scopes=("partial", "full")`) or the opt-in BPI2013 real-world validation
+log group (`log_groups=("bpi2013",)`, ~29.5x larger than the study logs by
+events) — see [ocpm_eval's README](src/ocpm_eval/README.md#usage) for how to
+enable them.
 
 Automated regression tests live in [`tests/`](tests/): `test_mapping_checks.py`
 (the P1.1–P1.6 consistency checks of the converter, incl. deliberate-corruption
@@ -309,9 +312,9 @@ The extended XES source must use the `collab` extension attributes defined in
 |---|---|---|---|
 | RQ1 | XES→OCEL transformation + checks | **converter (separate tool)** — out of scope here | — |
 | RQ2 | label fidelity (equivalence for the 14 tasks) | `ocpm_eval/rq2_fidelity.py` | `results/rq2_fidelity.csv` |
-| RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `ocpm_eval/rq3_pipeline.py` | `results/rq3_results.csv` |
-| RQ-EXT | object-enabled EXTENSION tasks (X-Inf, X-MSt) — **feasibility demo on a toy log**, not one of the four study logs; not part of the paper's evaluated RQ2/RQ3 | `ocpm_eval/rq_ext_pipeline.py` | `results/rq_ext_results_toy.csv` |
-| RQ2/RQ3 (BPI2013) | real-world validation on BPI Challenge 2013 (incidents, collaborative) — **opt-in**, not one of the four study logs | `ocpm_eval/run_evaluation.py` (`run_bpi2013=True`) | `results/rq2_fidelity_bpi2013.csv`, `results/rq3_results_bpi2013.csv` |
+| RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `ocpm_eval/rq3_pipeline.py` | `results/rq3_results_random_forest.csv` |
+| RQ-EXT | object-enabled EXTENSION tasks (X-Inf, X-MSt) — **feasibility demo on a toy log**, not one of the four study logs; kept separate from the evaluated RQ2/RQ3 results | `ocpm_eval/rq_ext_pipeline.py` | `results/rq_ext_results_toy.csv` |
+| RQ2/RQ3 (BPI2013) | real-world validation on BPI Challenge 2013 (incidents, collaborative) — **opt-in**, not one of the four study logs | `ocpm_eval/run_evaluation.py` (`log_groups=("bpi2013",)`) | `results/rq2_fidelity_bpi2013.csv`, `results/rq3_results_random_forest_bpi2013.csv` |
 
 RQ2 *equivalence* (the 14 tasks vs the original collaborative log, R1) needs the
 converter's R1 reader; pass `r1_logs={name: ObjectCentricLog}` to

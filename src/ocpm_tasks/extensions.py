@@ -1,12 +1,11 @@
 """
 Object-enabled EXTENSION tasks (X-Inf, X-MSt) — targets outside the fourteen-type
 taxonomy of Delgado et al., naturally expressed over object-centric relations
-rather than over a single flattened case trace (tasks.tex, Sect. "Object-enabled
-extension tasks"). This is NOT the same as having no single-case counterpart: a
-case-centric trace that retained the same attributes (direction, endpoints, a
-correlation id) could state equivalent targets with additional preprocessing —
-see the paper's own "Neither target strictly requires object identity..."
-paragraph. They are deliberately kept OUT of the main catalog (``catalog.TASKS``
+rather than over a single flattened case trace. This is NOT the same as having
+no single-case counterpart: a case-centric trace that retained the same
+attributes (direction, endpoints, a correlation id) could state equivalent
+targets with additional preprocessing -- neither target strictly requires
+object identity. They are deliberately kept OUT of the main catalog (``catalog.TASKS``
 / ``EQUIVALENCE_TASKS`` / ``RQ3_SUBSET``) so they are never mixed into the
 reformulation evaluation (RQ2 label-equivalence, RQ3 subset/full). They are
 exercised only by a dedicated toy-log test (``tests/test_extensions_toy.py``).
@@ -29,7 +28,7 @@ X-MSt — message synchronization time (Message anchor, time regression).
     communication event carries a native correlation id (``Event.corr_id``), from
     which the pairing is recovered. Target at cut ``i``: the latency
     ``receive_time - send_time`` of the NEXT send after the cut. A send matches a
-    receive (tasks.tex, X-MSt, conditions 1-4) only if it shares the send's
+    receive only if it shares the send's
     correlation id AND its message endpoints (``msg_from``/``msg_to``) AND occurs
     strictly after it in the case's positional order (ties on timestamp are
     resolved by source order, not treated as simultaneous — see ``_match_receive``).
@@ -70,7 +69,7 @@ def in_flight_trajectory(ex: Execution) -> List[int]:
 
 
 def _match_receive(ex: Execution, j: int) -> Optional[Event]:
-    """match(eps_j) (tasks.tex, X-MSt, conditions 1-4): the receive event, if
+    """match(eps_j): the receive event, if
     any, that (2) shares the send's correlation id, (3) shares its message
     endpoints (``msg_from``/``msg_to``), and (4) occurs strictly after it in
     the case's positional order -- position, not merely timestamp, since

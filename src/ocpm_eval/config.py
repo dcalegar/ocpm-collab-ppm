@@ -55,6 +55,11 @@ class ExperimentConfig:
     rf_n_estimators: int = 200
     rf_max_depth: Optional[int] = None
 
+    # Key into predictors.dispatch.PREDICTOR_REGISTRY -- which fit_and_score_fold
+    # implementation run_rq3/run_rq_ext use. Only "random_forest" exists today;
+    # more predictors (xgboost, lstm, transformer, gnn) register there as added.
+    predictor: str = "random_forest"
+
     # Parameterized targets: resolved per log if None (most frequent).
     obm_target_activity: Optional[str] = None
     obp_target_participant: Optional[str] = None
@@ -99,6 +104,7 @@ class ExtExperimentConfig:
     random_state: int = 3395
     rf_n_estimators: int = 200
     rf_max_depth: Optional[int] = None
+    predictor: str = "random_forest"   # see ExperimentConfig.predictor
 
     out_dir: str = "data/results"
     bottom: str = "__BOTTOM__"

@@ -7,7 +7,7 @@ instance. The cut point is an index ``i`` (0-based) in the instance's global tra
 (its events ordered by timestamp, ties broken by source/insertion order -- see
 Execution.__post_init__); the prefix hd^k has k=i+1 and the
 target is a function of the events AFTER the cut. This linear global trace is the
-basis the paper uses to DEFINE the targets (so they match the case-centric baseline)
+basis on which the targets are DEFINED (so they match the case-centric baseline)
 and is independent of how the observable prefix is ENCODED: with OCPA the observable
 prefix is the object-centric execution graph and the features are graph-based, not a
 linear-prefix encoding. These functions only produce the ground-truth value at each
@@ -46,7 +46,7 @@ def _NE_NPaA(ctx, ex, i, p):
     return ex.events[i + 1].actor if i + 1 < ex.n else ctx.bottom
 
 def _NE_NEPa(ctx, ex, i, p):
-    # Returns the pair (evtype, pa), per appendixTasks.tex Def. NE-NEPa. A
+    # Returns the pair (evtype, pa) of the next event. A
     # concatenated string ("act||actor") is not injective: ("A||B","C") and
     # ("A","B||C") both encode to "A||B||C" -- confirmed collision (B13).
     if i + 1 < ex.n:
@@ -56,8 +56,8 @@ def _NE_NEPa(ctx, ex, i, p):
 
 def _NE_NPaM(ctx, ex, i, p):
     """Next participant to send (p="send", default) or receive (p="receive") a
-    message: the message-object endpoint, `from` for send / `to` for receive
-    (tasks.tex, NE-NPaM), read via msg_from/msg_to. No fallback to the event's
+    message: the message-object endpoint, `from` for send / `to` for receive,
+    read via msg_from/msg_to. No fallback to the event's
     own actor: `from` on a send event (resp. `to` on a receive event) is
     always the event's own side, so under a correct construction this is
     never undefined (P1.3). If it ever is, that signals a construction
@@ -104,7 +104,7 @@ def _NV_TNE(ctx, ex, i, p):
 
 def _NV_TNM(ctx, ex, i, p):
     """Time until the next message in direction p ("send", default, or
-    "receive"; tasks.tex, NV-TNM)."""
+    "receive")."""
     want_send = (p or "send") == "send"
     for j in range(i + 1, ex.n):
         e = ex.events[j]
@@ -115,7 +115,7 @@ def _NV_TNM(ctx, ex, i, p):
 def _NV_NMPr(ctx, ex, i, p):
     # Delgado et al. 2025, Table 2: "Number of remaining/total messages
     # (send/receive)" -- both directions count, not sends only.
-    # tasks.tex quantifies over Msgs(c) via pos(m)>k; counting communication
+    # Quantifying over Msgs(c) via pos(m)>k, counting communication
     # events with is_msg here is equivalent, not an approximation, because
     # M4 creates exactly one Message object per send/receive event (a
     # bijection between E^snd_L u E^rcv_L and Msgs(c)) -- there is no

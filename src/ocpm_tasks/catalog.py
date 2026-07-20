@@ -61,5 +61,5 @@ TASKS: Dict[str, Task] = {
 EQUIVALENCE_TASKS: List[str] = list(TASKS.keys())
 
 # Representative subset for the end-to-end demonstration (RQ3), one per
-# anchor x problem-type combination (evaluation Table tab:rq3subset).
+# anchor x problem-type combination.
 RQ3_SUBSET: List[str] = ["NE-NPaA", "NE-NMPr", "NV-PrT", "NV-PaT", "NV-NMPr", "OB-M"]

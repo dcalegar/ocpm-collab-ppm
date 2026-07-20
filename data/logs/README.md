@@ -71,8 +71,8 @@ events).
 
 This log is kept out of `predictcollab_ocel_logs()`/RQ2/RQ3's regular CSVs: it
 is registered separately in `src/ocpm_eval/config.py::real_world_ocel_logs()`
-and run as an opt-in stage (`run_bpi2013=True`) writing to its own
-`rq2_fidelity_bpi2013.csv`/`rq3_results_bpi2013.csv`, since it does not share
+and run as an opt-in stage (`log_groups=("bpi2013",)`) writing to its own
+`rq2_fidelity_bpi2013.csv`/`rq3_results_random_forest_bpi2013.csv`, since it does not share
 provenance with the four study logs reused from Delgado et al. (2025). See
 [src/ocpm_eval/README.md](../../src/ocpm_eval/README.md#usage) for how to run
 it.

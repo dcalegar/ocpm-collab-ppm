@@ -205,7 +205,7 @@ class MappingConfig:
 
 
 # =====================================================================
-# Identifier creation (disjoint object-id ranges; Appendix A)
+# Identifier creation (disjoint object-id ranges)
 # =====================================================================
 # Source identifiers are stored as attribute VALUES, never reused as
 # object ids (U_obj and U_val are disjoint in OCEL 2.0). We therefore
@@ -235,10 +235,10 @@ def _message_id(eid: str) -> str:
 
 def _event_id(case: str, idx: int, width: int = 1) -> str:
     # Stable per-case event id. idx is the within-case source order (the
-    # rank of e in prec_L, Definition 1). Zero-padded to `width` digits so
+    # rank of e in the source total order prec_L). Zero-padded to `width` digits so
     # that lexicographic string order on the id agrees with numeric idx
-    # order -- required for mu_E to be order-preserving on prec_L (appendix,
-    # Identifier creation -- deliberately not "order-embedding", since the
+    # order -- required for mu_E to be order-preserving on prec_L
+    # (deliberately not "order-embedding", since the
     # converse fails across cases): without padding, "e::459::10" sorts
     # before "e::459::9".
     return f"e::{case}::{str(idx).zfill(width)}"
@@ -639,7 +639,7 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
                         ) -> Dict[str, List[Dict[str, Any]]]:
     """Group events by global case and order each trace by timestamp,
     breaking ties by the original source appearance order (the per-case
-    order prec_L of Definition 1). Ordering by timestamp with a stable
+    total order prec_L). Ordering by timestamp with a stable
     tie-break guarantees the trace order is preserved before and after
     the mapping; event ids are created in this order, so reconstruction
     (P1.2) reads the event-identifier order without re-sorting by
@@ -691,7 +691,7 @@ def _sorted_case_events(df: pd.DataFrame, cfg: MappingConfig
                       if cfg.from_key in work.columns else None)
             to_p = (_clean(row.get(cfg.to_key))
                     if cfg.to_key in work.columns else None)
-            # Normalization nu (appendix, after Def. app-r1): the source
+            # Normalization nu: the source
             # log may leave the "own side" of a send/receive event implicit
             # (recording only the counterparty), relying on
             # collab:participant to supply it. Backfill ONLY a missing own
@@ -768,7 +768,7 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
 
     participant_seen: set = set()
     n_messages = 0
-    # Counterparty completeness (Normalization paragraph, appendix): the source
+    # Counterparty completeness (Normalization nu): the source
     # format may leave a send/receive event's OWN side implicit (backfilled
     # above from collab:participant), but it may also leave the COUNTERPARTY
     # side (toParticipant for a Send, fromParticipant for a Receive) genuinely
@@ -939,8 +939,8 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
         logger.warning(
             "%d Message object(s) have no recorded sender and %d have no "
             "recorded receiver (source log leaves the counterparty side "
-            "of some send/receive events implicit; see Normalization, "
-            "appendix). Their 'from'/'to' O2O relation and sender/receiver "
+            "of some send/receive events implicit; see Normalization nu "
+            "above). Their 'from'/'to' O2O relation and sender/receiver "
             "object attribute are left undefined rather than guessed.",
             n_messages_missing_sender, n_messages_missing_receiver)
     return TransformResult(events_df, objects_df, relations_df, o2o_df, stats)
@@ -963,7 +963,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
     """Machine-check P1.1-P1.6 against the constructed DataFrames.
 
     These guard against implementation defects; they are independent of
-    the by-construction argument in the appendix.
+    the by-construction correctness argument for the mapping.
     """
     cfg = cfg or MappingConfig()
     out: List[CheckResult] = []
@@ -1040,7 +1040,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
     # and timestamp as its source counterpart, and the preserved structural
     # attributes collab:participant and collab:elemType intact (checked by
     # event identity, not merely by matching aggregate counts; part/elem are
-    # total in the source -- Definition 1 -- so a stripped or altered value
+    # total functions on the source event set, so a stripped or altered value
     # is a construction defect, M8).
     n_src = len(src_df)
     n_ev = len(ev)
@@ -1061,8 +1061,8 @@ def run_consistency_checks(src_df: pd.DataFrame,
     participant_mismatches = 0
     elemtype_mismatches = 0
     residual_mismatches = 0
-    # B14: Definition app-r1 declares `part` a TOTAL function on E_L (unlike
-    # from/to, which the Normalization paragraph explicitly allows to be
+    # B14: `part` is a TOTAL function on E_L (unlike
+    # from/to, which Normalization nu explicitly allows to be
     # partial on the counterparty side). A source event whose collab:participant
     # is itself absent violates that precondition; the transform still
     # propagates the absence faithfully (no participant/in_projection edge is
@@ -1072,8 +1072,8 @@ def run_consistency_checks(src_df: pd.DataFrame,
     # precondition violation, not a construction defect.
     part_undefined_in_source = 0
     # E30: _require_columns only checks that collab:elemType is PRESENT, not
-    # that its values lie in the codomain {task, SendTask, ReceiveTask} that
-    # appendixMapping.tex assumes; an out-of-domain value (e.g. a typo) is
+    # that its values lie in the codomain {task, SendTask, ReceiveTask} the
+    # mapping assumes; an out-of-domain value (e.g. a typo) is
     # silently treated as a plain task by the send/receive comparisons
     # (M5/M6) while the raw garbage string is still preserved verbatim as
     # the output elemType attribute -- so elemtype_mismatches above would
@@ -1220,7 +1220,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
     #
     # Completeness of from/to: the source format may leave a send/receive
     # event's COUNTERPARTY side (toParticipant of a Send, fromParticipant
-    # of a Receive) unrecorded (see Normalization, appendix). That side is
+    # of a Receive) unrecorded (see Normalization nu above). That side is
     # not guessed: from(e)/to(e) stay undefined for that Message, no O2O
     # 'from'/'to' relation is created for it, and its sender/receiver
     # object attribute stays unset. This is a data-completeness property,
@@ -1366,8 +1366,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
                 ev_to = ev_idx.at[eid, "toParticipant"] if "toParticipant" in ev_idx.columns else None
                 ev_participant = ev_idx.at[eid, "participant"] if "participant" in ev_idx.columns else None
                 # M8 preserves fromParticipant/toParticipant on the event
-                # exactly when from(e)/to(e) is defined (appendix, Event
-                # attributes M5/M8): the object attribute and the preserved
+                # exactly when from(e)/to(e) is defined (M5/M8): the object attribute and the preserved
                 # event attribute must agree on DEFINEDNESS, not only on
                 # value when both happen to be present.
                 if sender_defined != pd.notna(ev_from):
@@ -1383,7 +1382,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
                     if pd.notna(expected) and str(ev_participant) != str(expected):
                         participant_disagreements += 1
                 else:
-                    # collab:participant is total in the source (Definition 1),
+                    # collab:participant is total in the source,
                     # so a communication event without it is a preservation
                     # defect (M8). Reported here explicitly (not silently
                     # skipped); the per-event identity comparison in P1.1 is

@@ -20,7 +20,7 @@ from ocpm_tasks import labels as TL
 from .config import ExperimentConfig, LogSpec
 from .io_ocel import load_ocpa_ocel, read_ocel2_labels
 from .features_ocpa import extract_feature_table
-from .models import fit_and_score_fold
+from .predictors.dispatch import resolve as resolve_predictor
 
 
 def _a_hat(log, cfg):
@@ -54,6 +54,7 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
     feats = extract_feature_table(spec.name, cfg.schema, spec.ocel_path, ocel_log,
                                   ocpa_ocel=ocpa_ocel)
     table, feature_cols = feats["table"], feats["feature_cols"]
+    fit_fn = resolve_predictor(cfg.predictor)
 
     rows: List[dict] = []
     for key in cfg.rq3_tasks:
@@ -67,8 +68,8 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
         tt = tt[tt["_y"].notna()].reset_index(drop=True)
 
         rec = {"log": spec.name, "task": key, "anchor": task.anchor,
-               "problem_type": task.problem_type, "samples": int(len(tt)),
-               "ran_end_to_end": len(tt) > 0}
+               "problem_type": task.problem_type, "predictor": cfg.predictor,
+               "samples": int(len(tt)), "ran_end_to_end": len(tt) > 0}
         if task.param == "activity":
             rec["obm_activity"] = a_hat
         if task.param == "participant":
@@ -93,8 +94,8 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
         for tr, te in gkf.split(idx, groups=groups):
             train_mask = pd.Series(False, index=tt.index); train_mask.iloc[tr] = True
             test_mask = pd.Series(False, index=tt.index); test_mask.iloc[te] = True
-            r = fit_and_score_fold(tt, feature_cols, "_y", task,
-                                   train_mask, test_mask, cfg)
+            r = fit_fn(tt, feature_cols, "_y", task,
+                      train_mask, test_mask, cfg)
             if r:
                 ms.append(r["metric"]); bs.append(r["baseline"])
         rec["metric_name"] = metric_name
