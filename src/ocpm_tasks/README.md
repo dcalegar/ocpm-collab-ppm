@@ -59,7 +59,7 @@ pieces line up.
 | `labels` | `LabelContext`, `build_context`, `compute_label_rows` — ground-truth label computation |
 | `extensions` | `EXT_TASKS` (`X-Inf`, `X-MSt`), `compute_ext_label_rows` — object-enabled extension tasks, kept out of `catalog.TASKS`/`EQUIVALENCE_TASKS`/`RQ3_SUBSET` |
 | `fidelity` | `compare_equivalence` — label-equivalence comparator (optional, for validating a mapping) |
-| `adapters` | `from_pm4py`, `from_ocpa`, `from_ocel2_sqlite`, `build_from_relations` — build an `ObjectCentricLog` from a concrete OCEL; optional `corr_attr` enrichment for `X-MSt` |
+| `adapters` | `from_pm4py`, `from_ocpa`, `from_ocel2_sqlite`, `build_from_relations` — build an `ObjectCentricLog` from a concrete OCEL; `X-MSt`'s `Event.corr_id` enrichment, preferably from the mapping's own `correlated_with` O2O relation (C1), with an optional `corr_attr` residual-attribute fallback |
 
 ## Usage
 
@@ -78,9 +78,13 @@ rows = compute_label_rows(log, task, ctx=ctx)
 # rows: List[(case_id, event_id, k, y)] — the ground-truth y at each cut point k
 ```
 
-`param` (participant name or activity label) is required by parameterized tasks
-(`NE-NMPa`, `NV-PaT`, `NV-NMPa`, `OB-P`, `OB-M`); pass it via
-`compute_label_rows(log, task, param=..., ctx=ctx)`.
+`param` is required or optional depending on `Task.param`:
+* participant name for `NE-NMPa`, `NV-PaT`, `NV-NMPa`, `OB-P` (`param="participant"`);
+* activity label for `OB-M` (`param="activity"`);
+* message direction, `"send"` or `"receive"`, for `NE-NPaM`, `NV-TNM`
+  (`param="direction"`) -- optional, defaults to `"send"` when omitted.
+
+Pass it via `compute_label_rows(log, task, param=..., ctx=ctx)`.
 
 If your OCEL uses different object-type/qualifier names, pass a custom
 `Schema(...)` to the adapter instead of editing this library.

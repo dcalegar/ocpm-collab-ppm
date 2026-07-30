@@ -142,14 +142,22 @@ The project's own reader (`ocpm_tasks/adapters.py::from_ocel2_sqlite`) issues
 unordered (e.g. pm4py's OCEL2-SQLite reader) should have their events re-sorted
 by event id after reading.
 
-## Consistency checks (P1.1–P1.6)
+## Consistency checks (P1.1–P1.7)
 
 Machine-checked guards against implementation defects (the mapping's
 correctness argument is by construction; these checks catch bugs):
 
-Checks compare the constructed output against an **independently recomputed
+P1.1–P1.6 compare the constructed output against a **recomputed
 expectation** from the source log (a fresh call to `_sorted_case_events`),
-not just aggregate counts read off the transform's own output.
+not just aggregate counts read off the transform's own output. This
+recomputation is independent of `transform()`'s in-memory state, but not of
+`_sorted_case_events` itself (both routes call the same function), so a
+systematic defect in that function's ordering/normalization logic would
+reproduce on both sides and go undetected. P1.1–P1.6 also run over
+`TransformResult` (the pre-export DataFrames), not the artifact actually
+written to disk; P1.7 closes that second gap, running over the E2O table
+handed to the OCEL exporters after the export-only reachability witnesses
+are added (see `_add_export_reachability_witnesses`).
 
 | Check | Verifies |
 |---|---|
@@ -157,9 +165,10 @@ not just aggregate counts read off the transform's own output.
 | P1.2 Per-case partition | each `CollaborationCase`'s `within`-related events equal the *exact set* of that case's source event ids (not just a matching count), no dangling edges |
 | P1.2b Per-case order | the identifier order reproduces `prec_L` exactly, timestamp *and* its tie-break by source order (not just a non-decreasing-timestamp check, which a tie inversion would still pass) |
 | P1.3 Message well-formedness | every Message is related to exactly one event, by `send` **xor** `receive` (never both), and conversely every source send/receive event is related to *exactly one* Message (which events count as communication events is derived from the *source* log, not from the output's own `elemType`); `from`/`to` O2O relations agree with the Message's sender/receiver attributes and with the related event's preserved `fromParticipant`/`toParticipant` attributes whenever both are defined; the related event's participant is the sender (send) or the receiver (receive). Counterparty endpoints the source never recorded are reported explicitly (`n_messages_missing_sender`/`_receiver`) rather than silently skipped or treated as a disagreement; an attribute/relation pair that disagrees on whether it is defined at all *does* fail the check |
-| P1.4 OrchestrationCase coherence | `in_orchestration`/`part_of` agree with `within`; each `OrchestrationCase` is `for_participant` exactly one participant object, whose object **type** and `name` attribute both equal the `OrchestrationCase`'s own `participant` attribute (M2 encodes the identifier twice, so both encodings are checked) |
+| P1.4 OrchestrationCase coherence | `in_orchestration`/`part_of` agree with `within`; each `OrchestrationCase` is `for_participant` exactly one participant object, whose `name` attribute equals the `OrchestrationCase`'s own `participant` attribute and whose object **type** equals *tau*(that same attribute) -- not the identifier itself, since M2's object type is the injective encoding tau(participant), not the raw identifier string |
 | P1.5 No orphan objects | every object is referenced by at least one E2O or O2O relation |
 | P1.6 Participant coherence | for every event, the participant object reached by the direct `participant` edge equals the one reached via `in_orchestration -> for_participant` |
+| P1.7 Export reachability | every object materialized by `transform()` is reachable in the E2O relations table actually handed to the OCEL exporters (`export_relations_df`, after `_add_export_reachability_witnesses`), not merely in `TransformResult` |
 
 **Counterparty endpoint completeness.** The source format may leave a
 send/receive event's own side implicit (backfilled from

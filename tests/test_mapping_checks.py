@@ -28,8 +28,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from mapping.collab_xes_to_ocel import (   # noqa: E402
     transform, run_consistency_checks, MappingConfig, TransformResult,
     _add_export_reachability_witnesses, _raw_timestamps_in_file_order,
+    check_export_reachability,
     COL_EID, COL_ACTIVITY, COL_TIMESTAMP, COL_OID, COL_OID2, COL_OTYPE, COL_QUALIFIER,
-    Q_WITHIN, Q_FROM, Q_TO, Q_SEND, Q_PARTICIPANT, Q_IN_ORCHESTRATION, Q_EXCHANGED_IN,
+    Q_WITHIN, Q_FROM, Q_TO, Q_SEND, Q_RECEIVE, Q_PARTICIPANT, Q_IN_ORCHESTRATION, Q_EXCHANGED_IN,
     OT_CC, OT_MESSAGE, OT_OC,
 )
 
@@ -910,6 +911,59 @@ def test_pc1_catches_correlation_id_shared_by_more_than_two_observations():
     pc1 = checks["PC.1 Correlation well-formedness"]
     assert not pc1.passed
     assert "with >1 outgoing=1" in pc1.detail
+
+
+def test_pc1_correlation_ids_are_scoped_per_case():
+    """The same correlation id reused in two different cases (msgId 'm1' in
+    both C1 and C2) must NOT be treated as one global identifier: rule C1
+    pairs observations within a case, so `correlated_with` never crosses
+    cases and PC.1 keeps passing (regression for the cross-case defect: before
+    scoping by case, this produced a 2x2 cross product with 2 cross-case
+    relations that PC.1 then correctly failed on -- fixing C1 to be case-
+    scoped is the actual fix, not loosening PC.1)."""
+    src = _well_formed_log()
+    src["msgId"] = [None, "m1", "m1", None, None, "m1", "m1", None]
+    cfg = MappingConfig(correlation_attr="msgId")
+    res = transform(src, cfg)
+    corr = res.o2o_df[res.o2o_df[COL_QUALIFIER] == "correlated_with"]
+    assert len(corr) == 2   # one pair per case, not a 4-way cross product
+    within = res.relations_df[res.relations_df[COL_QUALIFIER] == Q_WITHIN]
+    case_of_eid = dict(zip(within[COL_EID], within[COL_OID]))
+    send_eid_of_msg = dict(zip(res.relations_df[res.relations_df[COL_QUALIFIER] == Q_SEND][COL_OID],
+                              res.relations_df[res.relations_df[COL_QUALIFIER] == Q_SEND][COL_EID]))
+    recv_eid_of_msg = dict(zip(res.relations_df[res.relations_df[COL_QUALIFIER] == Q_RECEIVE][COL_OID],
+                              res.relations_df[res.relations_df[COL_QUALIFIER] == Q_RECEIVE][COL_EID]))
+    for send_msg, recv_msg in zip(corr[COL_OID], corr[COL_OID2]):
+        assert case_of_eid[send_eid_of_msg[send_msg]] == case_of_eid[recv_eid_of_msg[recv_msg]]
+    checks = _checks_by_name(run_consistency_checks(src, res, cfg))
+    pc1 = checks["PC.1 Correlation well-formedness"]
+    assert pc1.passed
+    assert "across different cases=0" in pc1.detail
+
+
+def test_export_reachability_passes_on_well_formed_log():
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    export_rel = _add_export_reachability_witnesses(res.objects_df, res.relations_df, res.o2o_df)
+    assert check_export_reachability(res.objects_df, export_rel).passed
+
+
+def test_export_reachability_catches_an_object_dropped_from_the_export_table():
+    """P1.7 verifies the E2O table actually handed to the OCEL exporters, not
+    just TransformResult: an object still present in objects_df but no longer
+    reachable in that table (e.g. a regression in the witness pass) must fail,
+    even though P1.1-P1.6 (which check TransformResult, not this table) would
+    not see it."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    export_rel = _add_export_reachability_witnesses(res.objects_df, res.relations_df, res.o2o_df)
+    corrupted = export_rel[export_rel[COL_OID] != "part::B"].reset_index(drop=True)
+    check = check_export_reachability(res.objects_df, corrupted)
+    assert not check.passed
+    assert "unreachable in the exported E2O table=1" in check.detail
+    # ... while it still passes against TransformResult's own relations_df,
+    # confirming the two checks verify genuinely different artifacts.
+    assert check_export_reachability(res.objects_df, res.relations_df).passed
 
 
 def test_layers_are_additive_independent_and_degenerate():

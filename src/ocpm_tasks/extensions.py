@@ -26,7 +26,12 @@ X-MSt — message synchronization time (Message anchor, time regression).
     PRESUPPOSES a send<->receive correspondence that the core mapping deliberately
     does NOT establish (M4). It is defined over an ENRICHED model in which each
     communication event carries a native correlation id (``Event.corr_id``), from
-    which the pairing is recovered. Target at cut ``i``: the latency
+    which the pairing is recovered. ``Event.corr_id`` is populated by
+    ``adapters.build_from_relations``, from either of two independent sources
+    (see that function): preferably the mapping's own correlation refinement
+    layer (C1's ``correlated_with`` O2O relation, already checked by PC.1), or
+    a raw ``corr_attr`` residual attribute as a fallback -- X-MSt itself is
+    agnostic to which one supplied the id. Target at cut ``i``: the latency
     ``receive_time - send_time`` of the NEXT send after the cut. A send matches a
     receive only if it shares the send's
     correlation id AND its message endpoints (``msg_from``/``msg_to``) AND occurs

@@ -196,11 +196,12 @@ def _compute_source_rows(xes_path: str, task, param, bottom: str) -> List[Row]:
 # RQ2 orchestration
 # ---------------------------------------------------------------------------
 
-# NE-NPaM and NV-TNM are parameterized by message direction d in {send, receive};
-# the evaluation's RQ3 pipeline only instantiates send (matching Predict-Collab,
-# a deliberate empirical scope decision), but RQ2's label-equivalence check
-# tests both directions, since neither should go unverified.
-_DIRECTION_TASKS = {"NE-NPaM", "NV-TNM"}
+# NE-NPaM and NV-TNM are parameterized by message direction d in {send, receive}
+# (catalog.Task.param == "direction"); the evaluation's RQ3 pipeline only
+# instantiates send (matching Predict-Collab, a deliberate empirical scope
+# decision), but RQ2's label-equivalence check tests both directions, since
+# neither should go unverified.
+_DIRECTION_TASKS = {k for k, t in TASKS.items() if t.param == "direction"}
 
 
 def _params_for(task, ocel_log, cfg):

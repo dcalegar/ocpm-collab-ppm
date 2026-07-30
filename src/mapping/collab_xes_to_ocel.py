@@ -962,11 +962,22 @@ def _apply_correlation_layer(cases: Dict[str, List[Dict[str, Any]]],
     observation of one logical message to each other.
 
     Rule C1 is unconditional -- every send observation and every receive
-    observation carrying the same correlation identifier are related by
-    `correlated_with`, directed from the send to the receive. It is
-    deliberately NOT restricted here to identifiers that pair exactly one
-    send with one receive: a correlation attribute that groups three or more
-    observations, or two sends, then produces a Message with more than one
+    observation carrying the same correlation identifier, WITHIN THE SAME
+    CollaborationCase, are related by `correlated_with`, directed from the
+    send to the receive. Grouping is scoped to (case, correlation identifier),
+    not to the identifier alone: a correlation attribute is a per-conversation
+    token (e.g. a message id local to one collaboration instance), and
+    treating it as globally unique across cases would relate unrelated
+    exchanges whenever two different cases happen to reuse the same
+    identifier -- a real possibility the source log's own identifier scheme
+    does not rule out. Criterion PC.1 independently checks that every
+    `correlated_with` relation stays within one case (see `bad_case` in
+    `_run_layer_checks`); scoping the grouping here is what makes that check
+    hold by construction rather than by coincidence of the sample data.
+
+    Multiplicity within one case is deliberately NOT filtered here: a
+    correlation attribute that groups three or more observations, or two
+    sends, in the same case then produces a Message with more than one
     outgoing or incoming relation, which is exactly what criterion PC.1
     reports. Filtering such groups out at construction time would make PC.1
     pass vacuously on a source attribute that is not a usable correlation
@@ -975,13 +986,13 @@ def _apply_correlation_layer(cases: Dict[str, List[Dict[str, Any]]],
     No object is created, so P1.5 is unaffected, and `correlated_with` is
     distinct from `exchanged_in`, so the message objects of a collaboration
     case are unchanged. An observation whose identifier the source does not
-    record, or whose counterpart it never observes, simply carries no
-    relation -- a send with no outgoing `correlated_with` is precisely an
-    exchange the log observes on one side only.
+    record, or whose counterpart it never observes (in the SAME case), simply
+    carries no relation -- a send with no outgoing `correlated_with` is
+    precisely an exchange the log observes on one side only.
     """
-    sends: Dict[str, List[str]] = {}
-    receives: Dict[str, List[str]] = {}
-    for evlist in cases.values():
+    sends: Dict[Tuple[str, str], List[str]] = {}
+    receives: Dict[Tuple[str, str], List[str]] = {}
+    for case, evlist in cases.items():
         for ev in evlist:
             if ev["elem"] not in (ELEM_SEND, ELEM_RECEIVE):
                 continue
@@ -989,20 +1000,21 @@ def _apply_correlation_layer(cases: Dict[str, List[Dict[str, Any]]],
             if corr is None:
                 continue
             side = sends if ev["elem"] == ELEM_SEND else receives
-            side.setdefault(corr, []).append(ev["eid"])
+            side.setdefault((case, corr), []).append(ev["eid"])
 
     n_relations = 0
-    for corr, send_eids in sends.items():
+    for key, send_eids in sends.items():
         for s_eid in send_eids:
-            for r_eid in receives.get(corr, ()):
+            for r_eid in receives.get(key, ()):
                 o2o_rows.append({COL_OID: msg_by_eid[s_eid],
                                  COL_OID2: msg_by_eid[r_eid],
                                  COL_QUALIFIER: Q_CORRELATED_WITH})
                 n_relations += 1
+    corr_ids_seen = {corr for _case, corr in (set(sends) | set(receives))}
     return {"n_correlated_with": n_relations,
-            "n_correlation_ids": len(set(sends) | set(receives)),
-            "n_uncorrelated_sends": sum(1 for c, eids in sends.items()
-                                        for _ in eids if c not in receives)}
+            "n_correlation_ids": len(corr_ids_seen),
+            "n_uncorrelated_sends": sum(1 for key, eids in sends.items()
+                                        for _ in eids if key not in receives)}
 
 
 def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> TransformResult:
@@ -1134,7 +1146,17 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
                     ev_row["fromParticipant"] = ev["from"]
                 if ev["to"] is not None:
                     ev_row["toParticipant"] = ev["to"]
-            # ---- M8: residual source attributes (unchanged) ---------
+            # ---- M8: residual source attributes, unchanged in
+            # TransformResult (res.events_df/objects_df keep native types).
+            # The exported .jsonocel/.sqlite is a SEPARATE serialization step
+            # (build_ocel_object/_stringify_attribute_columns) that casts
+            # every attribute value to string, because the OCEL 2.0 JSON
+            # schema itself types `value` as a string (see the module
+            # docstring's OCEL 2.0 JSON SCHEMA CONFORMANCE note) -- not
+            # because M8 stops preserving the value. A residual numeric,
+            # boolean, or datetime attribute therefore keeps its native type
+            # here and in P1.1, but reaches disk as its string
+            # representation, same as every other OCEL 2.0 attribute value.
             for k in residual_keys:
                 val = ev["row"].get(k)
                 if pd.notna(val):
@@ -1301,17 +1323,24 @@ def run_consistency_checks(src_df: pd.DataFrame,
                 rel[rel[COL_QUALIFIER] == Q_WITHIN][COL_OID]))
         if not rel.empty else {})
 
-    # Independently recompute the expected per-event identity (case, eid,
-    # activity, timestamp, participant, elemType, prec_L order) straight from
-    # the source log, using the same normalization/ordering logic the
-    # transform itself uses. This is deliberately NOT read off `res`:
-    # P1.1/P1.2/P1.2b/P1.3 below compare the transform's output against this
-    # freshly-derived expectation, rather than against internal state the
-    # transform already trusted, so they catch defects that only checking
-    # cardinalities/timestamps would miss (e.g. a permuted activity, a
-    # swapped case membership that keeps every count the same, a stripped
-    # collab:participant attribute, or an elemType flipped to 'task' with
-    # its Message dropped -- the output cannot vouch for itself).
+    # Recompute the expected per-event identity (case, eid, activity,
+    # timestamp, participant, elemType, prec_L order) straight from the
+    # source log, calling `_sorted_case_events` a second time rather than
+    # reading it off `res`. This is independent of transform()'s in-memory
+    # state (its accumulators, DataFrames, and object-id bookkeeping), so it
+    # catches defects that only checking cardinalities/timestamps would miss
+    # (e.g. a permuted activity, a swapped case membership that keeps every
+    # count the same, a stripped collab:participant attribute, or an
+    # elemType flipped to 'task' with its Message dropped -- the output
+    # cannot vouch for itself). It is NOT independent of `_sorted_case_events`
+    # itself: both transform() and this call route through the same
+    # normalization/ordering function, so a systematic defect in that
+    # function (its sort key, its nu backfill rule, its elemType
+    # normalization) would reproduce identically on both sides and pass
+    # undetected here. Closing that residual gap needs a second, differently
+    # implemented oracle (e.g. a property-based spec derived directly from
+    # the mapping's mathematical definition), which this module does not
+    # provide.
     expected_cases = _sorted_case_events(src_df, cfg)
     # D24 (reviewer round 2): from/to are included here too (positions 4/5)
     # so P1.3 can compare the transform's event/Message/O2O endpoint
@@ -2083,6 +2112,32 @@ def _run_layer_checks(res: TransformResult,
     return out
 
 
+def check_export_reachability(objects_df: pd.DataFrame,
+                              export_relations_df: pd.DataFrame) -> CheckResult:
+    """Export-level completeness check, distinct from P1.1-P1.6: those checks
+    verify TransformResult (the pre-export DataFrames), not the E2O table that
+    is actually handed to the OCEL exporters. pm4py's exporters call
+    filtering_utils.propagate_relations_filtering(), which drops any object
+    absent from the E2O relations table regardless of O2O reachability (see
+    the module docstring NOTE on the `participant` edge and
+    _add_export_reachability_witnesses). This check runs AFTER that witness
+    pass, over export_relations_df, so a regression that reintroduces an
+    export-only orphan (e.g. a new O2O-only object type the witness pass does
+    not yet cover) is caught here rather than silently shipping an
+    incomplete .jsonocel/.sqlite.
+    """
+    if objects_df.empty:
+        return CheckResult("P1.7 Export reachability", True, "no objects")
+    all_oids = set(objects_df[COL_OID])
+    reachable = set(export_relations_df[COL_OID]) if not export_relations_df.empty else set()
+    unreachable = all_oids - reachable
+    return CheckResult(
+        "P1.7 Export reachability", len(unreachable) == 0,
+        f"objects={len(all_oids)}; unreachable in the exported E2O table="
+        f"{len(unreachable)}"
+        + ("" if not unreachable else f"; e.g. {sorted(unreachable)[:5]}"))
+
+
 def print_check_report(checks: List[CheckResult], stats: Dict[str, Any]) -> bool:
     logger.info("---- transformation stats ----")
     for k, v in stats.items():
@@ -2130,15 +2185,20 @@ def convert(input_xes: str,
     src_df = read_collaborative_xes(input_xes, encoding=encoding)
     res = transform(src_df, cfg)
     checks = run_consistency_checks(src_df, res, cfg)
-    all_ok = print_check_report(checks, res.stats)
-    if strict and not all_ok:
-        raise RuntimeError("Consistency checks failed under strict mode; not exporting.")
     # D25: witness E2O edges only for the pm4py write path, so objects
     # reachable exclusively via O2O (e.g. endpoint-only Participants)
     # survive export; res.relations_df itself (returned to the caller,
     # and already used above by run_consistency_checks) is untouched.
     export_relations_df = _add_export_reachability_witnesses(
         res.objects_df, res.relations_df, res.o2o_df)
+    # P1.7 runs over export_relations_df -- the E2O table actually handed to
+    # the exporters -- so the printed report and --strict cover the
+    # delivered artifact's completeness, not only the pre-export model that
+    # P1.1-P1.6 verify.
+    checks = checks + [check_export_reachability(res.objects_df, export_relations_df)]
+    all_ok = print_check_report(checks, res.stats)
+    if strict and not all_ok:
+        raise RuntimeError("Consistency checks failed under strict mode; not exporting.")
     ocel = build_ocel_object(res.events_df, res.objects_df,
                              export_relations_df, res.o2o_df)
     write_ocel2_json(ocel, json_path)

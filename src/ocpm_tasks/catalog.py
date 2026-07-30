@@ -36,7 +36,11 @@ class Task:
     problem_type: str
     kind: str                     # "categorical" | "numeric" | "binary"
     object_enabled: bool = False
-    param: Optional[str] = None   # "participant" | "activity" | None
+    # "participant" (NE-NMPa/NV-PaT/NV-NMPa/OB-P), "activity" (OB-M), or
+    # "direction" (NE-NPaM/NV-TNM, values "send"/"receive", default "send"
+    # when param is None -- see labels.py::_NE_NPaM/_NV_TNM) -- or None for
+    # an unparameterized task.
+    param: Optional[str] = None
 
 
 TASKS: Dict[str, Task] = {
@@ -44,14 +48,15 @@ TASKS: Dict[str, Task] = {
     "NE-NEPr": Task("NE-NEPr", CC,          MULTICLASS, "categorical"),
     "NE-NPaA": Task("NE-NPaA", PARTICIPANT, MULTICLASS, "categorical"),
     "NE-NEPa": Task("NE-NEPa", PARTICIPANT, MULTICLASS, "categorical"),
-    "NE-NPaM": Task("NE-NPaM", PARTICIPANT, MULTICLASS, "categorical"),
+    "NE-NPaM": Task("NE-NPaM", PARTICIPANT, MULTICLASS, "categorical",
+                    param="direction"),
     "NE-NMPa": Task("NE-NMPa", ORCHESTRATION_CASE, MULTICLASS, "categorical", param="participant"),
     "NE-NMPr": Task("NE-NMPr", CC,          MULTICLASS, "categorical"),
     # --- Numeric value ---
     "NV-PrT":  Task("NV-PrT",  CC,          REG_TIME, "numeric"),
     "NV-PaT":  Task("NV-PaT",  ORCHESTRATION_CASE, REG_TIME, "numeric", param="participant"),
     "NV-TNE":  Task("NV-TNE",  CC,          REG_TIME, "numeric"),
-    "NV-TNM":  Task("NV-TNM",  MESSAGE,     REG_TIME, "numeric"),
+    "NV-TNM":  Task("NV-TNM",  MESSAGE,     REG_TIME, "numeric", param="direction"),
     "NV-NMPr": Task("NV-NMPr", MESSAGE,     COUNT, "numeric", object_enabled=True),
     "NV-NMPa": Task("NV-NMPa", MESSAGE,     COUNT, "numeric", object_enabled=True,
                     param="participant"),
