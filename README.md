@@ -276,17 +276,33 @@ Point the evaluation at your own logs by editing the registry in
 `collab_xes_to_ocel.py` implements the model-to-model transformation
 **μ: extended collaborative XES → OCEL 2.0** (mapping rules M1–M8), producing 
 `output.jsonocel` and `output.sqlite` files conformant with the OCEL 2.0 JSON schema (Berti et al. 2023,
-Definition 2).
+Definition 2). Two optional refinement layers can be applied on top, each only
+when the source log records the identifier it needs: the resource layer
+(R1–R3) and the correlation layer (C1). Both only add objects and relations, so
+the core representation and every prediction label are unchanged.
+
+The object types of an exported log are `CollaborationCase`,
+`OrchestrationCase`, `Message`, and **one type per participant identifier**
+(rule M2) — `Hospital`, `Laboratory`, … for Healthcare. The identifier is also
+kept as the `name` object attribute, and participant objects stay addressable
+without naming their types, through the fixed qualifiers `participant`,
+`for_participant`, `from` and `to`.
 
 ```bash
 # Convert a collaborative XES log to OCEL 2.0
 python src/mapping/collab_xes_to_ocel.py input.xes output
 
-# Abort if any P1 check or schema validation fails
+# Abort if any consistency check or schema validation fails
 python src/mapping/collab_xes_to_ocel.py input.xes output --strict
 
 # Skip OCEL 2.0 schema validation of the output
 python src/mapping/collab_xes_to_ocel.py input.xes output --no-validate
+
+# Apply the resource layer (R1-R3) over the actor attribute; checks PR.1/PR.2
+python src/mapping/collab_xes_to_ocel.py input.xes output --resource-attr org:resource
+
+# Apply the correlation layer (C1) over a native message id; checks PC.1
+python src/mapping/collab_xes_to_ocel.py input.xes output --correlation-attr msgInstanceId
 
 # Verbose logging
 python src/mapping/collab_xes_to_ocel.py input.xes output -v

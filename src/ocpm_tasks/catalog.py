@@ -12,10 +12,14 @@ This module is pure metadata; the actual label computation lives in ``labels.py`
 from dataclasses import dataclass
 from typing import Optional, Dict, List
 
-# Anchor object types.
+# Target anchors. CC, ORCHESTRATION_CASE and MESSAGE are object types of the
+# mapping; PARTICIPANT is the anchor ROLE of the tasks about participants, not
+# an object type -- rule M2 gives each participant identifier a type of its own,
+# so there is no single "Participant" type in the OCEL (see ocpm_tasks/schema.py).
+# These strings are reporting metadata only: no label function reads Task.anchor.
 CC = "CollaborationCase"
 PARTICIPANT = "Participant"
-PARTICIPANT_PROJECTION = "ParticipantProjection"
+ORCHESTRATION_CASE = "OrchestrationCase"
 MESSAGE = "Message"
 
 # Problem types (as in the evaluation's RQ3 subset table).
@@ -41,18 +45,18 @@ TASKS: Dict[str, Task] = {
     "NE-NPaA": Task("NE-NPaA", PARTICIPANT, MULTICLASS, "categorical"),
     "NE-NEPa": Task("NE-NEPa", PARTICIPANT, MULTICLASS, "categorical"),
     "NE-NPaM": Task("NE-NPaM", PARTICIPANT, MULTICLASS, "categorical"),
-    "NE-NMPa": Task("NE-NMPa", PARTICIPANT_PROJECTION, MULTICLASS, "categorical", param="participant"),
+    "NE-NMPa": Task("NE-NMPa", ORCHESTRATION_CASE, MULTICLASS, "categorical", param="participant"),
     "NE-NMPr": Task("NE-NMPr", CC,          MULTICLASS, "categorical"),
     # --- Numeric value ---
     "NV-PrT":  Task("NV-PrT",  CC,          REG_TIME, "numeric"),
-    "NV-PaT":  Task("NV-PaT",  PARTICIPANT_PROJECTION, REG_TIME, "numeric", param="participant"),
+    "NV-PaT":  Task("NV-PaT",  ORCHESTRATION_CASE, REG_TIME, "numeric", param="participant"),
     "NV-TNE":  Task("NV-TNE",  CC,          REG_TIME, "numeric"),
     "NV-TNM":  Task("NV-TNM",  MESSAGE,     REG_TIME, "numeric"),
     "NV-NMPr": Task("NV-NMPr", MESSAGE,     COUNT, "numeric", object_enabled=True),
     "NV-NMPa": Task("NV-NMPa", MESSAGE,     COUNT, "numeric", object_enabled=True,
                     param="participant"),
     # --- Outcome-based ---
-    "OB-P":    Task("OB-P",    PARTICIPANT_PROJECTION, BINARY, "binary", param="participant"),
+    "OB-P":    Task("OB-P",    ORCHESTRATION_CASE, BINARY, "binary", param="participant"),
     "OB-M":    Task("OB-M",    MESSAGE,     BINARY, "binary", object_enabled=True,
                     param="activity"),
 }

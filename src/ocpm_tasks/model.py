@@ -16,7 +16,7 @@ class Event:
     event_id: str
     activity: str
     timestamp: datetime
-    actor: str                       # participant (R2: in_projection -> for_participant; direct participant edge, P1.6)
+    actor: str                       # participant (R2: in_orchestration -> for_participant; direct participant edge, P1.6)
     is_send: bool = False
     is_receive: bool = False
     msg_id: Optional[str] = None     # Message OBSERVATION identity (unique per send/receive; M4, no correlation)

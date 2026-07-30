@@ -2,11 +2,20 @@
 Adapters that build the neutral object-centric model from a concrete OCEL, so that the
 task library can be used **inside OCPA or pm4py** without coupling to the
 experimentation. The collaborative roles (see ``schema.py``) are derived here from E2O
-qualifiers (within/in_projection/send/receive/participant) and O2O qualifiers
-(projection_of/for_participant/from/to/exchanged_in);
+qualifiers (within/in_orchestration/send/receive/participant) and O2O qualifiers
+(part_of/for_participant/from/to/exchanged_in);
 ``build_from_relations`` contains the (library-tested) derivation, and the
 ``from_pm4py`` / ``from_ocpa`` wrappers only extract relations and attributes from the
 respective object.
+
+Participant objects are recognized WITHOUT naming their object type: rule M2 gives
+each participant identifier a type of its own, so the derivation tests
+``Schema.is_participant_type`` (everything that is not a structural type) rather than
+comparing against one fixed name. Every lookup that resolves a participant also has a
+fallback to the object attribute carrying the same identifier, which P1.4 (for the
+orchestration case) and P1.3 (for a message endpoint) guarantee agrees with the
+relation, so a participant object an importer failed to materialize degrades to the
+attribute instead of silently producing an empty actor or a BOTTOM label.
 
 VERIFY against your installed libraries: the pm4py OCEL column names (``C_*`` below)
 and the OCPA OCEL accessors. They follow the standard column conventions.
@@ -135,49 +144,61 @@ def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
         o = objects.get(oid) if oid else None
         return o.attrs.get(key) if o else None
 
-    def o2o_target(src, qualifier, target_type):
+    def o2o_participant(src, qualifier):
+        """Target of ``qualifier`` from ``src`` that is a participant object.
+        Under M2 the type is the participant identifier itself, so the test is
+        ``is_participant_type`` rather than equality with a fixed name."""
         o = objects.get(src) if src else None
         if not o:
             return None
         for tgt, q in o.o2o:
-            if q == qualifier and otype(tgt) == target_type:
+            if q == qualifier and sch.is_participant_type(otype(tgt)):
                 return tgt
         return None
 
-    def participant_of(pp_oid, pa_direct):
+    def participant_of(oc_oid, pa_direct):
         if pa_direct is not None:
             return str(oattr(pa_direct, sch.oa_name) or pa_direct)
-        pa = o2o_target(pp_oid, sch.q_for_participant, sch.ot_participant)
+        pa = o2o_participant(oc_oid, sch.q_for_participant)
         if pa is not None:
             return str(oattr(pa, sch.oa_name) or pa)
-        v = oattr(pp_oid, sch.oa_participant)
+        v = oattr(oc_oid, sch.oa_participant)
         return str(v) if v is not None else ""
 
-    def msg_party(msg_oid, qualifier):
-        p = o2o_target(msg_oid, qualifier, sch.ot_participant)
-        return str(oattr(p, sch.oa_name) or p) if p is not None else None
+    def msg_party(msg_oid, qualifier, attr):
+        """Message endpoint: the from/to O2O target, falling back to the
+        Message's own sender/receiver attribute. P1.3 requires the relation
+        and the attribute to be defined together and to agree, so the
+        fallback is the same value -- it only covers a reader that dropped
+        the participant object itself (OCPA's importer resolves object types
+        through getattr over itertuples and drops any it cannot address)."""
+        p = o2o_participant(msg_oid, qualifier)
+        if p is not None:
+            return str(oattr(p, sch.oa_name) or p)
+        v = oattr(msg_oid, attr)
+        return str(v) if v is not None else None
 
     by_cc: Dict[str, List[Event]] = {}
     cc_caseid: Dict[str, str] = {}
 
     for ev in events:
-        cc_oid = pp_oid = msg_oid = pa_oid = None
+        cc_oid = oc_oid = msg_oid = pa_oid = None
         is_send = is_recv = False
         for oid, q in ev.e2o:
             t = otype(oid)
             if q == sch.q_within and t == sch.ot_cc:
                 cc_oid = oid
-            elif q == sch.q_in_projection and t == sch.ot_pp:
-                pp_oid = oid
+            elif q == sch.q_in_orchestration and t == sch.ot_oc:
+                oc_oid = oid
             elif q == sch.q_send and t == sch.ot_message:
                 is_send, msg_oid = True, oid
             elif q == sch.q_receive and t == sch.ot_message:
                 is_recv, msg_oid = True, oid
-            elif q == sch.q_participant and t == sch.ot_participant:
+            elif q == sch.q_participant and sch.is_participant_type(t):
                 # Must match the qualifier, not just the target type: an
                 # exported log may carry a D25 witness edge (qualifier
                 # 'from'/'to') from this same event to a counterparty-only
-                # Participant, which also has otype Participant but is not
+                # participant, which is also participant-typed but is not
                 # pa(eps) (Definition, accessors over mu(L) -- the
                 # 'participant' qualifier, M6).
                 pa_oid = oid
@@ -192,12 +213,12 @@ def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
             corr_id = str(v) if v is not None else None
         by_cc.setdefault(cc_oid, []).append(Event(
             event_id=str(ev.id), activity=str(ev.activity), timestamp=ev.time,
-            actor=participant_of(pp_oid, pa_oid),
+            actor=participant_of(oc_oid, pa_oid),
             is_send=is_send, is_receive=is_recv,
             msg_id=str(msg_oid) if (is_msg and msg_oid is not None) else None,
             msg_type=(str(ev.activity) if is_msg else None),
-            msg_from=msg_party(msg_oid, sch.q_from) if is_msg else None,
-            msg_to=msg_party(msg_oid, sch.q_to) if is_msg else None,
+            msg_from=msg_party(msg_oid, sch.q_from, sch.oa_sender) if is_msg else None,
+            msg_to=msg_party(msg_oid, sch.q_to, sch.oa_receiver) if is_msg else None,
             corr_id=corr_id))
 
     return ObjectCentricLog([Execution(cc_caseid[c], evs)

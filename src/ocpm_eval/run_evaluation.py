@@ -29,17 +29,21 @@ Remaining extensions (X-PaL, X-Cmp, X-Lag) are not implemented here.
 
 Usage: python -m ocpm_eval.run_evaluation   (adjust paths in config.py)
 
-Reproducibility note: a fixed PYTHONHASHSEED is required across process runs.
-OCPA's leading-type process-execution extraction and some of our own set(...)
-usages (e.g. the activity vocabulary in features_ocpa.build_feature_set) order
-their output by Python's per-string hash, which is randomized per process
-unless PYTHONHASHSEED is pinned; without it, CollaborationCase/row order can
-differ between runs, which in turn changes which rows RandomForest's bootstrap
-sampling draws at each fixed random_state, changing the reported metrics by a
-few percentage points despite the fixed seed. The __main__ guard below
-re-execs the process once with PYTHONHASHSEED=0 if it is not already set, so
-`python -m ocpm_eval.run_evaluation` is reproducible without the caller having
-to remember the environment variable.
+Reproducibility note: RandomForest draws features and bootstrap rows BY
+POSITION, so a reordered column set or row order moves the metrics at a fixed
+random_state even with every feature value, label and sample count unchanged.
+Both orders are pinned at their source, not by the hash seed: the per-activity
+feature columns come from a sorted vocabulary (features_ocpa.build_feature_set)
+and the table is sorted by (case_id, event_id) before training
+(features_ocpa.extract_feature_table) -- see the comments there for why the
+upstream order is not usable as-is.
+
+The __main__ guard below still re-execs once with PYTHONHASHSEED=0 if unset,
+as a guard against hash-order dependence inside OCPA's own leading-type
+extraction, which we do not control. That is defensive only: with the two
+orders above pinned, running this module under different hash seeds reproduces
+every metric to within the last representable digit -- the same spread as two
+runs at one seed -- so no reported figure depends on the variable being set.
 """
 import os
 import sys

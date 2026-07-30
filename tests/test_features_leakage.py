@@ -5,7 +5,7 @@ complementing the remaining-time alignment oracle in
 event-id/partitioning mismatch, not a leaking feature).
 
 Covers every feature family in ``features_ocpa.build_feature_set`` --
-elapsed time, previous_type_count(ParticipantProjection),
+elapsed time, previous_type_count(OrchestrationCase),
 previous_type_count(Message), and preceding_activities(a) -- against two
 leakage directions:
 
@@ -76,6 +76,21 @@ def test_no_temporal_leakage():
     assert a.equals(b), (
         "feature rows for surviving cut points changed after removing a "
         "later event -- a feature is leaking information from the future")
+
+
+def test_feature_table_row_order_is_deterministic():
+    """The table must come back sorted by (case_id, event_id), not in OCPA's
+    traversal order. RandomForest draws bootstrap rows by position at a fixed
+    random_state, so a reordered table shifts the reported metrics even when
+    every feature value is identical -- and OCPA's order depends on the
+    object-type names of the log, which rule M2 makes log-dependent."""
+    table, _ = _extract("leak_crosscase_combined.sqlite")
+    keys = list(zip(table["case_id"], table["event_id"]))
+    assert keys == sorted(keys)
+    # Within a case the event identifier embeds prec_L (M5), so this is the
+    # per-case source order that P1.2 reconstructs.
+    c1 = table[table["case_id"] == "C1"]["event_id"].tolist()
+    assert c1 == sorted(c1) and len(c1) > 1
 
 
 def test_no_crosscase_leakage_via_shared_participant():

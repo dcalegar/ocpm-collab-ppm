@@ -90,7 +90,7 @@ def build_toy_log() -> EventLog:
         # overhead (backlog, latency) is tied to this structural, prefix-
         # observable property -- more parties means more concurrent
         # in-flight messages and slower synchronization, which the
-        # ParticipantProjection object count already reveals to the
+        # OrchestrationCase object count already reveals to the
         # feature extractor from the case's first few events onward. This
         # gives X-Inf/X-MSt a genuine, non-degenerate signal to learn,
         # instead of drawing backlog/latency i.i.d. of the observed prefix.
@@ -104,7 +104,7 @@ def build_toy_log() -> EventLog:
         time_offset += random.randint(1, 3)
 
         # Join event per remaining participant, right after Start: establishes
-        # every case participant's ParticipantProjection early, so the case-size
+        # every case participant's OrchestrationCase early, so the case-size
         # signal is available to the feature extractor (previous-PP-count) from
         # near the beginning of the prefix, not only once that participant
         # happens to act in a later interaction.

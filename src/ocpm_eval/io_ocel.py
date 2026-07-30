@@ -13,25 +13,25 @@ from typing import Dict, List, Tuple
 from ocpm_tasks.adapters import from_ocpa, from_ocel2_sqlite, _normalize_ocel_sqlite_timestamps
 from ocpm_tasks.model import ObjectCentricLog
 
-# Direct event->Participant E2O qualifier added by the converter
+# Direct event->participant E2O qualifier added by the converter
 # (collab_xes_to_ocel.py). It is a genuine relation of the conceptual
 # model (rule M6): a participant is reachable both directly, via this
-# edge, and indirectly via in_projection -> for_participant (see
+# edge, and indirectly via in_orchestration -> for_participant (see
 # ocpm_tasks/schema.py); their agreement is checked by P1.6. OCPA's
 # leading-type extraction connects ALL E2O-related objects of an event
 # pairwise regardless of type, so this edge merges every
 # CollaborationCase's process execution with every other one that shares
-# a Participant -- and since a handful of Participants are shared across
+# a participant -- and since a handful of participants are shared across
 # the whole log, every execution collapses into (almost) the entire log,
 # which is what makes feature extraction stall. Strip it (mostly) before
 # handing the file to OCPA; this is an OCPA-specific import workaround,
 # not a change to the conceptual model.
 #
-# Concrete example (Healthcare log): Participant["Gynecologist"] is a
-# single, log-wide object (M2 scope), and it performs events in many
+# Concrete example (Healthcare log): the "Gynecologist" participant
+# object is a single, log-wide object (M2 scope), and it performs events in many
 # different CollaborationCases -- say case 459 (events e2, e3) and case
 # 460 (events e5, e6). With the direct edge kept, the event-object graph
-# has e2/e3 --participant--> Participant["Gynecologist"] <--participant--
+# has e2/e3 --participant--> Gynecologist <--participant--
 # e5/e6: a path connects an event of case 459 to an event of case 460
 # through that single shared object. OCPA's leading-type extraction
 # treats such a path as evidence the two belong to the same process
@@ -40,9 +40,9 @@ from ocpm_tasks.model import ObjectCentricLog
 # -- prefixes/timestamps from unrelated cases get mixed, remaining-time
 # targets become meaningless, and the per-case grouped-CV assumption
 # (that all prefixes of one case stay within a single fold) silently breaks. Removing the
-# edge for every occurrence except one witness per Participant leaves no
+# edge for every occurrence except one witness per participant leaves no
 # live edge shared between two DIFFERENT cases, so case 459 and case 460
-# no longer connect through Participant["Gynecologist"] -- while the one
+# no longer connect through Gynecologist -- while the one
 # surviving witness edge (on whichever event happens to keep it) still
 # lets OCPA's importer register the object at all (see the paragraph
 # below on OCPA's object-table construction).
@@ -50,15 +50,15 @@ from ocpm_tasks.model import ObjectCentricLog
 # The same merging risk applies to the D25 witness E2O edges
 # (mapping.collab_xes_to_ocel._add_export_reachability_witnesses): those
 # reuse the O2O qualifier ('from'/'to') at the E2O level to keep an
-# endpoint-only Participant (one that is always a message counterparty
+# endpoint-only participant (one that is always a message counterparty
 # and never itself collab:participant of an event) from being dropped by
-# pm4py's exporter. Such a Participant is log-wide (M2 scope) just like
+# pm4py's exporter. Such a participant is log-wide (M2 scope) just like
 # any other, so if it is the counterparty of messages in more than one
 # CollaborationCase, each referencing event gets its own witness edge and
 # the same cross-case path reappears -- this time through 'from'/'to'
 # instead of 'participant'. The core mapping (M6) never emits 'from'/'to'
-# as an E2O qualifier itself (only within/in_projection/participant/send/
-# receive), so every E2O row under these two
+# as an E2O qualifier itself (only within/in_orchestration/participant/
+# send/receive), so every E2O row under these two
 # qualifiers is, by construction, a D25 witness row; and D25 only adds a
 # witness for an object with zero prior E2O rows, so an object is never
 # reached by both 'participant' and a 'from'/'to' witness at once. Both
@@ -72,33 +72,42 @@ from ocpm_tasks.model import ObjectCentricLog
 # present, correctly typed, in ``object`` and referenced by O2O edges in
 # ``object_object`` (``o2o_graph`` is read from ``object_object`` directly
 # and is unaffected). Deleting EVERY 'participant' row therefore drops
-# every Participant object from OCPA's object table, so any O2O lookup
-# that must confirm a target's type is Participant (e.g. Message
+# every participant object from OCPA's object table, so any O2O lookup
+# that must confirm a target is participant-typed (e.g. Message
 # from/to, used by the X-MSt extension) silently fails even though the
 # O2O edge itself is intact. Keeping exactly one witness row per distinct
-# Participant object avoids this: that participant is still E2O-linked to
+# participant object avoids this: that participant is still E2O-linked to
 # a single event (so OCPA's object table keeps it, correctly typed), while
 # every other occurrence -- the ones that would otherwise transitively
 # merge unrelated CollaborationCase executions -- is still removed.
-_E2O_PARTICIPANT_QUALIFIER = "participant"
-_E2O_CROSS_CASE_QUALIFIERS = (_E2O_PARTICIPANT_QUALIFIER, "from", "to")
+# The strip filters on QUALIFIER, never on object type, which is what keeps
+# it correct under rule M2: participant objects no longer share a single
+# type, but the qualifier vocabulary is fixed.
 
 
-def _strip_participant_e2o(path: str) -> str:
+def _cross_case_qualifiers(schema) -> Tuple[str, ...]:
+    """E2O qualifiers whose targets are log-wide objects shared across
+    collaboration cases -- the direct participant edge (M6) and the D25
+    witness edges that reuse 'from'/'to' at the E2O level."""
+    return (schema.q_participant, schema.q_from, schema.q_to)
+
+
+def _strip_participant_e2o(path: str, schema) -> str:
     """Return a temp path to a copy of the SQLite file with the E2O rows
     that can reconnect distinct CollaborationCase executions through a
     shared, log-wide object removed -- the direct 'participant' edge (M6)
     and the D25 'from'/'to' witness edges alike -- except for one witness
-    row per distinct object (see _E2O_CROSS_CASE_QUALIFIERS above).
+    row per distinct object (see _cross_case_qualifiers above).
     Returns ``path`` unchanged if there is nothing to strip."""
     import sqlite3, shutil, tempfile
 
-    qual_placeholders = ",".join("?" * len(_E2O_CROSS_CASE_QUALIFIERS))
+    qualifiers = _cross_case_qualifiers(schema)
+    qual_placeholders = ",".join("?" * len(qualifiers))
     con = sqlite3.connect(path)
     try:
         has_any = con.execute(
             f"SELECT 1 FROM event_object WHERE ocel_qualifier IN ({qual_placeholders}) LIMIT 1",
-            _E2O_CROSS_CASE_QUALIFIERS).fetchone()
+            qualifiers).fetchone()
     finally:
         con.close()
     if not has_any:
@@ -111,12 +120,12 @@ def _strip_participant_e2o(path: str) -> str:
     try:
         keep_rowids = [r[0] for r in con.execute(
             f"SELECT MIN(rowid) FROM event_object WHERE ocel_qualifier IN ({qual_placeholders}) "
-            "GROUP BY ocel_object_id", _E2O_CROSS_CASE_QUALIFIERS)]
+            "GROUP BY ocel_object_id", qualifiers)]
         keep_placeholders = ",".join("?" * len(keep_rowids))
         con.execute(
             f"DELETE FROM event_object WHERE ocel_qualifier IN ({qual_placeholders}) "
             f"AND rowid NOT IN ({keep_placeholders})",
-            (*_E2O_CROSS_CASE_QUALIFIERS, *keep_rowids))
+            (*qualifiers, *keep_rowids))
         con.commit()
     finally:
         con.close()
@@ -265,7 +274,7 @@ def load_ocpa_ocel(schema, path: str):
     """Load an OCEL 2.0 SQLite log via OCPA's native importer with leading-type
     execution extraction (one process execution per CollaborationCase)."""
     from ocpa.objects.log.importer.ocel2.sqlite import factory as ocel2_import_factory
-    stripped_path = _strip_participant_e2o(path)
+    stripped_path = _strip_participant_e2o(path, schema)
     norm_path = _normalize_ocel_sqlite_timestamps(stripped_path)
     tie_broken_path = _break_timestamp_ties(norm_path)
     params = {"execution_extraction": "leading_type", "leading_type": schema.ot_cc}

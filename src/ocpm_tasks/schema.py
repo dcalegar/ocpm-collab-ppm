@@ -3,35 +3,55 @@ Mapping vocabulary (object types, qualifiers, attributes) shared by the adapters
 that turn an OCEL into the neutral object-centric model. Mirrors the mapping rules
 M1-M8. This is the only place that names OCEL artefacts; the task definitions are
 expressed over the neutral model and never touch these names.
+
+Rule M2 declares ONE OBJECT TYPE PER PARTICIPANT IDENTIFIER, so there is no single
+participant type to name here. Participant objects are instead identified the way
+the mapping itself characterizes them: they are the objects reached by the
+`participant`, `for_participant`, `from` and `to` qualifiers, i.e. every object
+whose type is none of the structural types below. ``is_participant_type`` is that
+test; the qualifier vocabulary is fixed, so it works whatever T_Pa the log declares.
 """
 from dataclasses import dataclass
 
 
 @dataclass
 class Schema:
-    # Object types (M1).
+    # Structural object types (M1, M3, M4). Participant types are log-dependent.
     ot_cc: str = "CollaborationCase"
-    ot_pp: str = "ParticipantProjection"
-    ot_participant: str = "Participant"
+    ot_oc: str = "OrchestrationCase"
     ot_message: str = "Message"
+    # Refinement-layer object type (R1); absent unless the layer was applied.
+    ot_resource: str = "Resource"
 
-    # E2O qualifiers (M6): within, in_projection, send, receive, participant.
+    # E2O qualifiers (M6): within, in_orchestration, send, receive, participant.
     q_within: str = "within"
-    q_in_projection: str = "in_projection"
+    q_in_orchestration: str = "in_orchestration"
     q_send: str = "send"
     q_receive: str = "receive"
     q_participant: str = "participant"
 
-    # O2O qualifiers (M7): projection_of, for_participant, from, to, exchanged_in.
-    q_projection_of: str = "projection_of"
+    # O2O qualifiers (M7): part_of, for_participant, from, to, exchanged_in.
+    q_part_of: str = "part_of"
     q_for_participant: str = "for_participant"
     q_from: str = "from"
     q_to: str = "to"
     q_exchanged_in: str = "exchanged_in"
 
+    # Refinement-layer qualifiers (R2/R3 and C1).
+    q_resource: str = "resource"
+    q_acts_for: str = "acts_for"
+    q_correlated_with: str = "correlated_with"
+
     # Object attributes.
     oa_caseid: str = "caseId"
-    oa_name: str = "name"                 # Participant
-    oa_participant: str = "participant"   # ParticipantProjection (= participant name, P1.4)
+    oa_name: str = "name"                 # participant objects, and Resource (R1)
+    oa_participant: str = "participant"   # OrchestrationCase (= participant name, P1.4)
     oa_sender: str = "sender"             # Message (M4)
     oa_receiver: str = "receiver"         # Message (M4)
+
+    def is_participant_type(self, otype) -> bool:
+        """True for the object types rule M2 derives from participant
+        identifiers, i.e. everything that is not a structural type of the
+        mapping or the Resource type of the optional resource layer."""
+        return bool(otype) and otype not in (
+            self.ot_cc, self.ot_oc, self.ot_message, self.ot_resource)

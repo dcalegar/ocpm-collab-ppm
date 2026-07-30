@@ -38,26 +38,31 @@ collab:elemType already distinguishes task / SendTask / ReceiveTask, so no
 separate message-type attribute is read or stored.
 
 Target side (OCEL 2.0):
-    Object types : CollaborationCase, Participant, ParticipantProjection,
-                   Message.
-                   NOTE on Participant: in the collaborative source
-                   process (BPMN 2.0 terminology) a participant is an
+    Object types : CollaborationCase, OrchestrationCase, Message, plus ONE
+                   OBJECT TYPE PER PARTICIPANT IDENTIFIER (rule M2): the
+                   participants occurring in the log are themselves declared
+                   as object types, so a participant object of "Laboratory"
+                   has object type "Laboratory". There is no single
+                   "Participant" type. The set of participant types is
+                   written T_Pa; participant_types() below implements the
+                   injective encoding tau that maps an identifier to its
+                   object type (see NOTE on tau).
+                   In BPMN 2.0 terminology a participant is an
                    orchestration / pool (e.g. "Laboratory",
-                   "Gynecologist"), not a role or a person. The object
-                   type keeps the name "Participant" for traceability
-                   with the collaborative process, but it represents the
-                   orchestration: a global object, reused across cases.
-                   ParticipantProjection is the execution of that
-                   orchestration within one collaboration case; it is a
-                   distinct object, linked to its Participant by the O2O
-                   qualifier for_participant.
-    E2O qualifiers: within, in_projection, send, receive, participant
+                   "Gynecologist"), not a role or a person: it is a global
+                   object, reused across cases. OrchestrationCase is the
+                   execution of that participant's local process within one
+                   collaboration case (M3, one per (case, participant) pair
+                   under the single-instantiation assumption); it is a
+                   distinct object, linked to its participant object by the
+                   O2O qualifier for_participant.
+    E2O qualifiers: within, in_orchestration, send, receive, participant
                    (M6). The participant of an event is reachable two
                    ways: directly, via the `participant` edge below, and
-                   indirectly via in_projection -> for_participant,
-                   keeping the orchestration distinct from its own
-                   per-case projection. Both are part of the conceptual
-                   model -- the direct edge keeps Participant objects
+                   indirectly via in_orchestration -> for_participant,
+                   keeping the participant distinct from its own per-case
+                   execution. Both are part of the conceptual
+                   model -- the direct edge keeps participant objects
                    reachable at the event-to-object level for
                    serialization and downstream feature extraction (see
                    NOTE below); their agreement is machine-checked by
@@ -65,17 +70,45 @@ Target side (OCEL 2.0):
                    event to its OWN Message observation object; no
                    relation between distinct send and receive events is
                    inferred (M4).
-    O2O qualifiers: projection_of, for_participant, from, to, exchanged_in
+    O2O qualifiers: part_of, for_participant, from, to, exchanged_in
 
     NOTE on the `participant` E2O edge: pm4py's OCEL 2.0 exporters (JSON
     and SQLite) call filtering_utils.propagate_relations_filtering(),
     which keeps only the objects that appear in the E2O relations table
-    -- silently dropping any object reachable only via O2O. Since
-    Participant would otherwise be reached only via O2O (for_participant,
-    from, to), it and those edges would be lost on export without a
-    direct event edge. Rule M6 keeps the direct `participant` edge for
-    exactly this reason, so the exported .jsonocel/.sqlite stays
-    lossless.
+    -- silently dropping any object reachable only via O2O. Since a
+    participant object would otherwise be reached only via O2O
+    (for_participant, from, to), it and those edges would be lost on
+    export without a direct event edge. Rule M6 keeps the direct
+    `participant` edge for exactly this reason, so the exported
+    .jsonocel/.sqlite stays lossless.
+
+    NOTE on tau (the participant -> object type encoding): the object type
+    is required to be an INJECTIVE encoding of the participant identifier,
+    not the raw identifier. The encoding here also keeps the type a valid
+    Python identifier ("Org line A2" -> "OrgLineA2"; "Hospital", "PartyA"
+    and every other alphanumeric identifier are fixed points, so the type
+    reads as the participant name itself in the common case). This matters
+    downstream: OCPA's OCEL 2.0 importer materializes one DataFrame column
+    per object type and resolves it with getattr(row, object_type) over
+    pandas itertuples, which silently drops any type whose name is not a
+    valid identifier. Injectivity is enforced both on tau itself and on
+    pm4py's own table-name stripping of tau (the SQLite exporter writes one
+    object_<stripped name> table per object type), so two participants can
+    never collapse into one type or one table.
+
+    Refinement layers (OPT-IN, off by default; see MappingConfig):
+    resource layer  -- R1: one Resource object per actor identifier the
+                       source records (e.g. org:resource); R2: E2O
+                       `resource`; R3: O2O `acts_for` from a Resource to
+                       every participant it acts for. Criteria PR.1/PR.2.
+    correlation layer -- C1: O2O `correlated_with` from a send observation's
+                       Message to the receive observation's Message when
+                       both carry the same correlation identifier (e.g. a
+                       native message id). No object is created. Criterion
+                       PC.1.
+    Both layers only APPEND objects and relations, so they are additive
+    (P1.1-P1.6 are unaffected) and mutually independent, and each
+    degenerates to the identity on a log that records no such identifier.
 
 IMPORTANT VERIFICATION NOTES (read before running elsewhere):
   * Requires pm4py >= 2.7.16 (the SQLite timestamp fix in 2.7.16 also
@@ -104,6 +137,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -142,27 +176,40 @@ ELEM_RECEIVE = "ReceiveTask"
 RESERVED_EVENT_OUTPUT_KEYS = ("elemType", "participant", "fromParticipant", "toParticipant")
 
 # --- OCEL 2.0 object types ------------------------------------------
+# The participant types are NOT listed here: rule M2 declares one object
+# type per participant identifier occurring in the log, so T_Pa is
+# log-dependent and is built at transform time (see ParticipantTypes).
 OT_CC = "CollaborationCase"
-OT_PARTICIPANT = "Participant"
-OT_PP = "ParticipantProjection"
+OT_OC = "OrchestrationCase"
 OT_MESSAGE = "Message"
+# Resource layer only (R1); never created by the core mapping.
+OT_RESOURCE = "Resource"
+
+# Object types tau must never produce, so that a participant identifier can
+# never be confused with a structural type of the mapping.
+RESERVED_OBJECT_TYPES = (OT_CC, OT_OC, OT_MESSAGE, OT_RESOURCE)
 
 # --- E2O qualifiers (rule M6) ---------------------------------------
 Q_WITHIN = "within"
-Q_IN_PROJECTION = "in_projection"
+Q_IN_ORCHESTRATION = "in_orchestration"
 Q_SEND = "send"
 Q_RECEIVE = "receive"
-# Direct event->Participant edge (M6). Also reachable indirectly via
-# in_projection -> for_participant; P1.6 checks the two agree. See the
+# Direct event->participant edge (M6). Also reachable indirectly via
+# in_orchestration -> for_participant; P1.6 checks the two agree. See the
 # module docstring NOTE above for why the direct edge is kept.
 Q_PARTICIPANT = "participant"
 
 # --- O2O qualifiers (rule M7) ---------------------------------------
-Q_PROJECTION_OF = "projection_of"
+Q_PART_OF = "part_of"
 Q_FOR_PARTICIPANT = "for_participant"
 Q_FROM = "from"
 Q_TO = "to"
 Q_EXCHANGED_IN = "exchanged_in"
+
+# --- Refinement-layer qualifiers (opt-in; R2/R3 and C1) -------------
+Q_RESOURCE = "resource"            # E2O, R2
+Q_ACTS_FOR = "acts_for"            # O2O, R3
+Q_CORRELATED_WITH = "correlated_with"  # O2O, C1
 
 # --- OCEL 2.0 canonical column names used by pm4py ------------------
 # These are the standard pm4py OCEL column identifiers. The transform
@@ -202,6 +249,14 @@ class MappingConfig:
         CASE_KEY, ACTIVITY_KEY, TIMESTAMP_KEY,
         PARTICIPANT_KEY, FROM_KEY, TO_KEY,
     ))
+    # --- Refinement layers (opt-in) ---------------------------------
+    # Both name a RESIDUAL source attribute (one M8 preserves verbatim and
+    # the core mapping does not consume). Left None, the corresponding
+    # layer is not applied at all. Naming an attribute no event carries is
+    # not an error either: the layer then degenerates to the identity,
+    # adding no object and no relation.
+    resource_attr: Optional[str] = None      # R1-R3, e.g. "org:resource"
+    correlation_attr: Optional[str] = None   # C1, e.g. "msgInstanceId"
 
 
 # =====================================================================
@@ -217,15 +272,20 @@ def _cc_id(case: str) -> str:
 def _participant_id(p: str) -> str:
     return f"part::{p}"
 
-def _pp_id(case: str, p: str) -> str:
+def _resource_id(a: str) -> str:
+    # Resource layer (R1). Its own id range, disjoint from every core one,
+    # which is what makes the layer additive.
+    return f"res::{a}"
+
+def _oc_id(case: str, p: str) -> str:
     # Escape "\" and ":" in each component before joining with the
-    # unescaped delimiter "::": without this, _pp_id("x", "y::z") and
-    # _pp_id("x::y", "z") both create "pp::x::y::z" (E30) -- a real
+    # unescaped delimiter "::": without this, _oc_id("x", "y::z") and
+    # _oc_id("x::y", "z") both create "oc::x::y::z" (E30) -- a real
     # injectivity failure of the id-creation scheme, though vacuous on the
     # 6 evaluated logs (no case id or participant name contains ":").
     def esc(s: str) -> str:
         return s.replace("\\", "\\\\").replace(":", "\\:")
-    return f"pp::{esc(case)}::{esc(p)}"
+    return f"oc::{esc(case)}::{esc(p)}"
 
 def _message_id(eid: str) -> str:
     # One Message per send OR receive event (M4, m_e for e in S_L u R_L);
@@ -242,6 +302,99 @@ def _event_id(case: str, idx: int, width: int = 1) -> str:
     # converse fails across cases): without padding, "e::459::10" sorts
     # before "e::459::9".
     return f"e::{case}::{str(idx).zfill(width)}"
+
+
+# =====================================================================
+# tau: participant identifier -> OCEL object type (rule M2)
+# =====================================================================
+
+_NON_ALNUM = re.compile(r"[^0-9a-zA-Z]+")
+
+
+def _pm4py_table_name(otype: str) -> str:
+    """Reproduce pm4py's object-type name stripping
+    (pm4py.objects.ocel.util.names_stripping.apply), which the OCEL 2.0
+    SQLite exporter uses to derive the physical ``object_<name>`` table of
+    each object type. Two object types whose stripped names coincide would
+    make the exporter write the same table twice; the registry below
+    therefore keeps this image injective as well, not only tau itself."""
+    words = [w.capitalize() for w in otype.split(" ")]
+    return _NON_ALNUM.sub("", "".join(words)).strip()[:100]
+
+
+def _encode_object_type(p: str) -> str:
+    """Base encoding of a participant identifier as an object type: split on
+    runs of non-alphanumerics, upper-case the first character of each part
+    (keeping the rest), and join. Alphanumeric identifiers are fixed points,
+    so "Hospital" and "PartyA" stay themselves and only identifiers that are
+    not already valid Python identifiers change ("Org line A2" ->
+    "OrgLineA2"). See the module docstring NOTE on tau for why the result
+    must be a valid identifier."""
+    parts = [w for w in _NON_ALNUM.split(p) if w]
+    s = "".join(w[:1].upper() + w[1:] for w in parts)
+    if not s or s[0].isdigit():
+        s = "P" + s
+    return s
+
+
+class ParticipantTypes:
+    """The injective encoding tau of rule M2, built incrementally as
+    participants are first seen, plus its inverse.
+
+    Injectivity is maintained by construction rather than checked
+    afterwards: a candidate type is accepted only when neither it nor its
+    pm4py table name is already taken (by another participant or by one of
+    the structural object types of the mapping), and otherwise a numeric
+    suffix is appended until a free one is found. Since the identifiers are
+    processed in first-occurrence order, the assignment is deterministic
+    for a given source log."""
+
+    def __init__(self) -> None:
+        self._by_participant: Dict[str, str] = {}
+        self._by_type: Dict[str, str] = {}
+        self._taken_tables: Dict[str, str] = {}
+        for t in RESERVED_OBJECT_TYPES:
+            self._by_type[t] = ""            # reserved, owned by no participant
+            self._taken_tables[_pm4py_table_name(t)] = ""
+
+    def register(self, participant: str) -> str:
+        """Return tau(participant), assigning it on first sight."""
+        known = self._by_participant.get(participant)
+        if known is not None:
+            return known
+        base = _encode_object_type(participant)
+        candidate, n = base, 1
+        while (candidate in self._by_type
+               or _pm4py_table_name(candidate) in self._taken_tables):
+            n += 1
+            candidate = f"{base}{n}"
+        self._by_participant[participant] = candidate
+        self._by_type[candidate] = participant
+        self._taken_tables[_pm4py_table_name(candidate)] = participant
+        return candidate
+
+    def type_of(self, participant: str) -> Optional[str]:
+        """tau(participant), or None if the participant was never seen."""
+        return self._by_participant.get(participant)
+
+    def participant_of(self, otype: str) -> Optional[str]:
+        """tau^-1(otype), or None if the type is not a participant type."""
+        return self._by_type.get(otype) or None
+
+    def is_participant_type(self, otype: Any) -> bool:
+        return bool(self._by_type.get(otype))
+
+    @property
+    def types(self) -> frozenset:
+        """T_Pa: the set of participant object types of this log."""
+        return frozenset(t for t, p in self._by_type.items() if p)
+
+    @property
+    def participants(self) -> frozenset:
+        return frozenset(self._by_participant)
+
+    def __len__(self) -> int:
+        return len(self._by_participant)
 
 
 # =====================================================================
@@ -503,15 +656,15 @@ def _add_export_reachability_witnesses(objects_df: pd.DataFrame,
                                        o2o_df: pd.DataFrame) -> pd.DataFrame:
     """Return relations_df augmented with witness E2O edges for objects
     that transform() correctly materializes but that are reachable ONLY
-    via O2O relations -- e.g. a Participant that is always a message
+    via O2O relations -- e.g. a participant that is always a message
     counterparty (collab:toParticipant/fromParticipant) and never itself
     collab:participant of any event, so M6 never gives it the direct
-    `participant` edge (nor in_projection -> for_participant, which
+    `participant` edge (nor in_orchestration -> for_participant, which
     requires the participant to own an event too). pm4py's OCEL 2.0
     exporters call filtering_utils.propagate_relations_filtering(),
     which drops every object absent from the E2O relations table
     regardless of O2O reachability (see module docstring NOTE); without
-    this, such Participants -- and the O2O edges pointing at them --
+    this, such participant objects -- and the O2O edges pointing at them --
     are silently lost on export even though transform()/P1 correctly
     account for them (D25).
 
@@ -567,9 +720,17 @@ def _add_export_reachability_witnesses(objects_df: pd.DataFrame,
         # minimal -- an endpoint-only Participant shared across N CollaborationCases
         # contributes 1 witness row, not N -- so the exported artefact stays as
         # close as possible to the E2O set of mu(L) (D25).
+        #
+        # The witness row must carry the object's OWN type: under rule M2
+        # each participant identifier is its own object type, so there is no
+        # single fallback type to default to, and a wrong one here would
+        # contradict the `object` table on export.
+        otype = oid_to_otype.get(target)
+        if otype is None:
+            continue
         seen.add(target)
         witness_rows.append({COL_EID: eid, COL_OID: target,
-                             COL_OTYPE: oid_to_otype.get(target, OT_PARTICIPANT),
+                             COL_OTYPE: otype,
                              COL_QUALIFIER: qualifier})
 
     if not witness_rows:
@@ -733,10 +894,122 @@ class TransformResult:
     relations_df: pd.DataFrame
     o2o_df: pd.DataFrame
     stats: Dict[str, Any]
+    # tau and its inverse for this log (rule M2). The consistency checks and
+    # the export path need it to tell a participant object from a structural
+    # one, since there is no longer a single participant object type.
+    participant_types: ParticipantTypes = field(default_factory=ParticipantTypes)
+
+
+def _layer_attribute(ev: Dict[str, Any], key: str) -> Optional[str]:
+    """Read a residual source attribute off an event, treating NaN, None and
+    blank strings as unrecorded -- the same normalization the core mapping
+    applies to participants, so a blank actor never creates an empty-named
+    Resource and a blank correlation id never pairs two observations."""
+    val = ev["row"].get(key)
+    if val is None or pd.isna(val):
+        return None
+    s = str(val).strip()
+    return s or None
+
+
+def _apply_resource_layer(cases: Dict[str, List[Dict[str, Any]]],
+                          attr: str,
+                          ensure_object,
+                          e2o_rows: List[Dict[str, Any]],
+                          o2o_rows: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Resource layer (R1-R3): promote the actor identifier the source
+    records per event to an object of its own.
+
+    R1 creates one Resource object per distinct actor identifier, R2 relates
+    every event whose actor the source records to it by `resource`, and R3
+    relates that Resource to every participant it acts for by `acts_for`.
+    An event whose actor is unrecorded carries no relation, rather than
+    being attributed to a synthetic resource.
+
+    The pass only appends: it creates objects in an id range of its own
+    (res::) and uses qualifiers the core mapping never emits, so it leaves
+    P1.1-P1.6 and the core object and relation sets untouched. On a log
+    where no event carries `attr` it adds nothing at all, which is the
+    degeneracy property.
+    """
+    n_events, n_resources, acts_for_pairs = 0, set(), set()
+    for evlist in cases.values():
+        for ev in evlist:
+            actor = _layer_attribute(ev, attr)
+            if actor is None:
+                continue
+            res_oid = _resource_id(actor)
+            ensure_object(res_oid, OT_RESOURCE, {"name": actor})   # R1
+            n_resources.add(actor)
+            e2o_rows.append({COL_EID: ev["eid"], COL_OID: res_oid,     # R2
+                             COL_OTYPE: OT_RESOURCE, COL_QUALIFIER: Q_RESOURCE})
+            n_events += 1
+            p = ev["participant"]
+            if p is not None and (actor, p) not in acts_for_pairs:     # R3
+                acts_for_pairs.add((actor, p))
+                o2o_rows.append({COL_OID: res_oid, COL_OID2: _participant_id(p),
+                                 COL_QUALIFIER: Q_ACTS_FOR})
+    return {"n_resources": len(n_resources),
+            "n_resource_e2o": n_events,
+            "n_acts_for": len(acts_for_pairs)}
+
+
+def _apply_correlation_layer(cases: Dict[str, List[Dict[str, Any]]],
+                             attr: str,
+                             msg_by_eid: Dict[str, str],
+                             o2o_rows: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Correlation layer (C1): relate the send observation and the receive
+    observation of one logical message to each other.
+
+    Rule C1 is unconditional -- every send observation and every receive
+    observation carrying the same correlation identifier are related by
+    `correlated_with`, directed from the send to the receive. It is
+    deliberately NOT restricted here to identifiers that pair exactly one
+    send with one receive: a correlation attribute that groups three or more
+    observations, or two sends, then produces a Message with more than one
+    outgoing or incoming relation, which is exactly what criterion PC.1
+    reports. Filtering such groups out at construction time would make PC.1
+    pass vacuously on a source attribute that is not a usable correlation
+    identifier.
+
+    No object is created, so P1.5 is unaffected, and `correlated_with` is
+    distinct from `exchanged_in`, so the message objects of a collaboration
+    case are unchanged. An observation whose identifier the source does not
+    record, or whose counterpart it never observes, simply carries no
+    relation -- a send with no outgoing `correlated_with` is precisely an
+    exchange the log observes on one side only.
+    """
+    sends: Dict[str, List[str]] = {}
+    receives: Dict[str, List[str]] = {}
+    for evlist in cases.values():
+        for ev in evlist:
+            if ev["elem"] not in (ELEM_SEND, ELEM_RECEIVE):
+                continue
+            corr = _layer_attribute(ev, attr)
+            if corr is None:
+                continue
+            side = sends if ev["elem"] == ELEM_SEND else receives
+            side.setdefault(corr, []).append(ev["eid"])
+
+    n_relations = 0
+    for corr, send_eids in sends.items():
+        for s_eid in send_eids:
+            for r_eid in receives.get(corr, ()):
+                o2o_rows.append({COL_OID: msg_by_eid[s_eid],
+                                 COL_OID2: msg_by_eid[r_eid],
+                                 COL_QUALIFIER: Q_CORRELATED_WITH})
+                n_relations += 1
+    return {"n_correlated_with": n_relations,
+            "n_correlation_ids": len(set(sends) | set(receives)),
+            "n_uncorrelated_sends": sum(1 for c, eids in sends.items()
+                                        for _ in eids if c not in receives)}
 
 
 def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> TransformResult:
     """Apply rules M1-M8 and return the four OCEL DataFrames plus stats.
+
+    When ``cfg`` enables a refinement layer, its rules (R1-R3 and/or C1) are
+    applied as a post-pass that only appends objects and relations.
 
     The function is pure pandas/Python; it does not touch pm4py, so it
     can be tested in isolation.
@@ -766,7 +1039,9 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
             f"M8 output attribute name(s) of the same name -- rename the "
             f"source column(s) before mapping (E30).")
 
+    participant_types = ParticipantTypes()
     participant_seen: set = set()
+    msg_by_eid_all: Dict[str, str] = {}
     n_messages = 0
     # Counterparty completeness (Normalization nu): the source
     # format may leave a send/receive event's OWN side implicit (backfilled
@@ -791,6 +1066,9 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
         _ensure_object(cc_oid, OT_CC, {"caseId": case})
 
         # ---- M4: Message objects (one per send OR receive event) ----
+        # (msg_by_eid is per case; msg_by_eid_all accumulates the same
+        # mapping over the whole log for the correlation layer, which pairs
+        # observations by a shared identifier rather than by case.)
         # Each communication event creates its OWN Message observation
         # object (m_e for e in S_L u R_L); the core mapping does not
         # infer any correspondence between a send and a receive
@@ -803,6 +1081,7 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
                 continue
             msg_oid = _message_id(ev["eid"])
             msg_by_eid[ev["eid"]] = msg_oid
+            msg_by_eid_all[ev["eid"]] = msg_oid
             _ensure_object(msg_oid, OT_MESSAGE, {
                 "sender": ev["from"],
                 "receiver": ev["to"],
@@ -816,22 +1095,24 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
         for ev in evlist:
             p = ev["participant"]
 
-            # ---- M2: Participant object (orchestration/pool;
-            #          log-level scope) -------------------------------
-            # Participant represents the orchestration (BPMN pool), not a
-            # role or person. Also create participant objects for the
-            # from/to (sender/receiver) identifiers of messages.
+            # ---- M2: participant object, typed by the participant
+            #          identifier itself (log-level scope) -------------
+            # A participant is the orchestration (BPMN pool), not a role or
+            # person, and its OBJECT TYPE is tau(identifier) -- there is no
+            # single "Participant" type. Also create participant objects for
+            # the from/to (sender/receiver) identifiers of messages.
             for pid in (p, ev["from"], ev["to"]):
                 if pid is not None and pid not in participant_seen:
-                    _ensure_object(_participant_id(pid), OT_PARTICIPANT, {"name": pid})
+                    _ensure_object(_participant_id(pid),
+                                   participant_types.register(pid), {"name": pid})
                     participant_seen.add(pid)
 
-            # ---- M3: ParticipantProjection object (execution of the
-            #          orchestration within this collaboration case) ---
-            pp_oid = None
+            # ---- M3: OrchestrationCase object (the participant's local
+            #          execution within this collaboration case) -------
+            oc_oid = None
             if p is not None:
-                pp_oid = _pp_id(case, p)
-                _ensure_object(pp_oid, OT_PP,
+                oc_oid = _oc_id(case, p)
+                _ensure_object(oc_oid, OT_OC,
                                {"caseId": case, "participant": p})
 
             # ---- M5: Event (evtype = activity; elemType attribute) --
@@ -861,18 +1142,19 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
             event_rows.append(ev_row)
 
             # ---- M6: structural E2O relations -----------------------
-            # within (-> CollaborationCase), in_projection (-> Participant-
-            # Projection), and the direct participant edge (-> Participant),
-            # whose agreement with in_projection -> for_participant is
-            # checked by P1.6 (see module docstring).
+            # within (-> CollaborationCase), in_orchestration (->
+            # OrchestrationCase), and the direct participant edge (-> the
+            # participant object), whose agreement with in_orchestration ->
+            # for_participant is checked by P1.6 (see module docstring).
             e2o_rows.append({COL_EID: ev["eid"], COL_OID: cc_oid,
                              COL_OTYPE: OT_CC, COL_QUALIFIER: Q_WITHIN})
-            if pp_oid is not None:
-                e2o_rows.append({COL_EID: ev["eid"], COL_OID: pp_oid,
-                                 COL_OTYPE: OT_PP, COL_QUALIFIER: Q_IN_PROJECTION})
+            if oc_oid is not None:
+                e2o_rows.append({COL_EID: ev["eid"], COL_OID: oc_oid,
+                                 COL_OTYPE: OT_OC, COL_QUALIFIER: Q_IN_ORCHESTRATION})
             if p is not None:
                 e2o_rows.append({COL_EID: ev["eid"], COL_OID: _participant_id(p),
-                                 COL_OTYPE: OT_PARTICIPANT, COL_QUALIFIER: Q_PARTICIPANT})
+                                 COL_OTYPE: participant_types.type_of(p),
+                                 COL_QUALIFIER: Q_PARTICIPANT})
 
             # ---- M6: send/receive E2O --------------------------------
             # Each communication event is related only to its OWN Message
@@ -893,21 +1175,42 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
                 o2o_rows.append({COL_OID: msg_oid, COL_OID2: cc_oid,
                                  COL_QUALIFIER: Q_EXCHANGED_IN})
 
-        # ---- M7: ParticipantProjection O2O relations ----------------
+        # ---- M7: OrchestrationCase O2O relations --------------------
         # one per (case, participant) seen in this case
-        seen_pp: set = set()
+        seen_oc: set = set()
         for ev in evlist:
             p = ev["participant"]
             if p is None:
                 continue
-            pp_oid = _pp_id(case, p)
-            if pp_oid in seen_pp:
+            oc_oid = _oc_id(case, p)
+            if oc_oid in seen_oc:
                 continue
-            seen_pp.add(pp_oid)
-            o2o_rows.append({COL_OID: pp_oid, COL_OID2: cc_oid,
-                             COL_QUALIFIER: Q_PROJECTION_OF})
-            o2o_rows.append({COL_OID: pp_oid, COL_OID2: _participant_id(p),
+            seen_oc.add(oc_oid)
+            o2o_rows.append({COL_OID: oc_oid, COL_OID2: cc_oid,
+                             COL_QUALIFIER: Q_PART_OF})
+            o2o_rows.append({COL_OID: oc_oid, COL_OID2: _participant_id(p),
                              COL_QUALIFIER: Q_FOR_PARTICIPANT})
+
+    # ---- refinement layers (opt-in, additive) -----------------------
+    # Applied after every core rule has run, appending only. Neither layer
+    # redefines a component of the core log, so P1.1-P1.6 hold of the result
+    # exactly as they hold of the core mapping; the two use disjoint object
+    # id ranges and disjoint qualifier vocabularies, so either may be applied
+    # alone, or both in any order.
+    layer_stats: Dict[str, Any] = {}
+    degenerate_layers: List[Tuple[str, str]] = []
+    if cfg.resource_attr:
+        s = _apply_resource_layer(
+            cases, cfg.resource_attr, _ensure_object, e2o_rows, o2o_rows)
+        layer_stats.update(s)
+        if not s["n_resources"]:
+            degenerate_layers.append(("resource", cfg.resource_attr))
+    if cfg.correlation_attr:
+        s = _apply_correlation_layer(
+            cases, cfg.correlation_attr, msg_by_eid_all, o2o_rows)
+        layer_stats.update(s)
+        if not s["n_correlation_ids"]:
+            degenerate_layers.append(("correlation", cfg.correlation_attr))
 
     # ---- assemble DataFrames ----------------------------------------
     events_df = pd.DataFrame(event_rows)
@@ -934,7 +1237,9 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
         "n_messages_missing_sender": n_messages_missing_sender,
         "n_messages_missing_receiver": n_messages_missing_receiver,
         "n_cases": len(cases),
+        "n_participant_types": len(participant_types),
     }
+    stats.update(layer_stats)
     if n_messages_missing_sender or n_messages_missing_receiver:
         logger.warning(
             "%d Message object(s) have no recorded sender and %d have no "
@@ -943,7 +1248,13 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
             "above). Their 'from'/'to' O2O relation and sender/receiver "
             "object attribute are left undefined rather than guessed.",
             n_messages_missing_sender, n_messages_missing_receiver)
-    return TransformResult(events_df, objects_df, relations_df, o2o_df, stats)
+    for name, attr in degenerate_layers:
+        logger.warning(
+            "The %s layer was requested on attribute '%s', which no event "
+            "records; the layer degenerates to the identity and the output "
+            "is exactly the core mapping.", name, attr)
+    return TransformResult(events_df, objects_df, relations_df, o2o_df, stats,
+                           participant_types)
 
 
 # =====================================================================
@@ -960,7 +1271,9 @@ class CheckResult:
 def run_consistency_checks(src_df: pd.DataFrame,
                            res: TransformResult,
                            cfg: Optional[MappingConfig] = None) -> List[CheckResult]:
-    """Machine-check P1.1-P1.6 against the constructed DataFrames.
+    """Machine-check P1.1-P1.6 against the constructed DataFrames, plus the
+    criteria of whichever refinement layer ``cfg`` enables (PR.1/PR.2 for the
+    resource layer, PC.1 for the correlation layer).
 
     These guard against implementation defects; they are independent of
     the by-construction correctness argument for the mapping.
@@ -971,6 +1284,12 @@ def run_consistency_checks(src_df: pd.DataFrame,
     rel = res.relations_df
     o2o = res.o2o_df
     obj = res.objects_df
+    tau = res.participant_types
+
+    def is_participant_type(otype: Any) -> bool:
+        """Rule M2 leaves no single participant object type, so every check
+        that used to filter on one filters on membership in T_Pa instead."""
+        return tau.is_participant_type(otype)
 
     # Indexes reused by several checks below (D24 hardening): the object
     # table by oid, and the event->CollaborationCase ('within') map. Built
@@ -1065,7 +1384,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
     # from/to, which Normalization nu explicitly allows to be
     # partial on the counterparty side). A source event whose collab:participant
     # is itself absent violates that precondition; the transform still
-    # propagates the absence faithfully (no participant/in_projection edge is
+    # propagates the absence faithfully (no participant/in_orchestration edge is
     # created, M6), so participant_mismatches above stays 0 (None == None) and
     # this would otherwise pass unnoticed -- surfaced here as its own count,
     # separate from preservation mismatches, since it flags a source
@@ -1440,109 +1759,120 @@ def run_consistency_checks(src_df: pd.DataFrame,
     out.append(CheckResult("P1.3 Message well-formedness", bool(p13_ok),
                            "; ".join(p13_detail_bits) or "no messages"))
 
-    # ---- P1.4 Participant-projection coherence ----------------------
+    # ---- P1.4 OrchestrationCase coherence ---------------------------
     # Checked in three parts:
     #  (a) totality: every event with a defined participant has EXACTLY ONE
-    #      'in_projection' edge, targeting the ParticipantProjection its
+    #      'in_orchestration' edge, targeting the OrchestrationCase its
     #      source (case, participant) pair implies (M3/M6, checked against
     #      the source-derived expectation, not the output's own edges --
-    #      D24: a mutation that deletes an event's in_projection edge,
+    #      D24: a mutation that deletes an event's in_orchestration edge,
     #      e.g. together with its 'participant' edge, used to be invisible
     #      because this check only ever iterated over edges that survived);
-    #  (b) for every existing 'in_projection' edge, its target pp is
-    #      'projection_of' the event's 'within' object (the collaboration
-    #      case);
-    #  (c) every ParticipantProjection is 'for_participant' exactly one
-    #      Participant, that Participant's name equals the
-    #      ParticipantProjection's 'participant' attribute, and the
-    #      ParticipantProjection's own caseId/participant attributes agree
-    #      with the (case, participant) pair it was created for (D24: a
-    #      corrupted caseId/participant attribute affects no edge, so it
-    #      was otherwise invisible to every check).
+    #  (b) for every existing 'in_orchestration' edge, its target oc is
+    #      'part_of' the event's 'within' object (the collaboration case);
+    #  (c) every OrchestrationCase is 'for_participant' exactly one
+    #      participant object, whose OBJECT TYPE and 'name' attribute both
+    #      equal the OrchestrationCase's 'participant' attribute (M2 encodes
+    #      the identifier twice, as tau(p) and as the name value, and the
+    #      revised criterion requires both to agree), and the
+    #      OrchestrationCase's own caseId/participant attributes agree with
+    #      the (case, participant) pair it was created for (D24: a corrupted
+    #      caseId/participant attribute affects no edge, so it was otherwise
+    #      invisible to every check).
     p14_ok = True
     p14_detail = ""
     if not rel.empty:
-        inproj_rows = rel[rel[COL_QUALIFIER] == Q_IN_PROJECTION]
-        ev_inproj = dict(zip(inproj_rows[COL_EID], inproj_rows[COL_OID]))
-        inproj_counts = inproj_rows.groupby(COL_EID).size().to_dict()
-        projection_of = ({r[COL_OID]: r[COL_OID2] for _, r in
-                         o2o[o2o[COL_QUALIFIER] == Q_PROJECTION_OF].iterrows()}
-                         if not o2o.empty else {})
+        inorch_rows = rel[rel[COL_QUALIFIER] == Q_IN_ORCHESTRATION]
+        ev_inorch = dict(zip(inorch_rows[COL_EID], inorch_rows[COL_OID]))
+        inorch_counts = inorch_rows.groupby(COL_EID).size().to_dict()
+        part_of = ({r[COL_OID]: r[COL_OID2] for _, r in
+                    o2o[o2o[COL_QUALIFIER] == Q_PART_OF].iterrows()}
+                   if not o2o.empty else {})
 
         # (a) totality + target identity, against the source expectation
-        missing_inproj = 0
-        wrong_pp_target = 0
-        multi_inproj = 0
+        missing_inorch = 0
+        wrong_oc_target = 0
+        multi_inorch = 0
         for eid, (_, _, exp_part, _, _, _) in expected_by_eid.items():
             if exp_part is None:
                 continue
-            if int(inproj_counts.get(eid, 0)) > 1:
-                multi_inproj += 1
+            if int(inorch_counts.get(eid, 0)) > 1:
+                multi_inorch += 1
                 continue
-            got_pp = ev_inproj.get(eid)
-            if got_pp is None:
-                missing_inproj += 1
-            elif got_pp != _pp_id(case_by_eid[eid], exp_part):
-                wrong_pp_target += 1
+            got_oc = ev_inorch.get(eid)
+            if got_oc is None:
+                missing_inorch += 1
+            elif got_oc != _oc_id(case_by_eid[eid], exp_part):
+                wrong_oc_target += 1
 
-        # (b) in_projection/within coherence, for existing edges
-        bad_projof = sum(1 for eid, pp in ev_inproj.items()
-                         if projection_of.get(pp) != ev_within.get(eid))
+        # (b) in_orchestration/within coherence, for existing edges
+        bad_partof = sum(1 for eid, oc in ev_inorch.items()
+                         if part_of.get(oc) != ev_within.get(eid))
 
-        # (c) for_participant well-formedness + PP identity, per PP object
-        pp_ids = set(obj[obj[COL_OTYPE] == OT_PP][COL_OID]) if not obj.empty else set()
+        # (c) for_participant well-formedness + OC identity, per OC object
+        oc_ids = set(obj[obj[COL_OTYPE] == OT_OC][COL_OID]) if not obj.empty else set()
         forpart_edges = (o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT] if not o2o.empty
                          else pd.DataFrame(columns=[COL_OID, COL_OID2]))
         forpart_counts = forpart_edges.groupby(COL_OID).size().to_dict()
         forpart_target = dict(zip(forpart_edges[COL_OID], forpart_edges[COL_OID2]))
         bad_forpart = 0
         bad_name = 0
-        for pp in pp_ids:
-            if int(forpart_counts.get(pp, 0)) != 1:
+        bad_type = 0
+        for oc in oc_ids:
+            if int(forpart_counts.get(oc, 0)) != 1:
                 bad_forpart += 1
                 continue
-            # name agreement: for_participant target's 'name' == pp.participant.
+            # name agreement: for_participant target's 'name' == oc.participant.
             # D24 (reviewer round 2): 'name'/'participant' are always set at
             # object-creation time (M2/M3), so a MISSING value is itself a
             # construction defect, not merely inconclusive -- comparing only
             # when both happen to be present let a deleted attribute pass
-            # vacuously (reproduced: deleting Participant.name or PP.caseId/
-            # participant kept every check above PASS).
-            tgt = forpart_target.get(pp)
+            # vacuously (reproduced: deleting a participant's name or the
+            # OC's caseId/participant kept every check above PASS).
+            tgt = forpart_target.get(oc)
             if obj_idx_all is not None and tgt in obj_idx_all.index:
                 tgt_name = obj_idx_all.at[tgt, "name"] if "name" in obj_idx_all.columns else None
-                pp_part = obj_idx_all.at[pp, "participant"] if "participant" in obj_idx_all.columns else None
-                if pd.isna(tgt_name) or pd.isna(pp_part) or str(tgt_name) != str(pp_part):
+                oc_part = obj_idx_all.at[oc, "participant"] if "participant" in obj_idx_all.columns else None
+                if pd.isna(tgt_name) or pd.isna(oc_part) or str(tgt_name) != str(oc_part):
                     bad_name += 1
+                # The type side of the same identity: tau is injective, so
+                # the target's object type must be exactly tau(oc.participant).
+                # Without this, a for_participant edge retargeted to a
+                # correctly-named object of the wrong type would still pass.
+                tgt_type = obj_idx_all.at[tgt, COL_OTYPE]
+                if pd.isna(oc_part) or tgt_type != tau.type_of(str(oc_part)):
+                    bad_type += 1
             else:
                 bad_name += 1
+                bad_type += 1
 
-        bad_pp_identity = 0
+        bad_oc_identity = 0
         for eid, (_, _, exp_part, _, _, _) in expected_by_eid.items():
             if exp_part is None:
                 continue
-            pp_oid = _pp_id(case_by_eid[eid], exp_part)
-            if obj_idx_all is not None and pp_oid in obj_idx_all.index:
-                got_case = obj_idx_all.at[pp_oid, "caseId"] if "caseId" in obj_idx_all.columns else None
-                got_part = obj_idx_all.at[pp_oid, "participant"] if "participant" in obj_idx_all.columns else None
+            oc_oid = _oc_id(case_by_eid[eid], exp_part)
+            if obj_idx_all is not None and oc_oid in obj_idx_all.index:
+                got_case = obj_idx_all.at[oc_oid, "caseId"] if "caseId" in obj_idx_all.columns else None
+                got_part = obj_idx_all.at[oc_oid, "participant"] if "participant" in obj_idx_all.columns else None
                 if pd.isna(got_case) or str(got_case) != case_by_eid[eid]:
-                    bad_pp_identity += 1
+                    bad_oc_identity += 1
                 if pd.isna(got_part) or str(got_part) != exp_part:
-                    bad_pp_identity += 1
+                    bad_oc_identity += 1
             else:
-                bad_pp_identity += 1
+                bad_oc_identity += 1
 
-        p14_ok = (missing_inproj == 0 and wrong_pp_target == 0 and multi_inproj == 0
-                 and bad_projof == 0 and bad_forpart == 0 and bad_name == 0
-                 and bad_pp_identity == 0)
-        p14_detail = (f"events missing in_projection={missing_inproj}; "
-                      f"in_projection wrong target={wrong_pp_target}; "
-                      f"events with >1 in_projection edge={multi_inproj}; "
-                      f"in_projection/within mismatches={bad_projof}; "
-                      f"projections !=1 for_participant={bad_forpart}; "
+        p14_ok = (missing_inorch == 0 and wrong_oc_target == 0 and multi_inorch == 0
+                 and bad_partof == 0 and bad_forpart == 0 and bad_name == 0
+                 and bad_type == 0 and bad_oc_identity == 0)
+        p14_detail = (f"events missing in_orchestration={missing_inorch}; "
+                      f"in_orchestration wrong target={wrong_oc_target}; "
+                      f"events with >1 in_orchestration edge={multi_inorch}; "
+                      f"in_orchestration/within mismatches={bad_partof}; "
+                      f"orchestration cases !=1 for_participant={bad_forpart}; "
                       f"for_participant name disagreements={bad_name}; "
-                      f"ParticipantProjection caseId/participant identity disagreements={bad_pp_identity}")
-    out.append(CheckResult("P1.4 Participant-projection coherence", bool(p14_ok), p14_detail))
+                      f"for_participant type disagreements={bad_type}; "
+                      f"OrchestrationCase caseId/participant identity disagreements={bad_oc_identity}")
+    out.append(CheckResult("P1.4 OrchestrationCase coherence", bool(p14_ok), p14_detail))
 
     # ---- P1.5 No orphan objects (+ D24: no dangling relations) ------
     # Orphans (an object with no relation at all) is the formal P1.5
@@ -1573,19 +1903,20 @@ def run_consistency_checks(src_df: pd.DataFrame,
                            + f"; dangling O2O targets={len(dangling_o2o)}"))
 
     # ---- P1.6 Participant coherence ---------------------------------
-    # For every event, the Participant reached by the direct 'participant'
-    # E2O edge must equal the Participant reached via the two-step
-    # 'in_projection' -> 'for_participant' path. D24: the universe of
+    # For every event, the participant object reached by the direct
+    # 'participant' E2O edge must equal the one reached via the two-step
+    # 'in_orchestration' -> 'for_participant' path. D24: the universe of
     # events checked is every source event with a defined participant
     # (from `expected_by_eid`), not the union of eids that happen to still
-    # have a 'participant' or 'in_projection' edge -- the previous universe
+    # have a 'participant' or 'in_orchestration' edge -- the previous universe
     # meant that deleting BOTH edges for one event removed it from the
     # universe entirely, so the mutation passed vacuously instead of being
     # caught by "missing one side".
     p16_ok = True
     p16_detail = ""
     if not rel.empty:
-        participant_rows = rel[(rel[COL_QUALIFIER] == Q_PARTICIPANT) & (rel[COL_OTYPE] == OT_PARTICIPANT)]
+        participant_rows = rel[(rel[COL_QUALIFIER] == Q_PARTICIPANT)
+                               & (rel[COL_OTYPE].map(is_participant_type))]
         ev_participant = dict(zip(participant_rows[COL_EID], participant_rows[COL_OID]))
         # D24 (reviewer round 2): `dict(zip(...))` above silently collapses
         # a SECOND, contradictory 'participant' edge for the same event to
@@ -1595,9 +1926,9 @@ def run_consistency_checks(src_df: pd.DataFrame,
         # ambiguity itself is caught, independent of which value the dict
         # happened to keep.
         participant_targets_per_eid = participant_rows.groupby(COL_EID)[COL_OID].nunique().to_dict()
-        ev_inproj = dict(zip(
-            rel[rel[COL_QUALIFIER] == Q_IN_PROJECTION][COL_EID],
-            rel[rel[COL_QUALIFIER] == Q_IN_PROJECTION][COL_OID]))
+        ev_inorch = dict(zip(
+            rel[rel[COL_QUALIFIER] == Q_IN_ORCHESTRATION][COL_EID],
+            rel[rel[COL_QUALIFIER] == Q_IN_ORCHESTRATION][COL_OID]))
         forpart_target = (dict(zip(o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT][COL_OID],
                                    o2o[o2o[COL_QUALIFIER] == Q_FOR_PARTICIPANT][COL_OID2]))
                           if not o2o.empty else {})
@@ -1611,8 +1942,8 @@ def run_consistency_checks(src_df: pd.DataFrame,
                 ambiguous_participant_edge += 1
                 continue
             direct = ev_participant.get(eid)
-            pp_oid = ev_inproj.get(eid)
-            indirect = forpart_target.get(pp_oid) if pp_oid is not None else None
+            oc_oid = ev_inorch.get(eid)
+            indirect = forpart_target.get(oc_oid) if oc_oid is not None else None
             if direct is None or indirect is None:
                 missing_one_side += 1
                 continue
@@ -1625,6 +1956,130 @@ def run_consistency_checks(src_df: pd.DataFrame,
                       f"events with >1 distinct 'participant' edge target={ambiguous_participant_edge}")
     out.append(CheckResult("P1.6 Participant coherence", bool(p16_ok), p16_detail))
 
+    out.extend(_run_layer_checks(res, cfg, is_participant_type, ev_within))
+
+    return out
+
+
+def _run_layer_checks(res: TransformResult,
+                      cfg: MappingConfig,
+                      is_participant_type,
+                      ev_within: Dict[str, str]) -> List[CheckResult]:
+    """Criteria of the refinement layers: PR.1/PR.2 for the resource layer,
+    PC.1 for the correlation layer. Each runs only when its layer is enabled,
+    so a core-mapping run reports exactly P1.1-P1.6 as before."""
+    out: List[CheckResult] = []
+    rel, o2o, obj = res.relations_df, res.o2o_df, res.objects_df
+
+    # ---- PR.1 / PR.2 (resource layer) -------------------------------
+    if cfg.resource_attr:
+        res_e2o = (rel[rel[COL_QUALIFIER] == Q_RESOURCE] if not rel.empty
+                   else pd.DataFrame(columns=[COL_EID, COL_OID]))
+        acts_for = (o2o[o2o[COL_QUALIFIER] == Q_ACTS_FOR] if not o2o.empty
+                    else pd.DataFrame(columns=[COL_OID, COL_OID2]))
+        acts_for_pairs = set(zip(acts_for[COL_OID], acts_for[COL_OID2]))
+        # PR.1: for every event whose 'resource' relation is defined, its
+        # resource object and its participant object are related by
+        # 'acts_for'. The two dimensions therefore never disagree, and no
+        # event is attributed to a resource the log never records as acting
+        # for that participant. Events without a participant are vacuous:
+        # there is no participant object for the pair to be formed with.
+        part_e2o = (rel[(rel[COL_QUALIFIER] == Q_PARTICIPANT)
+                        & (rel[COL_OTYPE].map(is_participant_type))]
+                    if not rel.empty else pd.DataFrame(columns=[COL_EID, COL_OID]))
+        ev_participant = dict(zip(part_e2o[COL_EID], part_e2o[COL_OID]))
+        pr1_bad = 0
+        for eid, res_oid in zip(res_e2o[COL_EID], res_e2o[COL_OID]):
+            pa_oid = ev_participant.get(eid)
+            if pa_oid is None:
+                continue
+            if (res_oid, pa_oid) not in acts_for_pairs:
+                pr1_bad += 1
+        out.append(CheckResult(
+            "PR.1 Actor-participant coherence", pr1_bad == 0,
+            f"resource E2O relations={len(res_e2o)}; acts_for pairs="
+            f"{len(acts_for_pairs)}; events whose (resource, participant) pair "
+            f"is not related by acts_for={pr1_bad}"))
+
+        # PR.2: every Resource object is the target of at least one
+        # 'resource' relation, so P1.5 keeps holding of the enlarged object
+        # set. Also flag the converse -- a 'resource' or 'acts_for' relation
+        # whose Resource endpoint was never materialized -- since the layer
+        # must not introduce a dangling relation either.
+        res_oids = (set(obj[obj[COL_OTYPE] == OT_RESOURCE][COL_OID])
+                    if not obj.empty else set())
+        unreached = res_oids - set(res_e2o[COL_OID])
+        dangling = ((set(res_e2o[COL_OID]) | set(acts_for[COL_OID])) - res_oids)
+        out.append(CheckResult(
+            "PR.2 No orphan resources", not unreached and not dangling,
+            f"Resource objects={len(res_oids)}; with no resource relation="
+            f"{len(unreached)}; relations with an unmaterialized Resource "
+            f"endpoint={len(dangling)}"))
+
+    # ---- PC.1 (correlation layer) -----------------------------------
+    if cfg.correlation_attr:
+        corr = (o2o[o2o[COL_QUALIFIER] == Q_CORRELATED_WITH] if not o2o.empty
+                else pd.DataFrame(columns=[COL_OID, COL_OID2]))
+        msg_oids = (set(obj[obj[COL_OTYPE] == OT_MESSAGE][COL_OID])
+                    if not obj.empty else set())
+        send_of = (dict(zip(rel[rel[COL_QUALIFIER] == Q_SEND][COL_OID],
+                            rel[rel[COL_QUALIFIER] == Q_SEND][COL_EID]))
+                   if not rel.empty else {})
+        recv_of = (dict(zip(rel[rel[COL_QUALIFIER] == Q_RECEIVE][COL_OID],
+                            rel[rel[COL_QUALIFIER] == Q_RECEIVE][COL_EID]))
+                   if not rel.empty else {})
+        obj_idx = obj.set_index(COL_OID) if not obj.empty else None
+
+        def endpoint(oid: str, key: str) -> Optional[str]:
+            if obj_idx is None or oid not in obj_idx.index or key not in obj_idx.columns:
+                return None
+            v = obj_idx.at[oid, key]
+            return None if pd.isna(v) else str(v)
+
+        # Multiplicity: at most one outgoing and one incoming relation per
+        # Message. This is what fails on a correlation attribute that does
+        # not induce a one-to-one pairing -- e.g. an identifier shared by
+        # three or more observations, which rule C1 (deliberately
+        # unconditional) turns into several relations rather than silently
+        # dropping.
+        multi_out = int((corr.groupby(COL_OID).size() > 1).sum()) if len(corr) else 0
+        multi_in = int((corr.groupby(COL_OID2).size() > 1).sum()) if len(corr) else 0
+        bad_direction = bad_case = bad_endpoints = bad_order = dangling_corr = 0
+        for src, tgt in zip(corr[COL_OID], corr[COL_OID2]):
+            if src not in msg_oids or tgt not in msg_oids:
+                dangling_corr += 1
+                continue
+            s_eid, r_eid = send_of.get(src), recv_of.get(tgt)
+            # Direction: from the observation of a send event to that of a
+            # receive event, so the direction of the exchange is recoverable
+            # from the relation itself.
+            if s_eid is None or r_eid is None:
+                bad_direction += 1
+                continue
+            if ev_within.get(s_eid) != ev_within.get(r_eid):
+                bad_case += 1
+            # Endpoints agree wherever both are defined.
+            for key in ("sender", "receiver"):
+                a, b = endpoint(src, key), endpoint(tgt, key)
+                if a is not None and b is not None and a != b:
+                    bad_endpoints += 1
+            # The send event precedes the receive event. Within a case the
+            # event identifier embeds prec_L (M5), so comparing identifiers
+            # is the same order P1.2 reconstructs; across cases the
+            # comparison is meaningless, but such a relation is already
+            # counted by bad_case.
+            if ev_within.get(s_eid) == ev_within.get(r_eid) and not (s_eid < r_eid):
+                bad_order += 1
+        pc1_ok = not (multi_out or multi_in or bad_direction or bad_case
+                      or bad_endpoints or bad_order or dangling_corr)
+        out.append(CheckResult(
+            "PC.1 Correlation well-formedness", pc1_ok,
+            f"correlated_with relations={len(corr)}; messages with >1 outgoing="
+            f"{multi_out}; with >1 incoming={multi_in}; not send->receive="
+            f"{bad_direction}; across different cases={bad_case}; endpoint "
+            f"disagreements={bad_endpoints}; receive not after send={bad_order}; "
+            f"relations with a non-Message endpoint={dangling_corr}"))
+
     return out
 
 
@@ -1632,7 +2087,7 @@ def print_check_report(checks: List[CheckResult], stats: Dict[str, Any]) -> bool
     logger.info("---- transformation stats ----")
     for k, v in stats.items():
         logger.info("  %-22s %s", k, v)
-    logger.info("---- consistency checks (P1.1-P1.6) ----")
+    logger.info("---- consistency checks ----")
     all_ok = True
     for c in checks:
         status = "PASS" if c.passed else "FAIL"
@@ -1713,9 +2168,20 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("input_xes", help="Path to the extended collaborative XES file.")
     p.add_argument("output", help="Path to the output files. Provide <output_base> name.")
     p.add_argument("--strict", action="store_true",
-                   help="Abort if any P1 check or schema validation fails.")
+                   help="Abort if any consistency check or schema validation fails.")
     p.add_argument("--no-validate", action="store_true",
                    help="Skip OCEL 2.0 JSON schema validation of the output.")
+    p.add_argument("--resource-attr", metavar="ATTR", default=None,
+                   help="Apply the resource layer (R1-R3) over this residual "
+                        "source attribute, e.g. 'org:resource'. Adds Resource "
+                        "objects, `resource` E2O and `acts_for` O2O relations, "
+                        "and checks PR.1/PR.2. Omitted, no Resource is created.")
+    p.add_argument("--correlation-attr", metavar="ATTR", default=None,
+                   help="Apply the correlation layer (C1) over this residual "
+                        "source attribute, e.g. 'msgInstanceId'. Relates the "
+                        "send and receive observations sharing an identifier by "
+                        "`correlated_with` and checks PC.1. Omitted, no "
+                        "send/receive correspondence is inferred.")
     p.add_argument("--encoding", default="utf-8")
     p.add_argument("-v", "--verbose", action="store_true")
     return p
@@ -1726,7 +2192,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)s %(message)s")
-    cfg = MappingConfig()
+    cfg = MappingConfig(resource_attr=args.resource_attr,
+                        correlation_attr=args.correlation_attr)
     convert(args.input_xes, args.output, cfg=cfg,
             strict=args.strict, validate=not args.no_validate,
             encoding=args.encoding)

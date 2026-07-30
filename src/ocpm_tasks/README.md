@@ -32,7 +32,7 @@ pip install pandas
 `ocpm_tasks` only supplies the **ground-truth / task-definition side** of a
 prediction pipeline — it never trains or runs a model:
 
-* `catalog.TASKS` — metadata for each of the 14 tasks (anchor object,
+* `catalog.TASKS` — metadata for each of the 14 tasks (target anchor,
   problem type, value kind, parameterization).
 * `labels.compute_label_rows` — for every cut point `k` in a collaboration
   instance, deterministically derives the target value `y` by looking
@@ -55,7 +55,7 @@ pieces line up.
 |---|---|
 | `schema` | `Schema` — object types / E2O / O2O qualifier names, overridable if your OCEL uses different vocabulary |
 | `model` | Neutral structures the tasks read: `Event`, `Execution`, `ObjectCentricLog` |
-| `catalog` | `TASKS` — the 14 `Task` definitions (anchor object, problem type, value kind) |
+| `catalog` | `TASKS` — the 14 `Task` definitions (target anchor, problem type, value kind) |
 | `labels` | `LabelContext`, `build_context`, `compute_label_rows` — ground-truth label computation |
 | `extensions` | `EXT_TASKS` (`X-Inf`, `X-MSt`), `compute_ext_label_rows` — object-enabled extension tasks, kept out of `catalog.TASKS`/`EQUIVALENCE_TASKS`/`RQ3_SUBSET` |
 | `fidelity` | `compare_equivalence` — label-equivalence comparator (optional, for validating a mapping) |

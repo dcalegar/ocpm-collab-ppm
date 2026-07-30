@@ -19,7 +19,7 @@ Two pairs of fixtures, written to tests/fixtures/:
     C1 alone vs. C1 + C2, where C2 shares the "Hospital" participant
     identifier with C1 (rule M2: log-wide scope). Used to check that
     C1's per-event features are unchanged whether or not C2 exists in
-    the same log (no cross-case leakage through the shared Participant
+    the same log (no cross-case leakage through the shared participant
     object).
 
 The builder calls the real converter's core (mapping.collab_xes_to_ocel:
@@ -80,7 +80,7 @@ def _case_c2():
     identifier, log-wide scope -> same Pa object). Uses an activity
     ('Dispense') not present in C1, and a distinct partner ('Pharmacy'),
     so any effect of C2 on C1's features can only come through the shared
-    Participant object, not through a shared activity vocabulary."""
+    participant object, not through a shared activity vocabulary."""
     return [
         _row("C2", 100, "Start", "task", "Hospital"),
         _row("C2", 101, "Dispense", "task", "Hospital"),

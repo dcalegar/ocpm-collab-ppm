@@ -27,6 +27,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from ocpm_eval.io_ocel import _strip_participant_e2o  # noqa: E402
+from ocpm_tasks.schema import Schema  # noqa: E402
 
 
 def _build_event_object_db(rows):
@@ -51,7 +52,7 @@ def test_strip_removes_cross_case_from_to_witness_edges():
         ("e::C1::00", "part::A", "participant"),
     ]
     path = _build_event_object_db(rows)
-    out = _strip_participant_e2o(path)
+    out = _strip_participant_e2o(path, Schema())
     assert out != path  # a copy was made because there was something to strip
 
     con = sqlite3.connect(out)
@@ -65,7 +66,7 @@ def test_strip_removes_cross_case_from_to_witness_edges():
 def test_strip_is_noop_without_participant_or_witness_edges():
     rows = [("e::C1::00", "msg::e::C1::00", "send")]
     path = _build_event_object_db(rows)
-    out = _strip_participant_e2o(path)
+    out = _strip_participant_e2o(path, Schema())
     assert out == path  # nothing to strip -> original path returned unchanged
 
 

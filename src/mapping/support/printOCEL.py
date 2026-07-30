@@ -1,3 +1,5 @@
+import sys
+
 from pm4py.read import read_ocel2_json
 from pm4py.ocel import (
     ocel_get_object_types,
@@ -7,7 +9,7 @@ from pm4py.ocel import (
 )
 from pm4py.vis import view_ocpn, save_vis_ocpn, save_vis_ocdfg
 
-modelname = "BPI2013_incidents_collaborative"
+modelname = sys.argv[1] if len(sys.argv) > 1 else "BPI2013_incidents_collaborative"
 
 # 1. Load OCEL 2.0 JSON
 ocel = read_ocel2_json(modelname + ".jsonocel")

@@ -1,7 +1,7 @@
-log,task,anchor,problem_type,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity
-BPI2013,NE-NPaA,Participant,Multiclass classification,62030,True,f1_macro,0.07298420748763683,0.0025931238974335876,0.03678071837497615,5,,
-BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,18481,True,f1_macro,1.0,0.0,1.0,5,,
-BPI2013,NV-PrT,CollaborationCase,Regression (time),62030,True,mae,1613515.2806429523,74164.36197594715,1157647.6922617955,5,,
-BPI2013,NV-PaT,ParticipantProjection,Regression (time),62030,True,mae,825286.9195217931,36199.95345786242,679910.8537965302,5,Org line C,
-BPI2013,NV-NMPr,Message,Count regression,62030,True,mae,1.8424809984748898,0.05096445314400535,1.3931162340802838,5,,
-BPI2013,OB-M,Message,Binary classification,62030,True,f1_macro,0.6482405098780301,0.005081963175643099,0.41246587479766184,5,,Queued
+log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity
+BPI2013,NE-NPaA,Participant,Multiclass classification,random_forest,62030,True,f1_macro,0.07303249682233602,0.0026390824637668427,0.03678071837497615,5,,
+BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,random_forest,18481,True,f1_macro,1.0,0.0,1.0,5,,
+BPI2013,NV-PrT,CollaborationCase,Regression (time),random_forest,62030,True,mae,1613564.3650468416,74588.8889487092,1157647.6922617955,5,,
+BPI2013,NV-PaT,OrchestrationCase,Regression (time),random_forest,62030,True,mae,826404.8494287259,36293.8704473843,679910.8537965302,5,Org line C,
+BPI2013,NV-NMPr,Message,Count regression,random_forest,62030,True,mae,1.8437910163975495,0.048756048292534084,1.3931162340802838,5,,
+BPI2013,OB-M,Message,Binary classification,random_forest,62030,True,f1_macro,0.6489790017283206,0.005583745031882701,0.41246587479766184,5,,Queued

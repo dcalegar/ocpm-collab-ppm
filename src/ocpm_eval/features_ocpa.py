@@ -38,15 +38,17 @@ def build_feature_set(ocel, schema):
     caller). This is the tabular encoding (one row per cut point); OCPA's sequential /
     graph encodings are alternatives the same features support.
 
-    Uses ot_pp (ParticipantProjection), not ot_participant, as the second
+    Uses ot_oc (OrchestrationCase), not a participant type, as the second
     previous_type_count argument: io_ocel.load_ocpa_ocel strips the direct
-    event->Participant E2O edge before import (to stop OCPA's leading-type
-    extraction from merging every CollaborationCase that shares a Participant),
-    so Participant never appears in event_objects and a count over it is always
-    0. ParticipantProjection is untouched by that strip and is created 1:1 with
-    (case, participant) by the converter (collab_xes_to_ocel._pp_id), so a
-    previous-ParticipantProjection-count within one execution equals the
-    previous-Participant-count it was meant to capture."""
+    event->participant E2O edge before import (to stop OCPA's leading-type
+    extraction from merging every CollaborationCase that shares a participant),
+    so participant objects never appear in event_objects and a count over them
+    is always 0. Rule M2 would in any case make that count log-dependent, one
+    feature column per participant type. OrchestrationCase is untouched by the
+    strip and is created 1:1 with (case, participant) by the converter
+    (collab_xes_to_ocel._oc_id), so a previous-OrchestrationCase-count within
+    one execution equals the previous-participant-count it was meant to
+    capture."""
     from ocpa.algo.predictive_monitoring import factory as predictive_monitoring
     # sorted(), not list(set(...)): a set's string iteration order depends on
     # Python's per-process hash seed, which would silently reorder the
@@ -59,7 +61,7 @@ def build_feature_set(ocel, schema):
     return [
         (predictive_monitoring.EVENT_REMAINING_TIME, ()),     # [0]: target + oracle
         (predictive_monitoring.EVENT_ELAPSED_TIME, ()),
-        (predictive_monitoring.EVENT_PREVIOUS_TYPE_COUNT, (schema.ot_pp,)),
+        (predictive_monitoring.EVENT_PREVIOUS_TYPE_COUNT, (schema.ot_oc,)),
         (predictive_monitoring.EVENT_PREVIOUS_TYPE_COUNT, (schema.ot_message,)),
     ] + [(predictive_monitoring.EVENT_PRECEDING_ACTIVITIES, (a,)) for a in activities]
 
@@ -111,6 +113,23 @@ def extract_feature_table(name: str, schema, ocel2_sqlite_path: str,
             f"[{name}] alignment oracle FAILED on {bad}/{len(table)} rows "
             "(OCPA remaining time != PrT label, or event ids/partitioning differ). "
             "Verify leading-type extraction and that node.event_id matches the OCEL.")
+
+    # Deterministic ROW order, for the same reason build_feature_set sorts the
+    # activity vocabulary: RandomForest's bootstrap draws rows by position at a
+    # fixed random_state, so a reordered table changes the reported metrics even
+    # though every feature value is unchanged. The order OCPA produces is the
+    # traversal order of its leading-type extraction, which depends on the
+    # object-type names of the log -- renaming an object type (or splitting one
+    # type into several, as rule M2 does for participants) reorders rows within
+    # a case and moved the metrics by up to 0.4pp on the classification tasks,
+    # with identical labels, identical sample counts and identical per-event
+    # feature values. Sorting by (case_id, event_id) removes that dependency:
+    # the event identifier embeds the per-case source order prec_L (M5), so this
+    # is the same order P1.2 reconstructs, and grouped CV is unaffected because
+    # it groups by case_id either way. Pinning PYTHONHASHSEED (see
+    # run_evaluation) covers only Python's own hash randomization, not this.
+    table = table.sort_values(["case_id", "event_id"], kind="mergesort")
+    table = table.reset_index(drop=True)
 
     feature_cols = [c for c in table.columns
                     if c not in (rem_col, "event_id", "case_id")]
