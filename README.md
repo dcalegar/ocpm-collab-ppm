@@ -7,6 +7,24 @@ demonstrates them end-to-end with **native object-centric features (OCPA)**.
 The code is split into a reusable **prediction-task library** and a modular
 **evaluation** that consumes it. Inputs are **OCEL 2.0 (SQLite)** event logs.
 
+### Scope: this repository implements more than the paper reports
+
+The published claims are backed by the converter and its consistency checks, the
+14 reformulated prediction tasks with their label-fidelity comparison against the
+collaborative baseline, and the end-to-end run of those tasks on the study logs
+(and, opt-in, on BPI Challenge 2013) — stages RQ1, RQ2 and RQ3 below.
+
+Two further targets outside the 14-task taxonomy — the **in-flight message
+backlog** and the **message synchronization time** — are implemented, unit-tested,
+and demonstrated here on a purpose-built toy log, together with the correlation
+enrichment the second one presupposes. They are **continuation work**: no results
+of theirs are reported in the paper, which only discusses such targets as
+directions the object-centric representation opens. The artifacts they produce
+(`data/results/rq_ext_results_toy.csv`) therefore correspond to no published
+number. They are deliberately kept out of `catalog.TASKS`, `EQUIVALENCE_TASKS`
+and `RQ3_SUBSET`, so they cannot affect the reproduction of the published
+results.
+
 ---
 
 ## Tools
@@ -71,14 +89,14 @@ ocpm-collab-ppm/
 │       ├── models.py          #   per-fold training + descriptive metrics
 │       ├── rq2_fidelity.py    #   RQ2 — label fidelity
 │       ├── rq3_pipeline.py    #   RQ3 — end-to-end, 5-fold CV grouped by CI
-│       ├── rq_ext_pipeline.py #   RQ-EXT — X-Inf/X-MSt demo on the TOY log only
-│       └── run_evaluation.py  #   orchestrator (RQ2/RQ3/RQ-EXT)
+│       ├── rq_ext_pipeline.py #   EXT — X-Inf/X-MSt demo on the TOY log only
+│       └── run_evaluation.py  #   orchestrator (RQ2/RQ3/EXT)
 └── data/
     ├── logs/
     │   ├── Predict-Collab/      # the four study logs
     │   ├── BPIChallenge2013/    # real-world validation log (opt-in stage, see below)
     │   └── ToyCollab/           # toy_collab.* (X-Inf/X-MSt demo log)
-    └── results/                 # evaluation outputs, incl. rq_ext_results_toy.csv (RQ-EXT demo)
+    └── results/                 # evaluation outputs, incl. rq_ext_results_toy.csv (EXT demo)
 ```
 
 The three directories the project revolves around: **example logs** (`data/logs/`),
@@ -324,19 +342,19 @@ The extended XES source must use the `collab` extension attributes defined in
 
 ## Evaluation stages
 
-| RQ | What | Where | Output |
+| Stage | What | Where | Output |
 |---|---|---|---|
 | RQ1 | XES→OCEL transformation + checks | **converter (separate tool)** — out of scope here | — |
 | RQ2 | label fidelity (equivalence for the 14 tasks) | `ocpm_eval/rq2_fidelity.py` | `results/rq2_fidelity.csv` |
 | RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `ocpm_eval/rq3_pipeline.py` | `results/rq3_results_random_forest.csv` |
-| RQ-EXT | object-enabled EXTENSION tasks (X-Inf, X-MSt) — **feasibility demo on a toy log**, not one of the four study logs; kept separate from the evaluated RQ2/RQ3 results | `ocpm_eval/rq_ext_pipeline.py` | `results/rq_ext_results_toy.csv` |
+| EXT | object-enabled EXTENSION tasks (X-Inf, X-MSt) — **follow-up work, not reported in the paper**; feasibility demo on a toy log, not one of the four study logs, kept separate from the RQ2/RQ3 results | `ocpm_eval/rq_ext_pipeline.py` | `results/rq_ext_results_toy.csv` |
 | RQ2/RQ3 (BPI2013) | real-world validation on BPI Challenge 2013 (incidents, collaborative) — **opt-in**, not one of the four study logs | `ocpm_eval/run_evaluation.py` (`log_groups=("bpi2013",)`) | `results/rq2_fidelity_bpi2013.csv`, `results/rq3_results_random_forest_bpi2013.csv` |
 
 RQ2 *equivalence* (the 14 tasks vs the original collaborative log, R1) needs the
 converter's R1 reader; pass `r1_logs={name: ObjectCentricLog}` to
 `ocpm_eval.run_evaluation.main`.
 
-### RQ-EXT — object-enabled extensions (X-Inf, X-MSt)
+### EXT — object-enabled extensions (X-Inf, X-MSt), follow-up work
 
 `ocpm_tasks/extensions.py` formalizes two "object-enabled" targets as label functions
 over the same neutral model as the 14 reformulated tasks, but keeps them **out of
@@ -378,13 +396,14 @@ by hand on specific synthetic patterns.
   is six tasks covering the anchor × problem-type combinations.
 - **Object-enabled extensions.** Two extension tasks outside the 14-task taxonomy,
   X-Inf and X-MSt, **are** implemented in `ocpm_tasks/extensions.py` but kept out
-  of `catalog.TASKS` — see the RQ-EXT section above. X-MSt presupposes a
+  of `catalog.TASKS` — see the EXT section above. X-MSt presupposes a
   correspondence between individual send and receive observations that the core
   mapping (rule M4) deliberately does not establish; it is supplied by the opt-in
   `corr_attr` enrichment in `ocpm_tasks/adapters.py`, not by the converter. Further
   extension directions (cross-case participant load, message-convergence
-  completion, inter-participant progress lag, intra-projection orchestration
-  concurrency) are outlined as future work and are **not** implemented here.
+  completion, inter-participant progress lag, intra-orchestration-case
+  concurrency, cross-case resource load) are outlined as future work and are
+  **not** implemented here.
 - **Targets vs features.** Targets are defined over each collaboration instance's
   global trace (linear cut points, deterministic order); features are object-centric
   and past-relative (prefix-respecting) so per-event rows do not leak the future.

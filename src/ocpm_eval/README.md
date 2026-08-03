@@ -67,7 +67,7 @@ cannot read it:
 
 ```bash
 # default evaluation: RQ2 + RQ3 (partial scope) on the four Predict-Collab
-# study logs, + RQ-EXT on the toy log — WITHOUT BPI2013 or the RQ3 full
+# study logs, + EXT on the toy log — WITHOUT BPI2013 or the RQ3 full
 # catalog. RQ3 requires OCPA installed; run from the repo root with .venv
 # active. Writes CSVs to results/.
 python -m ocpm_eval.run_evaluation
@@ -113,7 +113,7 @@ comparison).
   `cfg.predictor` (also default `"random_forest"`) untouched, so it only
   overrides when explicitly passed. Feeds the `rq3_results_{predictor}*.csv`
   filenames.
-- `run_rq_ext: bool = True` — RQ-EXT on the toy log; independent of the three axes above (see below)
+- `run_rq_ext: bool = True` — EXT on the toy log; independent of the three axes above (see below)
 
 There is no CLI flag for this yet — enable/disable stages by calling `main`
 programmatically:
@@ -121,7 +121,7 @@ programmatically:
 ```python
 from ocpm_eval.run_evaluation import main
 
-main()                                                    # default: Predict-Collab, RQ2+RQ3 partial, + RQ-EXT
+main()                                                    # default: Predict-Collab, RQ2+RQ3 partial, + EXT
 main(rq3_scopes=("partial", "full"))                      # + RQ3 full catalog on Predict-Collab
 main(log_groups=("predictcollab", "bpi2013"))              # + RQ2/RQ3 on BPI2013 as well
 main(log_groups=("bpi2013",), run_rq_ext=False)            # BPI2013 only (skips the four study logs)
@@ -171,7 +171,7 @@ baseline in some logs — unlike the subset, which was picked to show clear
 separation, the full catalog is a coverage check, not a predictive-quality
 claim. Beyond the 14-task catalog, `ocpm_tasks/extensions.py` implements two
 further object-enabled extension tasks (X-Inf, X-MSt) kept out of
-`catalog.TASKS` — see the RQ-EXT section below. X-MSt in particular
+`catalog.TASKS` — see the EXT section below. X-MSt in particular
 presupposes a send/receive correspondence that the core mapping (rule M4)
 deliberately does not establish, so it needs an enrichment step beyond the
 current converter.
