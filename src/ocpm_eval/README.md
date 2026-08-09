@@ -109,7 +109,8 @@ comparison).
 - `log_groups: Iterable["predictcollab"|"bpi2013"] = ("predictcollab",)`
 - `rq3_scopes: Iterable["partial"|"full"] = ("partial",)` — RQ3 only, ignored for RQ2
 - `predictor: Optional[str] = None` — key into `predictors.dispatch.PREDICTOR_REGISTRY`
-  (e.g. `"random_forest"`, `"lstm"`, etc.); `None` leaves
+  (`"random_forest"`, `"xgboost"`, `"lstm"`, `"lstm_torch"`, or `"gnn"`);
+  `None` leaves
   `cfg.predictor` (also default `"random_forest"`) untouched, so it only
   overrides when explicitly passed. Feeds the `rq3_results_{predictor}*.csv`
   filenames.
