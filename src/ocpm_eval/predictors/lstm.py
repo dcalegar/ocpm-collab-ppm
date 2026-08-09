@@ -59,7 +59,7 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
 
     from keras.utils import pad_sequences
     X_tr_pad = pad_sequences(seq_X_tr, padding='post', dtype='float32')
-    X_te_pad = pad_sequences(seq_X_te, padding='post', dtype='float32', maxlen=X_tr_pad.shape[1])
+    X_te_pad = pad_sequences(seq_X_te, padding='post', dtype='float32')
 
     units = getattr(cfg, "lstm_units", 64)
     epochs = getattr(cfg, "lstm_epochs", 20)
