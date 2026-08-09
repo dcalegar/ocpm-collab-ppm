@@ -77,8 +77,8 @@ class ExperimentConfig:
     gnn_device: str = "auto"  # "auto", "cpu", or "cuda"
     gnn_verbose: bool = True
     gnn_log_every: int = 5
-    # Candidate subgraph sizes (cut event included); one value disables k selection.
-    gnn_k_values: tuple = tuple(range(2, 9))
+    # Subgraph node counts (cut event included); use tuple(range(2, 9)) to test k=2..8.
+    gnn_k_values: tuple = (8,)
 
     # Key into predictors.dispatch.PREDICTOR_REGISTRY -- which fit_and_score_fold
     # implementation run_rq3/run_rq_ext use. Only "random_forest" exists today;
