@@ -93,7 +93,21 @@ def extract_feature_table(name: str, schema, ocel2_sqlite_path: str,
 
     ocel = ocpa_ocel if ocpa_ocel is not None else load_ocpa_ocel(schema, ocel2_sqlite_path)
     feature_set = build_feature_set(ocel, schema)
-    feature_storage = predictive_monitoring.apply(ocel, feature_set, [])
+    
+    # Patch pd.Series.explode to fix a bug in OCPA's leading_type execution extraction
+    # where empty event_objects sets result in NaN nodes being added to the object graph
+    _orig_explode = pd.Series.explode
+    def _patched_explode(self, *args, **kwargs):
+        res = _orig_explode(self, *args, **kwargs)
+        if hasattr(self, 'name') and self.name == "event_objects":
+            res = res.dropna()
+        return res
+    pd.Series.explode = _patched_explode
+    
+    try:
+        feature_storage = predictive_monitoring.apply(ocel, feature_set, [])
+    finally:
+        pd.Series.explode = _orig_explode
     table = tabular.construct_table(feature_storage).reset_index(drop=True)
 
     row_ids = _row_event_ids(feature_storage)
@@ -133,4 +147,4 @@ def extract_feature_table(name: str, schema, ocel2_sqlite_path: str,
 
     feature_cols = [c for c in table.columns
                     if c not in (rem_col, "event_id", "case_id")]
-    return {"table": table, "feature_cols": feature_cols}
+    return {"table": table, "feature_cols": feature_cols, "feature_storage": feature_storage}

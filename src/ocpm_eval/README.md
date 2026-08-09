@@ -24,7 +24,7 @@ package is the fuller, cross-validated version of the same pattern.
 | `config.py` | `ExperimentConfig`, `LogSpec` — log registry, CV/learner hyperparameters, output dir |
 | `io_ocel.py` | `load_ocpa_ocel` / `read_ocel2_labels` — OCEL 2.0 SQLite → OCPA object (features) and → neutral model (labels), sharing one read path |
 | `features_ocpa.py` | `extract_feature_table` — native OCPA past-relative features (RQ3), with the event-id alignment oracle |
-| `predictors/` | one fit-and-score module per learner (`random_forest.py` today), behind `dispatch.PREDICTOR_REGISTRY` keyed by `ExperimentConfig.predictor` — fit + **predict** + score, plus a trivial baseline |
+| `predictors/` | one fit-and-score module per learner (`random_forest.py`, `lstm.py`, etc.), behind `dispatch.PREDICTOR_REGISTRY` keyed by `ExperimentConfig.predictor` — fit + **predict** + score, plus a trivial baseline |
 | `rq2_fidelity.py` | RQ2 — label-fidelity: R1 (source XES) vs R2 (OCEL) equivalence for the 14 tasks |
 | `rq3_pipeline.py` | RQ3 — end-to-end feasibility: features + labels joined, 5-fold `GroupKFold` CV grouped by `CollaborationCase` |
 | `run_evaluation.py` | orchestrator — runs the requested (rq, log_group, rq3_scope) combinations and writes all CSVs |
@@ -109,7 +109,7 @@ comparison).
 - `log_groups: Iterable["predictcollab"|"bpi2013"] = ("predictcollab",)`
 - `rq3_scopes: Iterable["partial"|"full"] = ("partial",)` — RQ3 only, ignored for RQ2
 - `predictor: Optional[str] = None` — key into `predictors.dispatch.PREDICTOR_REGISTRY`
-  (e.g. `"random_forest"`, the only one implemented today); `None` leaves
+  (e.g. `"random_forest"`, `"lstm"`, etc.); `None` leaves
   `cfg.predictor` (also default `"random_forest"`) untouched, so it only
   overrides when explicitly passed. Feeds the `rq3_results_{predictor}*.csv`
   filenames.

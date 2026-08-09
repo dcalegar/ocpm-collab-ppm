@@ -15,9 +15,10 @@ from ocpm_tasks.catalog import Task
 from .common import xy_split
 
 
-def fit_and_score_fold(table: pd.DataFrame, feature_cols: List[str], y_col: str,
+def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
                        task: Task, train_mask, test_mask, cfg) -> Dict[str, float]:
-    X_tr, X_te, y_tr, y_te = xy_split(table, feature_cols, y_col, train_mask, test_mask)
+    feature_cols = feats["feature_cols"]
+    X_tr, X_te, y_tr, y_te = xy_split(tt, feature_cols, y_col, train_mask, test_mask)
     if len(y_tr) == 0 or len(y_te) == 0:
         return {}
     if task.kind in ("categorical", "binary"):

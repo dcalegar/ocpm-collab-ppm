@@ -94,7 +94,7 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
         for tr, te in gkf.split(idx, groups=groups):
             train_mask = pd.Series(False, index=tt.index); train_mask.iloc[tr] = True
             test_mask = pd.Series(False, index=tt.index); test_mask.iloc[te] = True
-            r = fit_fn(tt, feature_cols, "_y", task,
+            r = fit_fn(feats, tt, "_y", task,
                       train_mask, test_mask, cfg)
             if r:
                 ms.append(r["metric"]); bs.append(r["baseline"])
