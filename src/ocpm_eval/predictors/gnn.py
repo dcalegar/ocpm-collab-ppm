@@ -94,7 +94,25 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
 
     seed = getattr(cfg, "random_state", 3395)
     torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
+    requested_device = getattr(cfg, "gnn_device", "auto").lower()
+    if requested_device not in ("auto", "cpu", "cuda"):
+        raise ValueError("gnn_device must be 'auto', 'cpu', or 'cuda'")
+    if requested_device == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("gnn_device='cuda', but CUDA is not available")
+    use_cuda = requested_device == "cuda" or (
+        requested_device == "auto" and torch.cuda.is_available())
+    device = torch.device("cuda" if use_cuda else "cpu")
+    if device.type == "cuda":
+        try:
+            dgl.graph(([0], [0]), num_nodes=1).to(device)
+        except Exception as exc:
+            if requested_device == "cuda":
+                raise RuntimeError(
+                    "CUDA is available in PyTorch, but this DGL build cannot use it") from exc
+            device = torch.device("cpu")
     development, test = tt.loc[train_mask], tt.loc[test_mask]
     train_cases, val_cases = execution_train_validation_split(
         development["case_id"].astype(str), seed)
@@ -120,6 +138,8 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
     verbose = getattr(cfg, "gnn_verbose", True)
     log_every = max(1, getattr(cfg, "gnn_log_every", 5))
     context = f"[GNN][{feats.get('log_name', 'unknown')}][{task.key}]"
+    if verbose:
+        print(f"    {context} device={device}")
 
     class GCN(nn.Module):
         def __init__(self, output_dim):
@@ -133,7 +153,7 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
         def forward(self, graph):
             h = torch.relu(self.conv1(graph, graph.ndata["x"]))
             h = torch.relu(self.conv2(graph, h))
-            counts = graph.batch_num_nodes().tolist()
+            counts = graph.batch_num_nodes().detach().cpu().tolist()
             offsets = np.cumsum([0] + counts[:-1])
             cut_nodes = torch.stack([h[int(o + n - 1)]
                                      for o, n in zip(offsets, counts)])
@@ -172,7 +192,7 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
         if verbose:
             print(f"    {context} k={k}: train={len(training)}, "
                   f"validation={len(validating)}")
-        model = GCN(len(encoder.classes_) if classification else 1)
+        model = GCN(len(encoder.classes_) if classification else 1).to(device)
         optimizer = torch.optim.Adam(model.parameters(),
                                      lr=getattr(cfg, "gnn_learning_rate", 0.001))
         loss_fn = nn.CrossEntropyLoss() if classification else nn.MSELoss()
@@ -184,13 +204,15 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
             total_loss = 0.0
             batches = 0
             for graph, labels in loader:
+                graph = graph.to(device)
+                labels = labels.to(device)
                 optimizer.zero_grad()
                 output = model(graph)
                 loss = (loss_fn(output, labels) if classification else
                         loss_fn(output.squeeze(-1), labels))
                 loss.backward()
                 optimizer.step()
-                total_loss += float(loss.detach())
+                total_loss += float(loss.detach().cpu())
                 batches += 1
             if verbose and (epoch == 1 or epoch % log_every == 0 or epoch == epochs):
                 print(f"      epoch {epoch}/{epochs} "
@@ -198,16 +220,25 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
         model.eval()
         with torch.no_grad():
             graph, labels = collate(validating)
+            graph = graph.to(device)
+            labels = labels.to(device)
             prediction = model(graph)
-        objective = (-f1_score(labels.numpy(), prediction.argmax(1).numpy(),
+        actual = labels.detach().cpu().numpy()
+        predicted = prediction.detach().cpu().numpy()
+        objective = (-f1_score(actual, predicted.argmax(1),
                                average="macro", zero_division=0)
                      if classification else
-                     mean_absolute_error(labels.numpy(), prediction.squeeze(-1).numpy()))
+                     mean_absolute_error(actual, predicted.squeeze(-1)))
         if verbose:
             metric_name = "f1_macro" if classification else "mae"
             shown = -objective if classification else objective
             print(f"    {context} k={k}: validation_{metric_name}={shown:.6f}")
-        return objective, model
+        state = {name: value.detach().cpu().clone()
+                 for name, value in model.state_dict().items()}
+        del model
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+        return objective, state
 
     candidates = []
     for k in getattr(cfg, "gnn_k_values", tuple(range(2, 9))):
@@ -216,7 +247,9 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
             candidates.append((result[0], k, result[1]))
     if not candidates:
         return {}
-    _, best_k, model = min(candidates, key=lambda candidate: candidate[0])
+    _, best_k, best_state = min(candidates, key=lambda candidate: candidate[0])
+    model = GCN(len(encoder.classes_) if classification else 1).to(device)
+    model.load_state_dict(best_state)
     if verbose:
         print(f"    {context} selected_k={best_k}")
     testing, samples = prepare(test, best_k)
@@ -225,15 +258,19 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
     model.eval()
     with torch.no_grad():
         graph, labels = collate(testing)
+        graph = graph.to(device)
+        labels = labels.to(device)
         prediction = model(graph)
     if classification:
-        actual, predicted = labels.numpy(), prediction.argmax(1).numpy()
+        actual = labels.detach().cpu().numpy()
+        predicted = prediction.argmax(1).detach().cpu().numpy()
         majority = encoder.transform([train[y_col].astype(str).mode().iloc[0]])[0]
         metric = f1_score(actual, predicted, average="macro", zero_division=0)
         baseline = f1_score(actual, np.full(len(actual), majority),
                             average="macro", zero_division=0)
     else:
-        actual, predicted = labels.numpy(), prediction.squeeze(-1).numpy()
+        actual = labels.detach().cpu().numpy()
+        predicted = prediction.squeeze(-1).detach().cpu().numpy()
         median = float(train[y_col].astype(float).median())
         metric = mean_absolute_error(actual, predicted)
         baseline = mean_absolute_error(actual, np.full(len(actual), median))

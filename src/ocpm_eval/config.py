@@ -74,6 +74,7 @@ class ExperimentConfig:
     gnn_epochs: int = 20
     gnn_batch_size: int = 32
     gnn_learning_rate: float = 0.001
+    gnn_device: str = "auto"  # "auto", "cpu", or "cuda"
     gnn_verbose: bool = True
     gnn_log_every: int = 5
     # Candidate subgraph sizes (cut event included); one value disables k selection.
