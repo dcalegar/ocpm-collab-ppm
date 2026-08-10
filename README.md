@@ -1,4 +1,4 @@
-# Object-Centric Predictive Monitoring of Collaborative Processes
+# A Framework for Object-Centric Predictive Monitoring of Collaborative Processes
 
 Reproducibility code for the study that reformulates collaborative predictive process
 monitoring (PPM) tasks over a **rich object-centric representation (OCEL 2.0)** and
