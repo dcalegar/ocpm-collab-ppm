@@ -13,6 +13,7 @@ class EventGraphSample:
     event_id: str
     node_ids: Tuple[str, ...]
     edges: Tuple[Tuple[int, int], ...]
+    target_index: int
     x: np.ndarray
     y: object
 
@@ -36,14 +37,14 @@ def _graph_index(storage) -> Dict[str, Tuple[object, Dict[str, int]]]:
 
 def extract_k_prefix_graphs(feats: dict, rows: pd.DataFrame, y_col: str,
                             k: int) -> List[EventGraphSample]:
-    """Extract fixed-size induced graphs from structural predecessors.
+    """Extract variable-size induced graphs from structural predecessors.
 
     ``k`` includes the cut event, as in prefix-based predictive monitoring.
     The other nodes are its closest ancestors in the OCPA event graph. Initial
-    prefixes shorter than k are skipped rather than padded with invented events.
+    prefixes shorter than k are retained at their natural size.
     """
-    if not 2 <= k <= 8:
-        raise ValueError("k must be between 2 and 8")
+    if k < 1:
+        raise ValueError("k must be positive")
     if feats.get("feature_storage") is None:
         raise ValueError("GNN requires OCPA feature_storage")
     labelled = rows.copy()
@@ -70,26 +71,24 @@ def extract_k_prefix_graphs(feats: dict, rows: pd.DataFrame, y_col: str,
                     distances[parent] = distances[current] + 1
                     queue.append(parent)
         chosen = sorted(distances, key=lambda e: (distances[e], -order[e]))[:k]
-        if len(chosen) < k:
-            continue
         chosen.sort(key=order.get)
         local = {event_id: i for i, event_id in enumerate(chosen)}
         edges = tuple((local[s], local[t]) for s, t in raw_edges
                       if s in local and t in local)
-        edges += tuple((i, i) for i in range(k))
+        edges += tuple((i, i) for i in range(len(chosen)))
         samples.append(EventGraphSample(
-            target_id, tuple(chosen), edges,
+            target_id, tuple(chosen), edges, local[target_id],
             full.loc[chosen, cols].to_numpy(dtype=np.float32),
             labelled.loc[target_id, y_col]))
     return samples
 
 
 def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
-    """Select k=2..8 on whole validation executions, then evaluate test once."""
+    """Select the configured k on validation executions, then evaluate test once."""
     import dgl
     import torch
     import torch.nn as nn
-    from dgl.nn import GraphConv
+    from dgl.nn import GlobalAttentionPooling, GraphConv
     from torch.utils.data import DataLoader
 
     seed = getattr(cfg, "random_state", 3395)
@@ -132,7 +131,10 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
     scaled_tt[cols] = scaled_tt[cols].astype(float)
     scaled_tt.loc[:, cols] = scaler.transform(tt[cols].fillna(0.0))
     classification = task.kind in ("categorical", "binary")
-    encoder = LabelEncoder().fit(train[y_col].astype(str)) if classification else None
+    # Include validation-only classes for the final development refit, without
+    # using any label information from the test fold.
+    encoder = (LabelEncoder().fit(development[y_col].astype(str))
+               if classification else None)
     class_index = ({label: i for i, label in enumerate(encoder.classes_)}
                    if classification else {})
     verbose = getattr(cfg, "gnn_verbose", True)
@@ -147,26 +149,31 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
             hidden = getattr(cfg, "gnn_hidden_dim", 64)
             self.conv1 = GraphConv(len(cols), hidden, allow_zero_in_degree=True)
             self.conv2 = GraphConv(hidden, hidden, allow_zero_in_degree=True)
-            self.head = nn.Sequential(nn.ReLU(), nn.Dropout(0.2),
-                                      nn.Linear(hidden, output_dim))
+            self.pool = GlobalAttentionPooling(nn.Linear(hidden, 1))
+            self.head = nn.Sequential(
+                nn.Linear(hidden * 2, hidden), nn.ReLU(), nn.Dropout(0.2),
+                nn.Linear(hidden, output_dim))
 
-        def forward(self, graph):
+        def forward(self, graph, target_indices):
             h = torch.relu(self.conv1(graph, graph.ndata["x"]))
             h = torch.relu(self.conv2(graph, h))
             counts = graph.batch_num_nodes().detach().cpu().tolist()
             offsets = np.cumsum([0] + counts[:-1])
-            cut_nodes = torch.stack([h[int(o + n - 1)]
-                                     for o, n in zip(offsets, counts)])
-            return self.head(cut_nodes)
+            cut_nodes = torch.stack([
+                h[int(offset + target)]
+                for offset, target in zip(offsets, target_indices.tolist())
+            ])
+            graph_context = self.pool(graph, h)
+            return self.head(torch.cat([cut_nodes, graph_context], dim=1))
 
     def prepare(frame, k):
         ids = set(frame["event_id"].astype(str))
         source = scaled_tt[scaled_tt["event_id"].astype(str).isin(ids)]
         samples = extract_k_prefix_graphs(scaled_feats, source, y_col, k)
         pairs = []
-        # An unseen validation/test class remains a distinct true label; the
-        # train-fitted head cannot predict it, which is the honest error rather
-        # than leaking the held-out vocabulary into model construction.
+        # Only test labels can be outside the development-fitted vocabulary.
+        # Keep them as an extra true-label index so they count as errors without
+        # leaking test classes into the model output space.
         values = ([class_index.get(str(s.y), len(class_index)) for s in samples]
                   if classification
                   else [float(s.y) for s in samples])
@@ -175,12 +182,14 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
             graph = dgl.graph((src, dst), num_nodes=len(sample.node_ids))
             graph.ndata["x"] = torch.as_tensor(sample.x, dtype=torch.float32)
             dtype = torch.long if classification else torch.float32
-            pairs.append((graph, torch.as_tensor(value, dtype=dtype)))
+            pairs.append((graph, torch.as_tensor(value, dtype=dtype),
+                          sample.target_index))
         return pairs, samples
 
     def collate(batch):
-        graphs, labels = zip(*batch)
-        return dgl.batch(graphs), torch.stack(labels)
+        graphs, labels, target_indices = zip(*batch)
+        return (dgl.batch(graphs), torch.stack(labels),
+                torch.as_tensor(target_indices, dtype=torch.long))
 
     def train_for(k):
         training, _ = prepare(train, k)
@@ -195,50 +204,97 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
         model = GCN(len(encoder.classes_) if classification else 1).to(device)
         optimizer = torch.optim.Adam(model.parameters(),
                                      lr=getattr(cfg, "gnn_learning_rate", 0.001))
-        loss_fn = nn.CrossEntropyLoss() if classification else nn.MSELoss()
+        if classification:
+            training_labels = np.asarray([
+                int(label.item()) for _, label, _ in training])
+            counts = np.bincount(training_labels,
+                                 minlength=len(encoder.classes_))
+            weights = np.zeros(len(counts), dtype=np.float32)
+            present = counts > 0
+            weights[present] = (len(training_labels) /
+                                (present.sum() * counts[present]))
+            loss_fn = nn.CrossEntropyLoss(
+                weight=torch.as_tensor(weights, device=device))
+        else:
+            loss_fn = nn.HuberLoss(
+                delta=getattr(cfg, "gnn_huber_delta", 1.0))
         loader = DataLoader(training, batch_size=getattr(cfg, "gnn_batch_size", 32),
                             shuffle=True, collate_fn=collate)
-        epochs = getattr(cfg, "gnn_epochs", 20)
+        epochs = getattr(cfg, "gnn_epochs", 100)
+        patience = max(0, getattr(cfg, "gnn_early_stopping_patience", 10))
+        min_delta = max(0.0, getattr(cfg, "gnn_early_stopping_min_delta", 0.0001))
+        validation_graph, validation_labels, validation_targets = collate(validating)
+        validation_graph = validation_graph.to(device)
+        validation_labels = validation_labels.to(device)
+        validation_targets = validation_targets.to(device)
+        best_objective = float("inf")
+        best_state = None
+        best_epoch = 0
+        epochs_without_improvement = 0
         for epoch in range(1, epochs + 1):
             model.train()
             total_loss = 0.0
             batches = 0
-            for graph, labels in loader:
+            for graph, labels, targets in loader:
                 graph = graph.to(device)
                 labels = labels.to(device)
+                targets = targets.to(device)
                 optimizer.zero_grad()
-                output = model(graph)
+                output = model(graph, targets)
                 loss = (loss_fn(output, labels) if classification else
                         loss_fn(output.squeeze(-1), labels))
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
                 optimizer.step()
                 total_loss += float(loss.detach().cpu())
                 batches += 1
+            model.eval()
+            with torch.no_grad():
+                validation_prediction = model(validation_graph, validation_targets)
+            validation_actual = validation_labels.detach().cpu().numpy()
+            validation_predicted = validation_prediction.detach().cpu().numpy()
+            if classification:
+                validation_metric = f1_score(
+                    validation_actual, validation_predicted.argmax(1),
+                    average="macro", zero_division=0)
+                objective = -validation_metric
+                metric_name = "f1_macro"
+            else:
+                validation_metric = mean_absolute_error(
+                    validation_actual, validation_predicted.squeeze(-1))
+                objective = validation_metric
+                metric_name = "mae"
+
+            if objective < best_objective - min_delta:
+                best_objective = objective
+                best_epoch = epoch
+                epochs_without_improvement = 0
+                best_state = {
+                    name: value.detach().cpu().clone()
+                    for name, value in model.state_dict().items()
+                }
+            else:
+                epochs_without_improvement += 1
             if verbose and (epoch == 1 or epoch % log_every == 0 or epoch == epochs):
                 print(f"      epoch {epoch}/{epochs} "
-                      f"loss={total_loss / max(1, batches):.6f}")
-        model.eval()
-        with torch.no_grad():
-            graph, labels = collate(validating)
-            graph = graph.to(device)
-            labels = labels.to(device)
-            prediction = model(graph)
-        actual = labels.detach().cpu().numpy()
-        predicted = prediction.detach().cpu().numpy()
-        objective = (-f1_score(actual, predicted.argmax(1),
-                               average="macro", zero_division=0)
-                     if classification else
-                     mean_absolute_error(actual, predicted.squeeze(-1)))
+                      f"loss={total_loss / max(1, batches):.6f} "
+                      f"validation_{metric_name}={validation_metric:.6f}")
+            if patience and epochs_without_improvement >= patience:
+                if verbose:
+                    print(f"      early stopping at epoch {epoch}; "
+                          f"best_epoch={best_epoch}")
+                break
+
+        if best_state is None:
+            return None
         if verbose:
-            metric_name = "f1_macro" if classification else "mae"
-            shown = -objective if classification else objective
-            print(f"    {context} k={k}: validation_{metric_name}={shown:.6f}")
-        state = {name: value.detach().cpu().clone()
-                 for name, value in model.state_dict().items()}
+            shown = -best_objective if classification else best_objective
+            print(f"    {context} k={k}: best_epoch={best_epoch} "
+                  f"validation_{metric_name}={shown:.6f}")
         del model
         if device.type == "cuda":
             torch.cuda.empty_cache()
-        return objective, state
+        return best_objective, best_epoch
 
     candidates = []
     for k in getattr(cfg, "gnn_k_values", tuple(range(2, 9))):
@@ -247,31 +303,70 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
             candidates.append((result[0], k, result[1]))
     if not candidates:
         return {}
-    _, best_k, best_state = min(candidates, key=lambda candidate: candidate[0])
+    _, best_k, best_epoch = min(candidates, key=lambda candidate: candidate[0])
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
     model = GCN(len(encoder.classes_) if classification else 1).to(device)
-    model.load_state_dict(best_state)
+    development_data, _ = prepare(development, best_k)
+    if not development_data:
+        return {}
+    if classification:
+        development_labels = np.asarray([
+            int(label.item()) for _, label, _ in development_data])
+        counts = np.bincount(development_labels,
+                             minlength=len(encoder.classes_))
+        weights = np.zeros(len(counts), dtype=np.float32)
+        present = counts > 0
+        weights[present] = (len(development_labels) /
+                            (present.sum() * counts[present]))
+        development_loss = nn.CrossEntropyLoss(
+            weight=torch.as_tensor(weights, device=device))
+    else:
+        development_loss = nn.HuberLoss(
+            delta=getattr(cfg, "gnn_huber_delta", 1.0))
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=getattr(cfg, "gnn_learning_rate", 0.001))
+    loader = DataLoader(
+        development_data, batch_size=getattr(cfg, "gnn_batch_size", 32),
+        shuffle=True, collate_fn=collate)
+    for _ in range(best_epoch):
+        model.train()
+        for graph, labels, targets in loader:
+            graph = graph.to(device)
+            labels = labels.to(device)
+            targets = targets.to(device)
+            optimizer.zero_grad()
+            output = model(graph, targets)
+            loss = (development_loss(output, labels) if classification else
+                    development_loss(output.squeeze(-1), labels))
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+            optimizer.step()
     if verbose:
-        print(f"    {context} selected_k={best_k}")
+        print(f"    {context} selected_k={best_k} refit_epochs={best_epoch}")
     testing, samples = prepare(test, best_k)
     if not testing:
         return {}
     model.eval()
     with torch.no_grad():
-        graph, labels = collate(testing)
+        graph, labels, targets = collate(testing)
         graph = graph.to(device)
         labels = labels.to(device)
-        prediction = model(graph)
+        targets = targets.to(device)
+        prediction = model(graph, targets)
     if classification:
         actual = labels.detach().cpu().numpy()
         predicted = prediction.argmax(1).detach().cpu().numpy()
-        majority = encoder.transform([train[y_col].astype(str).mode().iloc[0]])[0]
+        majority = encoder.transform([
+            development[y_col].astype(str).mode().iloc[0]])[0]
         metric = f1_score(actual, predicted, average="macro", zero_division=0)
         baseline = f1_score(actual, np.full(len(actual), majority),
                             average="macro", zero_division=0)
     else:
         actual = labels.detach().cpu().numpy()
         predicted = prediction.squeeze(-1).detach().cpu().numpy()
-        median = float(train[y_col].astype(float).median())
+        median = float(development[y_col].astype(float).median())
         metric = mean_absolute_error(actual, predicted)
         baseline = mean_absolute_error(actual, np.full(len(actual), median))
     if verbose:
