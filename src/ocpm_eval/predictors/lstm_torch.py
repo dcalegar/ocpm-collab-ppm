@@ -69,9 +69,11 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
     if task.kind in ("categorical", "binary"):
         y_tr_used = y_tr.astype(str)
         y_te_used = y_te.astype(str)
+        y_scaler = None
     else:
-        y_tr_used = y_tr
-        y_te_used = y_te
+        y_scaler = StandardScaler()
+        y_tr_used = pd.Series(y_scaler.fit_transform(y_tr.astype(float).values.reshape(-1, 1)).flatten())
+        y_te_used = pd.Series(y_scaler.transform(y_te.astype(float).values.reshape(-1, 1)).flatten())
 
     seq_X_tr, seq_y_tr = make_sequences(X_tr_scaled, y_tr_used, case_ids_tr)
     seq_X_te, seq_y_te = make_sequences(X_te_scaled, y_te_used, case_ids_te)
@@ -196,6 +198,8 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
         flat_pred = []
         for i, l in enumerate(lengths_te):
             flat_pred.extend(out_te[i, :l])
+        flat_pred = np.array(flat_pred)
+        flat_pred = y_scaler.inverse_transform(flat_pred.reshape(-1, 1)).flatten()
             
         y_te_float = y_te.astype(float).to_numpy()
         median = float(np.median(y_tr.astype(float).to_numpy()))
