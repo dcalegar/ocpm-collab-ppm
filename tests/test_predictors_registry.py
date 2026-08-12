@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import pandas as pd                                                       # noqa: E402
 from ocpm_eval.config import ExperimentConfig                             # noqa: E402
-from ocpm_eval.predictors.dispatch import PREDICTOR_REGISTRY, resolve     # noqa: E402
+from predictors.dispatch import PREDICTOR_REGISTRY, resolve               # noqa: E402
 from ocpm_tasks.catalog import Task, CC, BINARY, REG_TIME                 # noqa: E402
 
 FEATURE_COLS = ["x1", "x2"]

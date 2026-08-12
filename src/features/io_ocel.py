@@ -74,8 +74,8 @@ from ocpm_tasks.model import ObjectCentricLog
 # ``object_object`` (``o2o_graph`` is read from ``object_object`` directly
 # and is unaffected). Deleting EVERY 'in_participant' row therefore drops
 # every participant object from OCPA's object table, so any O2O lookup
-# that must confirm a target is participant-typed (e.g. Message
-# from/to, used by the X-MSt extension) silently fails even though the
+# that must confirm a target is participant-typed (e.g. a Message's
+# from/to endpoint) silently fails even though the
 # O2O edge itself is intact. Keeping exactly one witness row per distinct
 # participant object avoids this: that participant is still E2O-linked to
 # a single event (so OCPA's object table keeps it, correctly typed), while
@@ -139,7 +139,7 @@ def _break_timestamp_ties(path: str) -> str:
     SAME CollaborationCase share an identical ``ocel_time`` (D23).
 
     Rationale: OCPA's positional features (``previous_type_count``, used
-    for X-Inf/OB-M/NV-* etc. via ``features_ocpa.build_feature_set``) cut
+    for OB-M/NV-* etc. via ``ocpa.build_feature_set``) cut
     the prefix with ``event_timestamp <= cut_time``
     (ocpa/algo/predictive_monitoring/event_based_features/
     extraction_functions.py::_get_recent_events), NOT with the source log's
@@ -148,7 +148,7 @@ def _break_timestamp_ties(path: str) -> str:
     ``<=`` includes BOTH at each other's cut point, leaking one event's
     existence into the other's "past" count. This is a real, non-uniform
     effect in BPIC2013 (4,051 same-instant Send/Receive pairs); the four
-    study logs and ToyCollab have no ties and are unaffected (this
+    study logs have no ties and are unaffected (this
     function is then a no-op and returns ``path`` unchanged).
 
     The nudge uses ``ocel_id``, which already encodes the correct
@@ -351,16 +351,12 @@ def load_ocpa_ocel(schema, path: str):
             _unlink_temp_sqlite(stripped_path)
 
 
-def read_ocel2_labels(path: str, schema,
-                      ocpa_ocel=None, corr_attr=None) -> ObjectCentricLog:
+def read_ocel2_labels(path: str, schema, ocpa_ocel=None) -> ObjectCentricLog:
     """Build the neutral ObjectCentricLog from an OCEL 2.0 SQLite file.
     If ``ocpa_ocel`` is provided it is used via from_ocpa; otherwise the
     stdlib sqlite3 reader is used to avoid OCPA's itertuples/getattr path
     which breaks on attribute names containing non-identifier characters
-    (e.g. 'org:group' → 'event_org:group').
-    ``corr_attr``: optional enrichment attribute name for Event.corr_id
-    (X-MSt only; see ocpm_tasks.adapters.build_from_relations). None for
-    the four study logs (unchanged core-mapping behaviour)."""
+    (e.g. 'org:group' → 'event_org:group')."""
     if ocpa_ocel is not None:
-        return from_ocpa(ocpa_ocel, schema, corr_attr=corr_attr)
-    return from_ocel2_sqlite(path, schema, corr_attr=corr_attr)
+        return from_ocpa(ocpa_ocel, schema)
+    return from_ocel2_sqlite(path, schema)

@@ -2,8 +2,8 @@
 Adapters that build the neutral object-centric model from a concrete OCEL, so that the
 task library can be used **inside OCPA or pm4py** without coupling to the
 experimentation. The collaborative roles (see ``schema.py``) are derived here from E2O
-qualifiers (within/in_orchestration/send/receive/participant) and O2O qualifiers
-(part_of/for_participant/from/to/exchanged_in);
+qualifiers (in_collaboration/in_orchestration/send/receive/in_participant) and O2O
+qualifiers (part_of/for_participant/from/to/exchanged_in);
 ``build_from_relations`` contains the (library-tested) derivation, and the
 ``from_pm4py`` / ``from_ocpa`` wrappers only extract relations and attributes from the
 respective object.
@@ -125,51 +125,8 @@ class _Ob:
 
 
 def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
-                         schema: Optional[Schema] = None,
-                         corr_attr: Optional[str] = None) -> ObjectCentricLog:
-    """``Event.corr_id`` -- the native message-correlation id used by the X-MSt
-    extension task (ocpm_tasks/extensions.py) -- is resolved from TWO
-    independent, non-core sources (M4/P1.3: the core mapping infers no
-    send<->receive correspondence on its own), tried in this order:
-
-    1. The mapping's own correlation refinement layer (C1), materialized as a
-       `correlated_with` O2O relation from a send Message to the receive
-       Message it pairs with (mapping.collab_xes_to_ocel._apply_correlation_layer).
-       Only an UNAMBIGUOUS pair -- exactly one outgoing edge from the send
-       side and exactly one incoming edge on the receive side -- is resolved;
-       a Message with more than one such edge is exactly the defect PC.1
-       reports; it is left unresolved here rather than picking one
-       arbitrarily (mirrors PC.1's own multiplicity check, rather than
-       silently disagreeing with it).
-    2. ``corr_attr``: OPT-IN ENRICHMENT, not part of the core mapping. If given,
-       the named residual event attribute (M8) is read off each send/receive
-       event whose Message has no unambiguous `correlated_with` edge -- a
-       fallback for a log that never applied C1 (e.g. a "bring your own OCEL"
-       source carrying its own raw correlation attribute but no
-       `correlated_with` relation).
-
-    Left with neither source (``corr_attr=None`` and no `correlated_with`
-    relation in the log), this is a no-op and every ``Event.corr_id`` stays
-    None, exactly as in the unenriched core model."""
+                         schema: Optional[Schema] = None) -> ObjectCentricLog:
     sch = schema or Schema()
-
-    # --- correlation resolution (source 1 above): unambiguous
-    # `correlated_with` pairs, keyed by EITHER message endpoint's own oid so
-    # a send event and its matched receive event resolve to the same value.
-    corr_out_count: Dict[str, int] = {}
-    corr_in_count: Dict[str, int] = {}
-    corr_edges: List[Tuple[str, str]] = []
-    for oid, o in objects.items():
-        for tgt, q in o.o2o:
-            if q == sch.q_correlated_with:
-                corr_edges.append((oid, tgt))
-                corr_out_count[oid] = corr_out_count.get(oid, 0) + 1
-                corr_in_count[tgt] = corr_in_count.get(tgt, 0) + 1
-    corr_canonical: Dict[str, str] = {}
-    for src, tgt in corr_edges:
-        if corr_out_count.get(src, 0) == 1 and corr_in_count.get(tgt, 0) == 1:
-            corr_canonical[src] = src
-            corr_canonical[tgt] = src
 
     def otype(oid):
         o = objects.get(oid) if oid else None
@@ -221,7 +178,7 @@ def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
         is_send = is_recv = False
         for oid, q in ev.e2o:
             t = otype(oid)
-            if q == sch.q_within and t == sch.ot_cc:
+            if q == sch.q_in_collaboration and t == sch.ot_cc:
                 cc_oid = oid
             elif q == sch.q_in_orchestration and t == sch.ot_oc:
                 oc_oid = oid
@@ -229,25 +186,19 @@ def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
                 is_send, msg_oid = True, oid
             elif q == sch.q_receive and t == sch.ot_message:
                 is_recv, msg_oid = True, oid
-            elif q == sch.q_participant and sch.is_participant_type(t):
+            elif q == sch.q_in_participant and sch.is_participant_type(t):
                 # Must match the qualifier, not just the target type: an
                 # exported log may carry a D25 witness edge (qualifier
                 # 'from'/'to') from this same event to a counterparty-only
                 # participant, which is also participant-typed but is not
                 # pa(eps) (Definition, accessors over mu(L) -- the
-                # 'participant' qualifier, M6).
+                # 'in_participant' qualifier, M6).
                 pa_oid = oid
         if cc_oid is None:
             continue
         if cc_oid not in cc_caseid:
             cc_caseid[cc_oid] = str(oattr(cc_oid, sch.oa_caseid) or cc_oid)
         is_msg = is_send or is_recv
-        corr_id = None
-        if is_msg and msg_oid is not None and msg_oid in corr_canonical:
-            corr_id = corr_canonical[msg_oid]
-        elif corr_attr and is_msg:
-            v = ev.attrs.get(corr_attr)
-            corr_id = str(v) if v is not None else None
         by_cc.setdefault(cc_oid, []).append(Event(
             event_id=str(ev.id), activity=str(ev.activity), timestamp=ev.time,
             actor=participant_of(oc_oid, pa_oid),
@@ -255,8 +206,7 @@ def build_from_relations(events: List[_Ev], objects: Dict[str, _Ob],
             msg_id=str(msg_oid) if (is_msg and msg_oid is not None) else None,
             msg_type=(str(ev.activity) if is_msg else None),
             msg_from=msg_party(msg_oid, sch.q_from, sch.oa_sender) if is_msg else None,
-            msg_to=msg_party(msg_oid, sch.q_to, sch.oa_receiver) if is_msg else None,
-            corr_id=corr_id))
+            msg_to=msg_party(msg_oid, sch.q_to, sch.oa_receiver) if is_msg else None))
 
     return ObjectCentricLog([Execution(cc_caseid[c], evs)
                              for c, evs in by_cc.items()])
@@ -298,8 +248,7 @@ def from_pm4py(pm4py_ocel, schema: Optional[Schema] = None) -> ObjectCentricLog:
     return build_from_relations(events, objects, schema)
 
 
-def from_ocpa(ocpa_ocel, schema: Optional[Schema] = None,
-             corr_attr: Optional[str] = None) -> ObjectCentricLog:
+def from_ocpa(ocpa_ocel, schema: Optional[Schema] = None) -> ObjectCentricLog:
     """Build the neutral model from an OCPA OCEL 2.0 object (loaded via
     ``ocpa.objects.log.importer.ocel2.sqlite.factory.apply``).
 
@@ -369,7 +318,7 @@ def from_ocpa(ocpa_ocel, schema: Optional[Schema] = None,
                 attrs[c[len("event_"):]] = v   # strip "event_" prefix
         events.append(_Ev(eid_s, str(row["event_activity"]), ts, attrs, e2o))
 
-    return build_from_relations(events, objects, schema, corr_attr=corr_attr)
+    return build_from_relations(events, objects, schema)
 
 
 # --- OCEL 2.0 SQLite reader (stdlib sqlite3; version-independent) -------------
@@ -379,8 +328,7 @@ def from_ocpa(ocpa_ocel, schema: Optional[Schema] = None,
 # tables event_<map>/object_<map> carrying ocel_time and attributes). This avoids a
 # pm4py dependency for reading (OCPA pins an old pm4py that cannot read OCEL 2.0) and
 # exposes E2O/O2O qualifiers needed to derive the collaborative roles.
-def from_ocel2_sqlite(path: str, schema: "Schema | None" = None,
-                      corr_attr: Optional[str] = None) -> ObjectCentricLog:
+def from_ocel2_sqlite(path: str, schema: "Schema | None" = None) -> ObjectCentricLog:
     import sqlite3
     from datetime import datetime
 
@@ -463,4 +411,4 @@ def from_ocel2_sqlite(path: str, schema: "Schema | None" = None,
     events = [_Ev(eid, ev_type[eid], ev_time.get(eid),
                   ev_attrs.get(eid, {}), e2o.get(eid, []))
               for eid in ev_type]
-    return build_from_relations(events, objects, schema, corr_attr=corr_attr)
+    return build_from_relations(events, objects, schema)

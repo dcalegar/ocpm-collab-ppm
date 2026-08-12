@@ -7,23 +7,18 @@ demonstrates them end-to-end with **native object-centric features (OCPA)**.
 The code is split into a reusable **prediction-task library** and a modular
 **evaluation** that consumes it. Inputs are **OCEL 2.0 (SQLite)** event logs.
 
-### Scope: this repository implements more than the paper reports
+### Scope: this repository reproduces exactly what the paper reports
 
 The published claims are backed by the converter and its consistency checks, the
 14 reformulated prediction tasks with their label-fidelity comparison against the
 collaborative baseline, and the end-to-end run of those tasks on the study logs
 (and, opt-in, on BPI Challenge 2013) — stages RQ1, RQ2 and RQ3 below.
 
-Two further targets outside the 14-task taxonomy — the **in-flight message
-backlog** and the **message synchronization time** — are implemented, unit-tested,
-and demonstrated here on a purpose-built toy log, together with the correlation
-enrichment the second one presupposes. They are **continuation work**: no results
-of theirs are reported in the paper, which only discusses such targets as
-directions the object-centric representation opens. The artifacts they produce
-(`data/results/rq_ext_results_toy.csv`) therefore correspond to no published
-number. They are deliberately kept out of `catalog.TASKS`, `EQUIVALENCE_TASKS`
-and `RQ3_SUBSET`, so they cannot affect the reproduction of the published
-results.
+Object-enabled prediction targets outside the 14-task taxonomy, and the
+resource/correlation refinement layers, were part of an earlier draft of the
+paper and are preserved for a follow-up paper on the `future/object-enabled-extensions`
+branch (see `docs/future_object_enabled_extensions.md` there) rather than in this
+codebase's main line.
 
 ---
 
@@ -47,14 +42,21 @@ No OCEL 1.0 is used anywhere.
 ## Documentation map
 
 Each package has its own README with the detail that belongs to it; this
-top-level file covers setup and how they fit together.
+top-level file covers setup and how they fit together. The external format
+specifications the codebase targets are kept as reference PDFs under
+[docs/](docs/): the [OCEL 2.1 specification](docs/ocel20_specification.pdf)
+(Berti et al.), the [OCED Call for Action](docs/OCED_CFA2024.pdf), and
+[Fahland et al., "Towards a Simple and Extensible Standard for Object-Centric
+Event Data (OCED)"](docs/2410.14495v1.pdf).
 
 | README | Covers |
 |---|---|
 | [README.md](README.md) | this file — tools, setup, repository structure, usage, design notes |
 | [src/mapping/README.md](src/mapping/README.md) | RQ1 — the XES→OCEL 2.0 converter: mapping rules M1–M8, consistency checks P1.1–P1.6, CLI usage |
 | [src/ocpm_tasks/README.md](src/ocpm_tasks/README.md) | the 14 prediction tasks, ground-truth label functions, the neutral object-centric model, and how to connect the library to a concrete OCPA-based prediction |
-| [src/ocpm_eval/README.md](src/ocpm_eval/README.md) | RQ2–RQ3 — the evaluation stages that consume `ocpm_tasks`: feature extraction, model fitting, fidelity/feasibility/structure metrics |
+| [src/features/README.md](src/features/README.md) | OCEL 2.0 reading + native OCPA feature extraction, decoupled from the evaluation orchestrator |
+| [src/predictors/README.md](src/predictors/README.md) | the per-learner fit/score registry (RandomForest, XGBoost, LSTM, GNN, …), decoupled from the evaluation orchestrator |
+| [src/ocpm_eval/README.md](src/ocpm_eval/README.md) | RQ2–RQ3 — the evaluation stages that wire `ocpm_tasks` + `features` + `predictors` together: fidelity/feasibility/structure metrics |
 
 ## Repository structure
 
@@ -78,42 +80,51 @@ ocpm-collab-ppm/
 │   │   ├── model.py           #   neutral object-centric model (Event/Execution/Log)
 │   │   ├── catalog.py         #   the 14 tasks + RQ2/RQ3 subsets
 │   │   ├── labels.py          #   label functions ℓ
-│   │   ├── extensions.py      #   object-enabled EXTENSION tasks (X-Inf, X-MSt) — not in catalog.TASKS
 │   │   ├── fidelity.py        #   RQ2 comparator (label equivalence)
 │   │   └── adapters.py        #   from_ocel2_sqlite (default) / from_pm4py / from_ocpa
-│   └── ocpm_eval/             # EXPERIMENTATION — evaluation stages (use ocpm_tasks)
-│       ├── README.md          #   modules, reading path, RQ2/RQ3 protocols, usage
+│   ├── features/               # FEATURE EXTRACTION — reusable library (decoupled)
+│   │   ├── README.md          #   modules, reading path, usage
+│   │   ├── io_ocel.py         #   OCEL 2.0 SQLite -> OCPA object (features) / neutral model (labels)
+│   │   └── ocpa.py            #   native OCPA features + alignment oracle (RQ3)
+│   ├── predictors/             # MODEL FITTING — reusable library (decoupled)
+│   │   ├── README.md          #   fit_and_score_fold contract, registry, usage
+│   │   ├── common.py          #   xy_split — shared train/test split
+│   │   ├── dispatch.py        #   PREDICTOR_REGISTRY / resolve
+│   │   └── random_forest.py, xgboost.py, lstm.py, lstm_torch.py, gnn.py, ocpa_lr.py
+│   └── ocpm_eval/             # EXPERIMENTATION — evaluation stages (wires ocpm_tasks + features + predictors)
+│       ├── README.md          #   modules, RQ2/RQ3 protocols, usage
 │       ├── config.py          #   log registry, CV/learner config
-│       ├── io_ocel.py         #   OCEL 2.0 SQLite -> neutral model (labels)
-│       ├── features_ocpa.py   #   native OCPA features + alignment oracle (RQ3)
-│       ├── models.py          #   per-fold training + descriptive metrics
 │       ├── rq2_fidelity.py    #   RQ2 — label fidelity
 │       ├── rq3_pipeline.py    #   RQ3 — end-to-end, 5-fold CV grouped by CI
-│       ├── rq_ext_pipeline.py #   EXT — X-Inf/X-MSt demo on the TOY log only
-│       └── run_evaluation.py  #   orchestrator (RQ2/RQ3/EXT)
-└── data/
-    ├── logs/
-    │   ├── Predict-Collab/      # the four study logs
-    │   ├── BPIChallenge2013/    # real-world validation log (opt-in stage, see below)
-    │   └── ToyCollab/           # toy_collab.* (X-Inf/X-MSt demo log)
-    └── results/                 # evaluation outputs, incl. rq_ext_results_toy.csv (EXT demo)
+│       └── run_evaluation.py  #   orchestrator (RQ2/RQ3)
+├── data/
+│   ├── logs/
+│   │   ├── Predict-Collab/      # the four study logs
+│   │   └── BPIChallenge2013/    # real-world validation log (opt-in stage, see below)
+│   └── results/                 # evaluation outputs
+└── docs/                       # reference specifications (OCEL 2.1, OCED) — not code
+    ├── ocel20_specification.pdf
+    ├── OCED_CFA2024.pdf
+    └── 2410.14495v1.pdf
 ```
 
-The three directories the project revolves around: **example logs** (`data/logs/`),
+The directories the project revolves around: **example logs** (`data/logs/`),
 **prediction tasks** ([src/ocpm_tasks/](src/ocpm_tasks/README.md)), and
-**experimentation** ([src/ocpm_eval/](src/ocpm_eval/README.md)), fed by the
-**converter** ([src/mapping/](src/mapping/README.md)).
+**experimentation** ([src/ocpm_eval/](src/ocpm_eval/README.md)) — which wires in
+the decoupled [src/features/](src/features/README.md) (feature extraction) and
+[src/predictors/](src/predictors/README.md) (model fitting) libraries — fed by
+the **converter** ([src/mapping/](src/mapping/README.md)).
 
 ---
 
 ## Setup (virtual environments)
 
-`mapping` and `ocpm_eval`/`ocpm_tasks` require **different versions of pm4py** and
-must run in **separate virtual environments**:
+`mapping` and `ocpm_eval`/`ocpm_tasks`/`features`/`predictors` require **different
+versions of pm4py** and must run in **separate virtual environments**:
 
 | Environment | Used by | pm4py |
 |---|---|---|
-| `.venv` | `ocpm_eval`, `ocpm_tasks` | `==2.2.32` (pinned by OCPA) |
+| `.venv` | `ocpm_eval`, `ocpm_tasks`, `features`, `predictors` | `==2.2.32` (pinned by OCPA) |
 | `.venv-mapping` | `src/mapping/` | `==2.7.22.5` (OCEL 2.0 write support) |
 
 Recommended Python: **3.10**. Below: macOS/Linux, then Windows. Both follow the
@@ -149,7 +160,7 @@ manager (Linux), or see the Windows section below.
 
 ### macOS / Linux
 
-#### Environment 1 — evaluation (`ocpm_eval` + `ocpm_tasks`)
+#### Environment 1 — evaluation (`ocpm_eval` + `ocpm_tasks` + `features` + `predictors`)
 
 ```bash
 # 1) clone
@@ -201,7 +212,7 @@ pipeline): install [Graphviz for Windows](https://graphviz.org/download/)
 and add its `bin\` folder to `PATH` (or `choco install graphviz` with
 Chocolatey), then restart the terminal.
 
-#### Environment 1 — evaluation (`ocpm_eval` + `ocpm_tasks`)
+#### Environment 1 — evaluation (`ocpm_eval` + `ocpm_tasks` + `features` + `predictors`)
 
 ```powershell
 # 1) clone
@@ -243,7 +254,8 @@ pip install -e .
 
 `src/` is on the analysis path. Recommended extensions: Python + Pylance.
 
-- For `src/ocpm_eval` / `src/ocpm_tasks` files → select the `.venv` interpreter.
+- For `src/ocpm_eval` / `src/ocpm_tasks` / `src/features` / `src/predictors`
+  files → select the `.venv` interpreter.
 - For `src/mapping/` files → select `.venv-mapping` interpreter
   (use **Python: Select Interpreter** per file, or set it per workspace folder).
   On Windows the interpreter path is `.venv\Scripts\python.exe` /
@@ -257,7 +269,7 @@ Full details, module-by-module, live in each package's own README (see the
 [documentation map](#documentation-map) above); this section is the quick
 path to running things.
 
-### Evaluation ([`ocpm_eval`](src/ocpm_eval/README.md) + [`ocpm_tasks`](src/ocpm_tasks/README.md))
+### Evaluation ([`ocpm_eval`](src/ocpm_eval/README.md) + [`ocpm_tasks`](src/ocpm_tasks/README.md) + [`features`](src/features/README.md) + [`predictors`](src/predictors/README.md))
 
 ```bash
 # full evaluation (RQ2 + RQ3, partial scope, on the four Predict-Collab study
@@ -278,8 +290,7 @@ enable them.
 
 Automated regression tests live in [`tests/`](tests/): `test_mapping_checks.py`
 (the P1.1–P1.6 consistency checks of the converter, incl. deliberate-corruption
-scenarios), `test_extensions_toy.py` (the X-Inf/X-MSt extension tasks of
-`ocpm_tasks/extensions.py`), and `test_predictors_registry.py` (a synthetic-table
+scenarios), and `test_predictors_registry.py` (a synthetic-table
 classification/regression smoke test per `predictors.dispatch.PREDICTOR_REGISTRY`
 entry — `random_forest`, `lstm`, `lstm_torch`, `xgboost` — plus a registry-presence
 check for `gnn`, which needs OCPA's `feature_storage` graphs and so isn't exercised
@@ -298,10 +309,7 @@ Point the evaluation at your own logs by editing the registry in
 `collab_xes_to_ocel.py` implements the model-to-model transformation
 **μ: extended collaborative XES → OCEL 2.0** (mapping rules M1–M8), producing 
 `output.jsonocel` and `output.sqlite` files conformant with the OCEL 2.0 JSON schema (Berti et al. 2023,
-Definition 2). Two optional refinement layers can be applied on top, each only
-when the source log records the identifier it needs: the resource layer
-(R1–R3) and the correlation layer (C1). Both only add objects and relations, so
-the core representation and every prediction label are unchanged.
+Definition 2).
 
 The object types of an exported log are `CollaborationCase`,
 `OrchestrationCase`, `Message`, and **one type per participant identifier**
@@ -319,12 +327,6 @@ python src/mapping/collab_xes_to_ocel.py input.xes output --strict
 
 # Skip OCEL 2.0 schema validation of the output
 python src/mapping/collab_xes_to_ocel.py input.xes output --no-validate
-
-# Apply the resource layer (R1-R3) over the actor attribute; checks PR.1/PR.2
-python src/mapping/collab_xes_to_ocel.py input.xes output --resource-attr org:resource
-
-# Apply the correlation layer (C1) over a native message id; checks PC.1
-python src/mapping/collab_xes_to_ocel.py input.xes output --correlation-attr msgInstanceId
 
 # Verbose logging
 python src/mapping/collab_xes_to_ocel.py input.xes output -v
@@ -349,43 +351,13 @@ The extended XES source must use the `collab` extension attributes defined in
 | Stage | What | Where | Output |
 |---|---|---|---|
 | RQ1 | XES→OCEL transformation + checks | **converter (separate tool)** — out of scope here | — |
-| RQ2 | label fidelity (equivalence for the 14 tasks) | `ocpm_eval/rq2_fidelity.py` | `results/rq2_fidelity.csv` |
-| RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `ocpm_eval/rq3_pipeline.py` | `results/rq3_results_random_forest.csv` |
-| EXT | object-enabled EXTENSION tasks (X-Inf, X-MSt) — **follow-up work, not reported in the paper**; feasibility demo on a toy log, not one of the four study logs, kept separate from the RQ2/RQ3 results | `ocpm_eval/rq_ext_pipeline.py` | `results/rq_ext_results_toy.csv` |
+| RQ2 | label fidelity (equivalence for the 14 tasks) | `ocpm_eval/rq2_fidelity.py` | `results/rq2_fidelity_predictcollab.csv` |
+| RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `ocpm_eval/rq3_pipeline.py` | `results/rq3_results_random_forest_predictcollab.csv` |
 | RQ2/RQ3 (BPI2013) | real-world validation on BPI Challenge 2013 (incidents, collaborative) — **opt-in**, not one of the four study logs | `ocpm_eval/run_evaluation.py` (`log_groups=("bpi2013",)`) | `results/rq2_fidelity_bpi2013.csv`, `results/rq3_results_random_forest_bpi2013.csv` |
 
 RQ2 *equivalence* (the 14 tasks vs the original collaborative log, R1) needs the
 converter's R1 reader; pass `r1_logs={name: ObjectCentricLog}` to
 `ocpm_eval.run_evaluation.main`.
-
-### EXT — object-enabled extensions (X-Inf, X-MSt), follow-up work
-
-`ocpm_tasks/extensions.py` formalizes two "object-enabled" targets as label functions
-over the same neutral model as the 14 reformulated tasks, but keeps them **out of
-`catalog.TASKS`/`EQUIVALENCE_TASKS`/`RQ3_SUBSET`** so they never mix into RQ2/RQ3:
-
-- **X-Inf** (in-flight backlog, `CollaborationCase` anchor, count regression) — peak,
-  over the case's remainder after the cut, of the *running* send/receive balance
-  (+1 per send, −1 per receive, clamped at 0 as it runs — not a plain
-  `#send − #receive` difference). Needs **no** send/receive correlation.
-- **X-MSt** (message synchronization time, `Message` anchor, time regression) —
-  latency of the next send's matching receive after the cut. Needs a native
-  correlation id, which the core mapping (M4) deliberately does not infer; an opt-in
-  `corr_attr` enrichment (`ocpm_tasks/adapters.py`, default `None`) supplies it from a
-  residual event attribute (e.g. `"msgId"`) without changing the core mapping.
-
-Both are demonstrated on a **synthetic toy log**
-(`src/mapping/support/build_toy_collab_log.py` → `data/logs/ToyCollab/toy_collab.xes`: 100 cases, 1,132 events,
-3 participants, designed to exercise both targets with variable in-flight backlogs and explicit `msgId`
-correlation ids on send/receive events; backlog and latency are tied to a prefix-observable structural
-property, the case's participant count, so the targets carry a genuine, learnable signal instead of one
-drawn i.i.d. of the observed prefix). This is converted with the same
-`collab_xes_to_ocel.py` converter as the study logs and run through the *same* OCPA 
-feature-extraction/CV/RandomForest machinery as RQ3 (`ocpm_eval/rq_ext_pipeline.py`), 
-demonstrating that the extensions work end-to-end in the native object-centric pipeline
-on a dataset comparable in size to the study logs.
-A dedicated pure-Python unit test (`tests/test_extensions_toy.py`) verifies label logic 
-by hand on specific synthetic patterns.
 
 ---
 
@@ -398,16 +370,6 @@ by hand on specific synthetic patterns.
 - **14 tasks** = the object-centric reformulation of the 14 tasks of the
   collaborative baseline (`ocpm_tasks/catalog.py`). The RQ3 representative subset
   is six tasks covering the anchor × problem-type combinations.
-- **Object-enabled extensions.** Two extension tasks outside the 14-task taxonomy,
-  X-Inf and X-MSt, **are** implemented in `ocpm_tasks/extensions.py` but kept out
-  of `catalog.TASKS` — see the EXT section above. X-MSt presupposes a
-  correspondence between individual send and receive observations that the core
-  mapping (rule M4) deliberately does not establish; it is supplied by the opt-in
-  `corr_attr` enrichment in `ocpm_tasks/adapters.py`, not by the converter. Further
-  extension directions (cross-case participant load, message-convergence
-  completion, inter-participant progress lag, intra-orchestration-case
-  concurrency, cross-case resource load) are outlined as future work and are
-  **not** implemented here.
 - **Targets vs features.** Targets are defined over each collaboration instance's
   global trace (linear cut points, deterministic order); features are object-centric
   and past-relative (prefix-respecting) so per-event rows do not leak the future.

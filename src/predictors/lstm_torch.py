@@ -94,7 +94,12 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
     X_te_pad, lengths_te = pad_sequences(seq_X_te)
     input_dim = X_tr_pad.shape[2]
 
-    # CPU/GPU Device routing
+    # CPU/GPU device routing. MPS (Apple Silicon) was tried and reverted: for
+    # this workload (many short, variable-length per-case sequences run
+    # through pack_padded_sequence) MPS's per-op dispatch overhead made it
+    # slower than CPU on both predictcollab and, far more severely, on the
+    # larger BPIC2013 log -- see run_evaluation.py docstring's reproducibility
+    # note for why device choice must stay fixed across a reported run.
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     units = getattr(cfg, "lstm_units", 64)
@@ -113,7 +118,18 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
         le = LabelEncoder()
         le.fit(y_tr_s)
         num_classes = len(le.classes_)
-        
+
+        if num_classes < 2:
+            # Degenerate fold: the training target is constant, so there is
+            # nothing to learn; predicting that constant matches the trivial
+            # baseline and avoids feeding a single-logit head a target with
+            # no negative class, which can otherwise emit a class index the
+            # encoder never saw (ValueError on inverse_transform below).
+            const_label = le.classes_[0]
+            pred_labels = [const_label] * len(y_te_s)
+            score = float(f1_score(y_te_s, pred_labels, average="macro", zero_division=0))
+            return {"metric": score, "baseline": score, "n_test": int(len(y_te_s))}
+
         y_tr_enc, _ = pad_sequences([le.transform(seq) for seq in seq_y_tr], padding_value=-1)
         y_tr_enc = y_tr_enc.squeeze(-1)
         

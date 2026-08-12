@@ -1,10 +1,10 @@
 """
 Leakage tests for the RQ3 object-centric feature families (A7, point 3),
 complementing the remaining-time alignment oracle in
-``ocpm_eval.features_ocpa.extract_feature_table`` (which only catches an
+``features.ocpa.extract_feature_table`` (which only catches an
 event-id/partitioning mismatch, not a leaking feature).
 
-Covers every feature family in ``features_ocpa.build_feature_set`` --
+Covers every feature family in ``features.ocpa.build_feature_set`` --
 elapsed time, previous_type_count(OrchestrationCase),
 previous_type_count(Message), and preceding_activities(a) -- against two
 leakage directions:
@@ -42,9 +42,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ocpm_eval.io_ocel import load_ocpa_ocel, read_ocel2_labels  # noqa: E402
-from ocpm_eval.features_ocpa import extract_feature_table         # noqa: E402
-from ocpm_tasks.schema import Schema                               # noqa: E402
+from features.io_ocel import load_ocpa_ocel, read_ocel2_labels     # noqa: E402
+from features.ocpa import extract_feature_table                    # noqa: E402
+from ocpm_tasks.schema import Schema                                # noqa: E402
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 

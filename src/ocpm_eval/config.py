@@ -84,7 +84,7 @@ class ExperimentConfig:
     gnn_k_values: tuple = (4, 8, 16)
 
     # Key into predictors.dispatch.PREDICTOR_REGISTRY -- which fit_and_score_fold
-    # implementation run_rq3/run_rq_ext use. Only "random_forest" exists today;
+    # implementation run_rq3 uses. Only "random_forest" exists today;
     # more predictors (xgboost, lstm, transformer, gnn) register there as added.
     predictor: str = "random_forest"
 
@@ -95,54 +95,3 @@ class ExperimentConfig:
     out_dir: str = "data/results"
     bottom: str = "__BOTTOM__"
     numeric_tol: float = 1.0     # seconds, for RQ2 temporal equivalence
-
-
-# ---------------------------------------------------------------------------
-# Object-enabled EXTENSION tasks (X-Inf, X-MSt) -- demo config, kept separate
-# from ExperimentConfig/predictcollab_ocel_logs so it never mixes into RQ2/RQ3.
-# ---------------------------------------------------------------------------
-def toy_ext_log() -> LogSpec:
-    """Hand-built toy log (src/mapping/support/build_toy_collab_log.py) for
-    testing X-Inf and X-MSt extensions; NOT one of the four study logs. 100
-    cases, 3 participants, 1,132 events, designed to exercise both targets:
-    variable in-flight backlogs (X-Inf) and send/receive pairs with explicit
-    msgId correlation (X-MSt), tied to case participant count (2 vs. 3) so
-    both targets carry a genuine, prefix-observable signal rather than one
-    drawn i.i.d. of the observed prefix. Demonstrates that both extensions
-    are functionally correct, and exploitable by a generic object-centric
-    feature set, when data has the needed semantic properties (send/receive
-    events + correlation ids)."""
-    return LogSpec("ToyCollab", "data/logs/ToyCollab/toy_collab.sqlite",
-                                "data/logs/ToyCollab/toy_collab.xes")
-
-
-@dataclass
-class ExtExperimentConfig:
-    logs: List[LogSpec] = field(default_factory=lambda: [toy_ext_log()])
-    schema: Schema = field(default_factory=Schema)
-
-    ext_tasks: List[str] = field(default_factory=lambda: ["X-Inf", "X-MSt"])
-    # Residual event attribute carrying a native message-correlation id
-    # (see build_toy_collab_log.py); enables X-MSt. None would leave X-MSt
-    # undefined everywhere, as in the core (unenriched) mapping.
-    corr_attr: Optional[str] = "msgId"
-
-    # Same 5-fold protocol as ExperimentConfig (RQ3), grouped by CollaborationCase.
-    n_folds: int = 5
-    random_state: int = 3395
-    rf_n_estimators: int = 200
-    rf_max_depth: Optional[int] = None
-    xgb_n_estimators: int = 200
-    xgb_max_depth: int = 6
-    xgb_learning_rate: float = 0.05
-    xgb_subsample: float = 0.8
-    xgb_colsample_bytree: float = 0.8
-    xgb_reg_lambda: float = 1.0
-    lstm_units: int = 64
-    lstm_epochs: int = 20
-    lstm_batch_size: int = 32
-    lstm_learning_rate: float = 0.001
-    predictor: str = "random_forest"   # see ExperimentConfig.predictor
-
-    out_dir: str = "data/results"
-    bottom: str = "__BOTTOM__"

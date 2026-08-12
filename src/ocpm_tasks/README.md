@@ -6,17 +6,6 @@ object-centric model they operate on. It has **no dependency on `mapping` or
 `ocpm_eval`** — only `pandas` at import time (`pm4py`/`ocpa` are imported lazily,
 only if you use the corresponding adapter).
 
-Beyond this 14-task taxonomy, two further "object-enabled" extension tasks,
-**`X-Inf`** (in-flight message backlog) and **`X-MSt`** (message synchronization
-time), are formalized in `extensions.py` — see "Object-enabled extension tasks"
-below. Other exploratory directions (cross-case participant load, message-
-convergence completion, inter-participant progress lag, intra-projection
-orchestration concurrency) remain unimplemented. `X-MSt` presupposes a
-correspondence between individual send and receive observations that the core
-mapping (rule M4) deliberately does not establish; `extensions.py`/`adapters.py`
-recover it via an explicit, opt-in enrichment step, not a change to the core
-mapping.
-
 ## Install
 
 Copy or vendor the `ocpm_tasks` package into your project (it's a plain
@@ -57,9 +46,8 @@ pieces line up.
 | `model` | Neutral structures the tasks read: `Event`, `Execution`, `ObjectCentricLog` |
 | `catalog` | `TASKS` — the 14 `Task` definitions (target anchor, problem type, value kind) |
 | `labels` | `LabelContext`, `build_context`, `compute_label_rows` — ground-truth label computation |
-| `extensions` | `EXT_TASKS` (`X-Inf`, `X-MSt`), `compute_ext_label_rows` — object-enabled extension tasks, kept out of `catalog.TASKS`/`EQUIVALENCE_TASKS`/`RQ3_SUBSET` |
 | `fidelity` | `compare_equivalence` — label-equivalence comparator (optional, for validating a mapping) |
-| `adapters` | `from_pm4py`, `from_ocpa`, `from_ocel2_sqlite`, `build_from_relations` — build an `ObjectCentricLog` from a concrete OCEL; `X-MSt`'s `Event.corr_id` enrichment, preferably from the mapping's own `correlated_with` O2O relation (C1), with an optional `corr_attr` residual-attribute fallback |
+| `adapters` | `from_pm4py`, `from_ocpa`, `from_ocel2_sqlite`, `build_from_relations` — build an `ObjectCentricLog` from a concrete OCEL |
 
 ## Usage
 
@@ -154,7 +142,7 @@ For a fuller worked version of this pattern — including the alignment
 oracle (checking OCPA's own remaining-time feature against the NV-PrT
 label to catch id/partitioning mismatches), grouped cross-validation by
 collaboration instance, and a trivial baseline — see
-`ocpm_eval/features_ocpa.py`, `ocpm_eval/models.py` and
+`features/ocpa.py`, `predictors/random_forest.py` and
 `ocpm_eval/rq3_pipeline.py` in this repo. They are *consumers* of
 `ocpm_tasks` (not part of it) and show the full RQ3 pipeline end to end.
 
@@ -164,47 +152,3 @@ No adapter fits your source? Build a `ObjectCentricLog` directly with
 `adapters.build_from_relations`, or construct `model.Event`/`model.Execution`
 objects yourself — the label functions only depend on the `model` module, not
 on any OCEL library.
-
-## Object-enabled extension tasks (`extensions.py`)
-
-`X-Inf` and `X-MSt` — two "object-enabled" extension targets beyond the 14-task
-taxonomy — are formalized here as label functions over the same `model.Execution`,
-using the same `LabelContext`/BOTTOM convention as `labels.py`.
-They are deliberately **not** part of `catalog.TASKS`/`EQUIVALENCE_TASKS`/
-`RQ3_SUBSET`, so importing/using them never mixes into the 14-task RQ2/RQ3
-evaluation:
-
-* **`X-Inf`** (`CollaborationCase` anchor, count regression) — the peak, over the
-  case's remainder after the cut, of the *running* send/receive balance (+1 per
-  send, −1 per receive, clamped at 0 as it runs — not a plain `#send − #receive`
-  difference; see `in_flight_trajectory`). Needs **no** send/receive correlation.
-* **`X-MSt`** (`Message` anchor, time regression) — the latency between the next
-  send after the cut and its matching receive; BOTTOM if that send is unmatched
-  (still in flight) or if no correlation id is available. Needs `Event.corr_id`,
-  which only an explicit **enrichment** populates (see `adapters.corr_attr`
-  below) — the core mapping (M4) never infers it.
-
-```python
-from ocpm_tasks.adapters import from_ocel2_sqlite
-from ocpm_tasks.extensions import EXT_TASKS, compute_ext_label_rows
-
-# corr_attr: opt-in enrichment. A residual event attribute (e.g. "msgId") that
-# carries a native message-correlation id; None (default) leaves every
-# Event.corr_id unset, exactly like the unenriched core mapping.
-log = from_ocel2_sqlite("data/logs/ToyCollab/toy_collab.sqlite", corr_attr="msgId")
-
-for key in ("X-Inf", "X-MSt"):
-    rows = compute_ext_label_rows(log, EXT_TASKS[key])
-    # rows: List[(case_id, event_id, k, y)], BOTTOM rows dropped by default
-```
-
-Both extensions are demonstrated end to end — including the same OCPA feature
-extraction and grouped cross-validation used for the 14 reformulated tasks — on a
-**synthetic toy log** (`src/mapping/support/build_toy_collab_log.py` → 
-`data/logs/ToyCollab/toy_collab.xes`: 100 cases, 1,132 events, 3 participants, designed to exercise 
-both targets with variable in-flight backlogs and explicit `msgId` correlation ids, tied to
-case participant count so the targets are genuinely learnable from the observed prefix), 
-converted with the same `collab_xes_to_ocel.py` converter as the four study logs, via
-`ocpm_eval/rq_ext_pipeline.py` (results in `data/results/rq_ext_results_toy.csv`).
-A dedicated pure-Python unit test, `tests/test_extensions_toy.py`, verifies label logic 
-by hand on specific patterns with intentional in-flight and unmatched sends.

@@ -1,12 +1,11 @@
 # mapping — collaborative XES → OCEL 2.0 converter
 
 Model-to-model transformation **μ: extended collaborative XES → OCEL 2.0**
-(Berti et al. 2023, Definition 2), implementing mapping rules **M1–M8**,
-machine-checking consistency properties **P1.1–P1.6**, and optionally applying
-the two refinement layers **R1–R3** (resource) and **C1** (correlation) with
-their criteria **PR.1/PR.2** and **PC.1**. This is RQ1 of the
+(Berti et al. 2023, Definition 2), implementing mapping rules **M1–M8** and
+machine-checking consistency properties **P1.1–P1.6**. This is RQ1 of the
 study: the converter that produces the rich object-centric logs consumed by
-[`ocpm_tasks`](../ocpm_tasks/README.md) and [`ocpm_eval`](../ocpm_eval/README.md).
+[`ocpm_tasks`](../ocpm_tasks/README.md), [`features`](../features/README.md),
+and [`ocpm_eval`](../ocpm_eval/README.md).
 
 It is a standalone tool: pure pandas/Python for the transformation and
 checks (unit-testable without pm4py), with pm4py used only at the two I/O
@@ -20,8 +19,7 @@ Given an extended collaborative XES log, `collab_xes_to_ocel.py`:
    ordering each trace by `(timestamp, source order)`.
 2. **Transforms** it into four OCEL 2.0 tables (events, objects, E2O
    relations, O2O relations) per rules M1–M8 (see below).
-3. **Checks** the result against consistency properties P1.1–P1.6 — plus
-   PR.1/PR.2 and PC.1 for whichever refinement layer is enabled — and
+3. **Checks** the result against consistency properties P1.1–P1.6 and
    prints a pass/fail report with transformation stats (event/object/
    relation counts, message counts).
 4. **Exports** `<output>.jsonocel` and `<output>.sqlite`.
@@ -38,12 +36,12 @@ Given an extended collaborative XES log, `collab_xes_to_ocel.py`:
 | M3 | `OrchestrationCase` object per (case, participant) — the participant's local execution within one collaboration case, under the assumption that each participant executes its local process at most once per collaboration case |
 | M4 | `Message` object per `SendTask` **and** per `ReceiveTask` — one per communication *observation*, not a correlated message instance. The source logs do not guarantee a message identifier or other correlation information, so the core mapping does **not** infer any correspondence between a send observation and a receive observation |
 | M5 | `Event` per source event; activity = XES activity; `elemType` (`task`/`SendTask`/`ReceiveTask`) preserved as an attribute |
-| M6 | E2O relations: `within` (event→CC), `in_orchestration` (event→OrchestrationCase), `send`/`receive` (event→its own Message), plus the direct `participant` edge (event→participant object) — see note below |
+| M6 | E2O relations: `in_collaboration` (event→CC), `in_orchestration` (event→OrchestrationCase), `send`/`receive` (event→its own Message), plus the direct `in_participant` edge (event→participant object) — see note below |
 | M7 | O2O relations: `part_of` (OrchestrationCase→CC), `for_participant` (OrchestrationCase→participant object), `from`/`to` (Message→participant object), `exchanged_in` (Message→CC) |
 | M8 | Residual source event attributes (not consumed by M1–M7) are carried over unchanged. `collab:participant`, `collab:elemType`, `fromParticipant`, and `toParticipant` are additionally retained under fixed attribute names (`participant`, `elemType`, `fromParticipant`, `toParticipant`) even though they are also materialized by E2O/O2O relations |
 
-**Note on the `participant` E2O edge.** A participant is reachable two
-ways: directly, via the `participant` edge (event→participant object), and
+**Note on the `in_participant` E2O edge.** A participant is reachable two
+ways: directly, via the `in_participant` edge (event→participant object), and
 indirectly via `in_orchestration -> for_participant`, keeping the
 participant distinct from its per-case execution
 (`OrchestrationCase`). Both are part of the conceptual model (rule M6);
@@ -55,7 +53,7 @@ object-centric feature extraction (OCPA) must still strip this edge
 before import, since OCPA's default execution-extraction connects all
 E2O-related objects of an event pairwise and this edge would merge every
 `CollaborationCase` that shares a participant; see
-`ocpm_eval/io_ocel.py`'s `_strip_participant_e2o`.
+`features/io_ocel.py`'s `_strip_participant_e2o`.
 
 ## Participant object types
 
@@ -83,40 +81,10 @@ and the converter raises rather than emitting a log that violates them:
   table. A collision appends a numeric suffix until both images are free.
 
 The qualifier vocabulary is unaffected and stays fixed, so participant objects
-remain addressable without naming any of their types — through `participant`,
+remain addressable without naming any of their types — through `in_participant`,
 `for_participant`, `from` and `to`. That is how the downstream reader
 identifies them (`ocpm_tasks/schema.py::Schema.is_participant_type`), rather
 than by comparing against a single type name.
-
-## Refinement layers (opt-in)
-
-Two layers promote an identifier the core mapping deliberately does not require
-to an object or a relation. Each is applied only when its flag names a residual
-source attribute (one M8 preserves and the core mapping does not consume).
-
-| Layer | Flag | Adds | Criteria |
-|---|---|---|---|
-| Resource | `--resource-attr` (e.g. `org:resource`) | R1 one `Resource` object per actor identifier (attribute `name`); R2 E2O `resource` from every event whose actor the source records; R3 O2O `acts_for` from a `Resource` to every participant it acts for (many-to-many) | PR.1 an event's resource and participant are related by `acts_for`; PR.2 every `Resource` is the target of at least one `resource` relation |
-| Correlation | `--correlation-attr` (e.g. `msgInstanceId`) | C1 O2O `correlated_with` from a send observation's `Message` to the receive observation's, for observations sharing the identifier. **No object is created** | PC.1 each `Message` has at most one outgoing and one incoming relation, each running from a send to a receive of the same case, agreeing on endpoints wherever both are defined, with the send preceding the receive |
-
-Three properties hold by construction and are covered by tests:
-
-- **Additive.** Each layer only appends; it redefines no component of the core
-  log, so P1.1–P1.6 and every prediction label are unaffected.
-- **Independent.** The two use disjoint object-id ranges (`res::`) and disjoint
-  qualifier vocabularies, so either may be applied alone, or both in any order.
-- **Degenerate.** On a log where no event carries the named attribute, the layer
-  adds nothing at all and the output is exactly the core mapping. Naming an
-  absent attribute is therefore a no-op with a warning, not an error.
-
-Rule C1 is deliberately **unconditional**: every send and receive observation
-sharing an identifier are related, including when three or more observations
-share one. Such a group produces a `Message` with more than one relation on a
-side, which is exactly what PC.1 reports — filtering the group out at
-construction time would make PC.1 pass vacuously on a source attribute that is
-not a usable correlation identifier. An observation whose counterpart the log
-never records simply carries no relation: that is an exchange observed on one
-side only.
 
 ## Event order preservation (criterion P1.2)
 
@@ -162,12 +130,12 @@ are added (see `_add_export_reachability_witnesses`).
 | Check | Verifies |
 |---|---|
 | P1.1 Totality | one OCEL event per source event, with the *same activity, timestamp, and preserved `collab:participant`/`collab:elemType`* checked per event id (not just matching totals) |
-| P1.2 Per-case partition | each `CollaborationCase`'s `within`-related events equal the *exact set* of that case's source event ids (not just a matching count), no dangling edges |
+| P1.2 Per-case partition | each `CollaborationCase`'s `in_collaboration`-related events equal the *exact set* of that case's source event ids (not just a matching count), no dangling edges |
 | P1.2b Per-case order | the identifier order reproduces `prec_L` exactly, timestamp *and* its tie-break by source order (not just a non-decreasing-timestamp check, which a tie inversion would still pass) |
 | P1.3 Message well-formedness | every Message is related to exactly one event, by `send` **xor** `receive` (never both), and conversely every source send/receive event is related to *exactly one* Message (which events count as communication events is derived from the *source* log, not from the output's own `elemType`); `from`/`to` O2O relations agree with the Message's sender/receiver attributes and with the related event's preserved `fromParticipant`/`toParticipant` attributes whenever both are defined; the related event's participant is the sender (send) or the receiver (receive). Counterparty endpoints the source never recorded are reported explicitly (`n_messages_missing_sender`/`_receiver`) rather than silently skipped or treated as a disagreement; an attribute/relation pair that disagrees on whether it is defined at all *does* fail the check |
-| P1.4 OrchestrationCase coherence | `in_orchestration`/`part_of` agree with `within`; each `OrchestrationCase` is `for_participant` exactly one participant object, whose `name` attribute equals the `OrchestrationCase`'s own `participant` attribute and whose object **type** equals *tau*(that same attribute) -- not the identifier itself, since M2's object type is the injective encoding tau(participant), not the raw identifier string |
+| P1.4 OrchestrationCase coherence | `in_orchestration`/`part_of` agree with `in_collaboration`; each `OrchestrationCase` is `for_participant` exactly one participant object, whose `name` attribute equals the `OrchestrationCase`'s own `participant` attribute and whose object **type** equals *tau*(that same attribute) -- not the identifier itself, since M2's object type is the injective encoding tau(participant), not the raw identifier string |
 | P1.5 No orphan objects | every object is referenced by at least one E2O or O2O relation |
-| P1.6 Participant coherence | for every event, the participant object reached by the direct `participant` edge equals the one reached via `in_orchestration -> for_participant` |
+| P1.6 Participant coherence | for every event, the participant object reached by the direct `in_participant` edge equals the one reached via `in_orchestration -> for_participant` |
 | P1.7 Export reachability | every object materialized by `transform()` is reachable in the E2O relations table actually handed to the OCEL exporters (`export_relations_df`, after `_add_export_reachability_witnesses`), not merely in `TransformResult` |
 
 **Counterparty endpoint completeness.** The source format may leave a
@@ -187,12 +155,6 @@ python src/mapping/collab_xes_to_ocel.py input.xes output
 
 # Abort if any consistency check or schema validation fails
 python src/mapping/collab_xes_to_ocel.py input.xes output --strict
-
-# Apply the resource layer (R1-R3) over the actor attribute; checks PR.1/PR.2
-python src/mapping/collab_xes_to_ocel.py input.xes output --resource-attr org:resource
-
-# Apply the correlation layer (C1) over a native message id; checks PC.1
-python src/mapping/collab_xes_to_ocel.py input.xes output --correlation-attr msgInstanceId
 
 # Skip OCEL 2.0 schema validation of the output
 python src/mapping/collab_xes_to_ocel.py input.xes output --no-validate
@@ -276,8 +238,8 @@ The converted `.sqlite`/`.jsonocel` files are the **R2** input consumed
 downstream:
 - `ocpm_tasks.adapters.from_ocel2_sqlite` / `from_ocpa` build the neutral
   object-centric model from them for label computation.
-- `ocpm_eval` reads the same files for both labels (`io_ocel.py`) and
-  OCPA feature extraction (`features_ocpa.py`).
+- `features` reads the same files for both labels (`io_ocel.py`) and
+  OCPA feature extraction (`ocpa.py`).
 - RQ2 fidelity also reads the *original* `.xes` directly (R1, source-level
   labels) to check agreement against the R2 labels — see
   `ocpm_eval/rq2_fidelity.py`.

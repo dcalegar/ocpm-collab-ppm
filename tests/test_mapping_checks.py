@@ -30,7 +30,7 @@ from mapping.collab_xes_to_ocel import (   # noqa: E402
     _add_export_reachability_witnesses, _raw_timestamps_in_file_order,
     check_export_reachability,
     COL_EID, COL_ACTIVITY, COL_TIMESTAMP, COL_OID, COL_OID2, COL_OTYPE, COL_QUALIFIER,
-    Q_WITHIN, Q_FROM, Q_TO, Q_SEND, Q_RECEIVE, Q_PARTICIPANT, Q_IN_ORCHESTRATION, Q_EXCHANGED_IN,
+    Q_IN_COLLABORATION, Q_FROM, Q_TO, Q_SEND, Q_RECEIVE, Q_IN_PARTICIPANT, Q_IN_ORCHESTRATION, Q_EXCHANGED_IN,
     OT_CC, OT_MESSAGE, OT_OC,
 )
 
@@ -86,12 +86,12 @@ def test_p11_catches_activity_permutation():
 
 
 def test_p12_catches_cross_case_swap():
-    """Two cases with the same event count: moving one event's 'within'
+    """Two cases with the same event count: moving one event's 'in_collaboration'
     edge to the other case's CC object must fail P1.2 (set, not count)."""
     src = _well_formed_log()
     res = transform(src, MappingConfig())
     rel = res.relations_df.copy()
-    within_mask = (rel[COL_QUALIFIER] == Q_WITHIN)
+    within_mask = (rel[COL_QUALIFIER] == Q_IN_COLLABORATION)
     c1_event = rel[within_mask & (rel[COL_OID] == "cc::C1")].iloc[0]
     idx = rel[(rel[COL_EID] == c1_event[COL_EID]) & within_mask].index[0]
     rel.loc[idx, COL_OID] = "cc::C2"   # reassign one C1 event's case to C2
@@ -123,8 +123,8 @@ def test_p12b_catches_unpadded_id_regression():
         {COL_EID: "e::C1::10", COL_ACTIVITY: "Ev10", COL_TIMESTAMP: ts10},
     ])
     rel = pd.DataFrame([
-        {COL_EID: "e::C1::9", COL_OID: "cc::C1", COL_OTYPE: OT_CC, COL_QUALIFIER: Q_WITHIN},
-        {COL_EID: "e::C1::10", COL_OID: "cc::C1", COL_OTYPE: OT_CC, COL_QUALIFIER: Q_WITHIN},
+        {COL_EID: "e::C1::9", COL_OID: "cc::C1", COL_OTYPE: OT_CC, COL_QUALIFIER: Q_IN_COLLABORATION},
+        {COL_EID: "e::C1::10", COL_OID: "cc::C1", COL_OTYPE: OT_CC, COL_QUALIFIER: Q_IN_COLLABORATION},
     ])
     obj = pd.DataFrame([{COL_OID: "cc::C1", COL_OTYPE: OT_CC, "caseId": "C1"}])
     o2o = pd.DataFrame(columns=["ocel:oid", "ocel:oid_2", COL_QUALIFIER])
@@ -332,7 +332,7 @@ def test_p13_catches_send_edge_flipped_to_receive_when_receiver_undefined():
 # ---------------------------------------------------------------------
 
 def test_p16_catches_simultaneous_participant_and_inprojection_removal():
-    """Deleting BOTH the direct 'participant' edge and the 'in_orchestration'
+    """Deleting BOTH the direct 'in_participant' edge and the 'in_orchestration'
     edge for one event. Before D24, P1.6's universe of checked events was
     the union of eids that still had at least one of the two edges, so
     removing both together removed that event from the universe entirely
@@ -340,9 +340,9 @@ def test_p16_catches_simultaneous_participant_and_inprojection_removal():
     src = _well_formed_log()
     res = transform(src, MappingConfig())
     rel = res.relations_df.copy()
-    eid = rel[rel[COL_QUALIFIER] == Q_PARTICIPANT][COL_EID].iloc[0]
+    eid = rel[rel[COL_QUALIFIER] == Q_IN_PARTICIPANT][COL_EID].iloc[0]
     rel2 = rel[~((rel[COL_EID] == eid)
-                & (rel[COL_QUALIFIER].isin([Q_PARTICIPANT, Q_IN_ORCHESTRATION])))]
+                & (rel[COL_QUALIFIER].isin([Q_IN_PARTICIPANT, Q_IN_ORCHESTRATION])))]
     corrupted = replace(res, relations_df=rel2)
     checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
     p16 = checks["P1.6 Participant coherence"]
@@ -708,7 +708,7 @@ def test_p14_catches_deleted_participant_name():
 
 
 def test_p16_catches_contradictory_duplicate_participant_edge():
-    """Adding a SECOND, contradictory 'participant' E2O edge for the same
+    """Adding a SECOND, contradictory 'in_participant' E2O edge for the same
     event (pointing at a different Participant than the correct one).
     Before the D24 reviewer round-2 fix, P1.6 built its per-event lookup
     with `dict(zip(eids, oids))`, which silently collapsed the duplicate to
@@ -717,14 +717,14 @@ def test_p16_catches_contradictory_duplicate_participant_edge():
     src = _well_formed_log()
     res = transform(src, MappingConfig())
     rel = res.relations_df.copy()
-    row = rel[rel[COL_QUALIFIER] == Q_PARTICIPANT].iloc[0].copy()
+    row = rel[rel[COL_QUALIFIER] == Q_IN_PARTICIPANT].iloc[0].copy()
     row[COL_OID] = "part::B" if row[COL_OID] != "part::B" else "part::A"
     rel2 = pd.concat([rel, pd.DataFrame([row])], ignore_index=True)
     corrupted = replace(res, relations_df=rel2)
     checks = _checks_by_name(run_consistency_checks(src, corrupted, MappingConfig()))
     p16 = checks["P1.6 Participant coherence"]
     assert not p16.passed
-    assert "events with >1 distinct 'participant' edge target=1" in p16.detail
+    assert "events with >1 distinct 'in_participant' edge target=1" in p16.detail
 
 
 def test_p13_catches_coherent_endpoint_corruption_vs_source():
@@ -827,120 +827,6 @@ def test_p14_catches_for_participant_retargeted_to_wrong_type():
     assert "for_participant type disagreements=1" in p14.detail
 
 
-# =====================================================================
-# Refinement layers: resource (R1-R3, PR.1/PR.2), correlation (C1, PC.1)
-# =====================================================================
-
-def _layer_log() -> pd.DataFrame:
-    """The well-formed log with an actor attribute and a correlation
-    identifier that pairs each send with its receive."""
-    src = _well_formed_log()
-    src["org:resource"] = ["r1", "r1", "r2", "r2", "r1", "r1", "r2", "r2"]
-    src["msgId"] = [None, "m1", "m1", None, None, "m2", "m2", None]
-    return src
-
-
-def test_layers_are_off_by_default():
-    """The core mapping creates no Resource object and no correlated_with
-    relation, and reports exactly the P1 checks."""
-    res = transform(_layer_log(), MappingConfig())
-    assert "Resource" not in set(res.objects_df[COL_OTYPE])
-    assert "correlated_with" not in set(res.o2o_df[COL_QUALIFIER])
-    names = [c.name for c in run_consistency_checks(_layer_log(), res, MappingConfig())]
-    assert not [n for n in names if n.startswith(("PR.", "PC."))]
-
-
-def test_resource_layer_adds_objects_relations_and_passes_its_criteria():
-    src = _layer_log()
-    cfg = MappingConfig(resource_attr="org:resource")
-    res = transform(src, cfg)
-    obj, rel, o2o = res.objects_df, res.relations_df, res.o2o_df
-    assert set(obj[obj[COL_OTYPE] == "Resource"]["name"]) == {"r1", "r2"}       # R1
-    assert int((rel[COL_QUALIFIER] == "resource").sum()) == len(src)            # R2
-    acts_for = o2o[o2o[COL_QUALIFIER] == "acts_for"]                            # R3
-    assert set(zip(acts_for[COL_OID], acts_for[COL_OID2])) == {
-        ("res::r1", "part::A"), ("res::r2", "part::B")}
-    checks = _checks_by_name(run_consistency_checks(src, res, cfg))
-    assert checks["PR.1 Actor-participant coherence"].passed
-    assert checks["PR.2 No orphan resources"].passed
-    assert all(c.passed for c in checks.values())
-
-
-def test_pr1_catches_resource_acting_for_an_unrecorded_participant():
-    """Deleting the acts_for edge that backs one event's resource relation:
-    the event is then attributed to a resource the log does not record as
-    acting for that participant."""
-    src = _layer_log()
-    cfg = MappingConfig(resource_attr="org:resource")
-    res = transform(src, cfg)
-    o2o = res.o2o_df
-    o2o = o2o.drop(o2o[(o2o[COL_QUALIFIER] == "acts_for")
-                       & (o2o[COL_OID] == "res::r1")].index)
-    checks = _checks_by_name(run_consistency_checks(
-        src, replace(res, o2o_df=o2o), cfg))
-    assert not checks["PR.1 Actor-participant coherence"].passed
-    assert all(c.passed for n, c in checks.items() if not n.startswith("PR.1"))
-
-
-def test_correlation_layer_pairs_send_and_receive_and_passes_pc1():
-    src = _layer_log()
-    cfg = MappingConfig(correlation_attr="msgId")
-    res = transform(src, cfg)
-    corr = res.o2o_df[res.o2o_df[COL_QUALIFIER] == "correlated_with"]
-    assert len(corr) == 2                       # one per (send, receive) pair
-    # Directed from the send observation to the receive observation.
-    send_eids = set(res.relations_df[res.relations_df[COL_QUALIFIER] == Q_SEND][COL_EID])
-    assert all(src_oid.replace("msg::", "") in send_eids for src_oid in corr[COL_OID])
-    checks = _checks_by_name(run_consistency_checks(src, res, cfg))
-    assert checks["PC.1 Correlation well-formedness"].passed
-    assert all(c.passed for c in checks.values())
-
-
-def test_pc1_catches_correlation_id_shared_by_more_than_two_observations():
-    """Rule C1 is unconditional: an identifier shared by one send and TWO
-    receives yields two relations out of the same Message. Filtering such a
-    group out at construction time would let PC.1 pass vacuously on a source
-    attribute that is not a usable correlation identifier."""
-    src = _layer_log()
-    src.loc[src["msgId"].isna() & (src[ACT_KEY] == "End"), "msgId"] = "m1"
-    src.loc[src[ACT_KEY] == "End", ELEM_KEY] = "ReceiveTask"
-    src.loc[src[ACT_KEY] == "End", TO_KEY] = "B"
-    cfg = MappingConfig(correlation_attr="msgId")
-    res = transform(src, cfg)
-    checks = _checks_by_name(run_consistency_checks(src, res, cfg))
-    pc1 = checks["PC.1 Correlation well-formedness"]
-    assert not pc1.passed
-    assert "with >1 outgoing=1" in pc1.detail
-
-
-def test_pc1_correlation_ids_are_scoped_per_case():
-    """The same correlation id reused in two different cases (msgId 'm1' in
-    both C1 and C2) must NOT be treated as one global identifier: rule C1
-    pairs observations within a case, so `correlated_with` never crosses
-    cases and PC.1 keeps passing (regression for the cross-case defect: before
-    scoping by case, this produced a 2x2 cross product with 2 cross-case
-    relations that PC.1 then correctly failed on -- fixing C1 to be case-
-    scoped is the actual fix, not loosening PC.1)."""
-    src = _well_formed_log()
-    src["msgId"] = [None, "m1", "m1", None, None, "m1", "m1", None]
-    cfg = MappingConfig(correlation_attr="msgId")
-    res = transform(src, cfg)
-    corr = res.o2o_df[res.o2o_df[COL_QUALIFIER] == "correlated_with"]
-    assert len(corr) == 2   # one pair per case, not a 4-way cross product
-    within = res.relations_df[res.relations_df[COL_QUALIFIER] == Q_WITHIN]
-    case_of_eid = dict(zip(within[COL_EID], within[COL_OID]))
-    send_eid_of_msg = dict(zip(res.relations_df[res.relations_df[COL_QUALIFIER] == Q_SEND][COL_OID],
-                              res.relations_df[res.relations_df[COL_QUALIFIER] == Q_SEND][COL_EID]))
-    recv_eid_of_msg = dict(zip(res.relations_df[res.relations_df[COL_QUALIFIER] == Q_RECEIVE][COL_OID],
-                              res.relations_df[res.relations_df[COL_QUALIFIER] == Q_RECEIVE][COL_EID]))
-    for send_msg, recv_msg in zip(corr[COL_OID], corr[COL_OID2]):
-        assert case_of_eid[send_eid_of_msg[send_msg]] == case_of_eid[recv_eid_of_msg[recv_msg]]
-    checks = _checks_by_name(run_consistency_checks(src, res, cfg))
-    pc1 = checks["PC.1 Correlation well-formedness"]
-    assert pc1.passed
-    assert "across different cases=0" in pc1.detail
-
-
 def test_export_reachability_passes_on_well_formed_log():
     src = _well_formed_log()
     res = transform(src, MappingConfig())
@@ -964,31 +850,6 @@ def test_export_reachability_catches_an_object_dropped_from_the_export_table():
     # ... while it still passes against TransformResult's own relations_df,
     # confirming the two checks verify genuinely different artifacts.
     assert check_export_reachability(res.objects_df, res.relations_df).passed
-
-
-def test_layers_are_additive_independent_and_degenerate():
-    """The three properties the layered construction rests on: each layer only
-    appends (additivity), they commute (independence), and each is the
-    identity on a log that records no such identifier (degeneracy)."""
-    src = _layer_log()
-    def sig(r):
-        f = lambda d: sorted(map(tuple, d.astype(str).values.tolist()))
-        return f(r.objects_df), f(r.relations_df), f(r.o2o_df)
-    core = sig(transform(src, MappingConfig()))
-    rc = sig(transform(src, MappingConfig(resource_attr="org:resource",
-                                          correlation_attr="msgId")))
-    cr = sig(transform(src, MappingConfig(correlation_attr="msgId",
-                                          resource_attr="org:resource")))
-    assert rc == cr                                              # independence
-    assert all(set(core[i]) <= set(rc[i]) for i in range(3))     # additivity
-    only_r = sig(transform(src, MappingConfig(resource_attr="org:resource")))
-    only_c = sig(transform(src, MappingConfig(correlation_attr="msgId")))
-    for i in range(3):   # the layers' contributions are disjoint and exhaustive
-        er, ec = set(only_r[i]) - set(core[i]), set(only_c[i]) - set(core[i])
-        assert not (er & ec) and er | ec == set(rc[i]) - set(core[i])
-    # Degeneracy: naming an attribute no event carries changes nothing.
-    assert sig(transform(src, MappingConfig(resource_attr="absent:attr",
-                                            correlation_attr="absent:attr"))) == core
 
 
 def _run_all():

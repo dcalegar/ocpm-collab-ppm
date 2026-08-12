@@ -22,20 +22,30 @@ joblib==1.5.3
 # LSTM predictors (predictors/lstm.py, predictors/lstm_torch.py) -- not part
 # of the pin above, since no published results/ used them yet. Both install
 # and run natively on Apple Silicon (arm64) with no extra package required.
+# On Windows, the plain win_amd64 wheels install and run with no extra
+# package required either.
 tensorflow==2.21.0
 torch==2.13.0
 
 # GNN (predictors/gnn.py) and XGBoost (predictors/xgboost.py) predictors --
 # same caveat as above, not part of the published-results pin.
 # dgl: base build; CUDA-enabled DGL wheels must match the runtime's
-# PyTorch/CUDA versions.
-# xgboost: on macOS, requires the OpenMP runtime (`brew install libomp` --
-# only works if your Homebrew prefix is arm64-native, i.e. /opt/homebrew;
-# see the Apple Silicon note in README.md). If your Homebrew is
-# Intel-prefixed (/usr/local) instead, xgboost's import fails with
-# "Library not loaded: @rpath/libomp.dylib"; work around it without
-# installing anything else by pointing the loader at the libomp.dylib
-# already bundled with torch:
-#   export DYLD_LIBRARY_PATH="$(python -c 'import torch, os; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
+# PyTorch/CUDA versions. On Windows, the win_amd64 wheel needs the
+# Microsoft Visual C++ 2015 Redistributable (usually already present;
+# install from https://aka.ms/vs/17/release/vc_redist.x64.exe if import
+# fails with "DLL load failed").
+# xgboost:
+#   - on macOS, requires the OpenMP runtime (`brew install libomp` --
+#     only works if your Homebrew prefix is arm64-native, i.e. /opt/homebrew;
+#     see the Apple Silicon note in README.md). If your Homebrew is
+#     Intel-prefixed (/usr/local) instead, xgboost's import fails with
+#     "Library not loaded: @rpath/libomp.dylib"; work around it without
+#     installing anything else by pointing the loader at the libomp.dylib
+#     already bundled with torch:
+#       export DYLD_LIBRARY_PATH="$(python -c 'import torch, os; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
+#   - on Windows, the win_amd64 wheel bundles its own OpenMP runtime; the
+#     only external requirement is the Visual C++ Redistributable above
+#     (same one dgl needs). If you have Visual Studio installed already,
+#     you already have it and no separate download is needed.
 dgl==1.1.2
 xgboost==3.2.0

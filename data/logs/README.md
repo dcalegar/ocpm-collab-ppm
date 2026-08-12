@@ -76,11 +76,3 @@ and run as an opt-in stage (`log_groups=("bpi2013",)`) writing to its own
 provenance with the four study logs reused from Delgado et al. (2025). See
 [src/ocpm_eval/README.md](../../src/ocpm_eval/README.md#usage) for how to run
 it.
-
-## `ToyCollab/` — synthetic demo log
-
-`toy_collab.*`, built by `src/mapping/support/build_toy_collab_log.py`. A
-hand-crafted synthetic log (100 collaboration cases, 3 participants, ~1,132
-events) used **only** to demonstrate and test the object-enabled extension
-tasks (X-Inf, X-MSt) in `src/ocpm_eval/rq_ext_pipeline.py`. It is not one of
-the four study logs and is kept out of RQ2/RQ3 by task/config separation.

@@ -37,9 +37,8 @@ Design decisions (consistent with the project bitacora):
         via the residual attribute ``collab:synthesized="true"``, present
         only on the synthesized ``SendTask``.
       - Both observations of a pair share the same message identifier
-        (serialized as the residual attribute ``msgId``), enabling explicit
-        message correlation (the same ``corr_attr`` mechanism already used by
-        ToyCollab).
+        (serialized as the residual attribute ``msgId``), a provenance record
+        of which two observations belong to the same synthesized hand-over.
       - A ``Queued`` line-change event in first position of a CI has no observed
         predecessor -> flagged as an UNMATCHED receive (external / unobserved
         origin); kept, not corrected, and no send is synthesized for it.
@@ -319,10 +318,10 @@ def write_collab_xes(collab_cases, path):
 
     Each receive observation is paired with a synthesized send observation
     (element type ``SendTask``), correlated via the residual ``msgId``
-    attribute (serialized on both sides of the pair -- the same ``corr_attr``
-    mechanism already used by ToyCollab). The synthesized side additionally
-    carries the residual attribute ``collab:synthesized="true"``, never
-    present on the real (recorded) side.
+    attribute (serialized on both sides of the pair, as provenance of the
+    pairing). The synthesized side additionally carries the residual
+    attribute ``collab:synthesized="true"``, never present on the real
+    (recorded) side.
     """
     op = gzip.open(path, "wt", encoding="utf-8") if path.endswith(".gz") \
         else open(path, "w", encoding="utf-8")

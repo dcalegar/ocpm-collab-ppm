@@ -22,7 +22,7 @@ from ocpm_tasks import labels as TL
 from ocpm_tasks import fidelity as FID
 from ocpm_tasks.fidelity import Row
 from .config import ExperimentConfig, LogSpec
-from .io_ocel import read_ocel2_labels
+from features.io_ocel import read_ocel2_labels
 
 _ELEM_SEND = "SendTask"
 _ELEM_RECV = "ReceiveTask"
@@ -60,7 +60,7 @@ def _read_xes_cases(path: str) -> Dict[str, List[dict]]:
     # gives correct label VALUES here, because every timestamp carries the
     # same additive error, which cancels out in every difference the 14
     # tasks compute (R1 never reads an absolute timestamp, only diffs) --
-    # this covers the 4 baseline logs and ToyCollab. It does NOT cancel when
+    # this covers the 4 baseline logs. It does NOT cancel when
     # a single collaboration case spans more than one offset, e.g. a DST
     # transition: BPI Challenge 2013 mixes +01:00/+02:00 within 254 of its
     # 7,554 cases, and the resulting hour-scale errors do not cancel in

@@ -2,17 +2,20 @@
 
 Modular evaluation that answers RQ2–RQ3 of the study. Task definitions and
 ground-truth labels come from the decoupled
-[`ocpm_tasks`](../ocpm_tasks/README.md) library; `ocpm_eval` is a
-*consumer* of that library, not part of it — it adds feature extraction,
-model fitting, and the descriptive metrics/CSVs. Inputs are **OCEL 2.0
-SQLite** logs (the format OCPA imports natively), produced by the
-[`mapping`](../mapping/README.md) converter (RQ1, out of scope here).
+[`ocpm_tasks`](../ocpm_tasks/README.md) library; feature extraction and OCEL
+reading come from the decoupled [`features`](../features/README.md) library;
+model fitting comes from the decoupled [`predictors`](../predictors/README.md)
+library. `ocpm_eval` is a *consumer* of all three, not part of them — it wires
+them together into the RQ2/RQ3 pipelines and writes the descriptive
+metrics/CSVs. Inputs are **OCEL 2.0 SQLite** logs (the format OCPA imports
+natively), produced by the [`mapping`](../mapping/README.md) converter (RQ1,
+out of scope here).
 
 ## What this is (and isn't)
 
 `ocpm_eval` is where an actual prediction happens — `ocpm_tasks` only
-supplies the target `y`; here OCPA supplies the feature vector `X` and
-scikit-learn fits/predicts/scores it. See
+supplies the target `y`; `features` supplies the feature vector `X` via OCPA,
+and `predictors` fits/predicts/scores it. See
 ["Connecting to a concrete prediction with OCPA"](../ocpm_tasks/README.md#connecting-to-a-concrete-prediction-with-ocpa)
 in the `ocpm_tasks` README for the minimal version of this join; this
 package is the fuller, cross-validated version of the same pattern.
@@ -22,54 +25,43 @@ package is the fuller, cross-validated version of the same pattern.
 | Module | Purpose |
 |---|---|
 | `config.py` | `ExperimentConfig`, `LogSpec` — log registry, CV/learner hyperparameters, output dir |
-| `io_ocel.py` | `load_ocpa_ocel` / `read_ocel2_labels` — OCEL 2.0 SQLite → OCPA object (features) and → neutral model (labels), sharing one read path |
-| `features_ocpa.py` | `extract_feature_table` — native OCPA past-relative features (RQ3), with the event-id alignment oracle |
-| `predictors/` | one fit-and-score module per learner (`random_forest.py`, `lstm.py`, etc.), behind `dispatch.PREDICTOR_REGISTRY` keyed by `ExperimentConfig.predictor` — fit + **predict** + score, plus a trivial baseline |
 | `rq2_fidelity.py` | RQ2 — label-fidelity: R1 (source XES) vs R2 (OCEL) equivalence for the 14 tasks |
-| `rq3_pipeline.py` | RQ3 — end-to-end feasibility: features + labels joined, 5-fold `GroupKFold` CV grouped by `CollaborationCase` |
+| `rq3_pipeline.py` | RQ3 — end-to-end feasibility: `features.ocpa` features + `ocpm_tasks` labels joined, 5-fold `GroupKFold` CV grouped by `CollaborationCase`, scored by a `predictors` predictor |
 | `run_evaluation.py` | orchestrator — runs the requested (rq, log_group, rq3_scope) combinations and writes all CSVs |
+
+Feature extraction (`load_ocpa_ocel`/`read_ocel2_labels`/`extract_feature_table`)
+and predictor selection (`PREDICTOR_REGISTRY`/`resolve`) now live in
+[`features`](../features/README.md) and [`predictors`](../predictors/README.md)
+respectively — see those packages' READMEs for their modules, contracts and
+reading path. They are reusable independently of this orchestrator.
 
 | Stage | Module | Output |
 |---|---|---|
-| **RQ2** label fidelity | `rq2_fidelity.py` | `results/rq2_fidelity.csv` |
-| **RQ3** end-to-end feasibility (representative subset) | `rq3_pipeline.py` | `results/rq3_results_{predictor}.csv` (e.g. `rq3_results_random_forest.csv`) |
-| **RQ3** full catalog (supplementary coverage, 14 tasks × 4 logs) | `rq3_pipeline.py` via `run_evaluation.py` (`rq3_scopes=("partial","full")`) | `results/rq3_results_{predictor}_full.csv` |
+| **RQ2** label fidelity | `rq2_fidelity.py` | `results/rq2_fidelity_predictcollab.csv` |
+| **RQ3** end-to-end feasibility (representative subset) | `rq3_pipeline.py` | `results/rq3_results_{predictor}_predictcollab.csv` (e.g. `rq3_results_random_forest_predictcollab.csv`) |
+| **RQ3** full catalog (supplementary coverage, 14 tasks × 4 logs) | `rq3_pipeline.py` via `run_evaluation.py` (`rq3_scopes=("partial","full")`) | `results/rq3_results_{predictor}_predictcollab_full.csv` |
 | RQ1 transformation + P1 | — | [`mapping`](../mapping/README.md) (separate tool) |
 | **RQ2/RQ3 on BPI2013** (opt-in real-world validation, see below) | `rq2_fidelity.py`/`rq3_pipeline.py` via `run_evaluation.py` (`log_groups=("bpi2013",)`) | `results/rq2_fidelity_bpi2013.csv`, `results/rq3_results_{predictor}_bpi2013.csv` |
 
+The log group (`predictcollab`/`bpi2013`) always appears in the output
+filename, so results stay self-describing as more predictors are added — no
+predictcollab file is left nameless just because it's the default group.
+
 ## Reading path
 
-Both sides read the **same** OCEL 2.0 SQLite file, through two different
-readers, because OCPA pins `pm4py==2.2.32`, which predates OCEL 2.0 and
-cannot read it:
-
-- **Label side** (`io_ocel.read_ocel2_labels`): `ocpm_tasks.adapters
-  .from_ocel2_sqlite` (stdlib `sqlite3`) by default, or `from_ocpa` when
-  an already-loaded OCPA object is passed in (to avoid re-parsing).
-- **Feature side** (`io_ocel.load_ocpa_ocel`): OCPA's native
-  `ocpa.objects.log.importer.ocel2.sqlite` importer, with **leading-type**
-  process-execution extraction (`leading_type=CollaborationCase`) so
-  each execution is one collaboration case — the default
-  "connected components" extraction would merge instances that share a
-  `Participant` object. Before handing the file to OCPA,
-  `_strip_participant_e2o` removes the direct `participant` E2O edge that
-  the `mapping` converter adds (a genuine M6 relation, see
-  [mapping's README](../mapping/README.md#mapping-rules-m1m8)); left in
-  place, OCPA's pairwise E2O connection would merge nearly every
-  execution in the log.
-- **Alignment**: OCPA feature rows are matched to `ocpm_tasks` label rows
-  by `event_id` (`feature_storage.feature_graphs → node.event_id`),
-  validated by a remaining-time oracle (OCPA's own remaining-time feature
-  must equal the `NV-PrT` label) that raises on any mismatch —
-  `features_ocpa.py`.
+Both the label side and the feature side read the **same** OCEL 2.0 SQLite
+file, through two different readers (OCPA pins `pm4py==2.2.32`, which
+predates OCEL 2.0 and cannot read it), aligned by `event_id` and validated by
+a remaining-time oracle — see [`features`](../features/README.md#reading-path)
+for the full explanation (`load_ocpa_ocel`/`read_ocel2_labels`/
+`extract_feature_table`).
 
 ## Usage
 
 ```bash
 # default evaluation: RQ2 + RQ3 (partial scope) on the four Predict-Collab
-# study logs, + EXT on the toy log — WITHOUT BPI2013 or the RQ3 full
-# catalog. RQ3 requires OCPA installed; run from the repo root with .venv
-# active. Writes CSVs to results/.
+# study logs — WITHOUT BPI2013 or the RQ3 full catalog. RQ3 requires OCPA
+# installed; run from the repo root with .venv active. Writes CSVs to results/.
 python -m ocpm_eval.run_evaluation
 ```
 
@@ -85,12 +77,11 @@ from ocpm_eval.config import ExperimentConfig
 from ocpm_eval.rq3_pipeline import run_rq3
 
 cfg = ExperimentConfig()          # edit logs/hyperparameters here, or pass overrides
-df = run_rq3(cfg)                 # -> pandas.DataFrame, also written to results/rq3_results_random_forest.csv
+df = run_rq3(cfg)                 # -> pandas.DataFrame, also written to results/rq3_results_random_forest_predictcollab.csv
 ```
 
 `ocpm_tasks` has automated regression tests in the repo's `tests/` directory
-(`test_extensions_toy.py` for the X-Inf/X-MSt extension tasks, plus
-`test_mapping_checks.py` for the converter's consistency checks); run them
+(`test_mapping_checks.py` for the converter's consistency checks); run them
 directly with `python tests/<file>.py` (also pytest-compatible). `ocpm_eval`
 has `test_predictors_registry.py`, a synthetic-table smoke test per
 `predictors.dispatch.PREDICTOR_REGISTRY` entry, but no end-to-end pipeline
@@ -105,31 +96,41 @@ comparison).
 
 ### Selecting stages individually
 
-`run_evaluation.main` exposes three independent axes plus one unrelated flag:
+`run_evaluation.main` exposes four independent axes:
 
 - `rqs: Iterable["RQ2"|"RQ3"] = ("RQ2", "RQ3")`
 - `log_groups: Iterable["predictcollab"|"bpi2013"] = ("predictcollab",)`
 - `rq3_scopes: Iterable["partial"|"full"] = ("partial",)` — RQ3 only, ignored for RQ2
-- `predictor: Optional[str] = None` — key into `predictors.dispatch.PREDICTOR_REGISTRY`
-  (`"random_forest"`, `"xgboost"`, `"lstm"`, `"lstm_torch"`, or `"gnn"`);
-  `None` leaves
-  `cfg.predictor` (also default `"random_forest"`) untouched, so it only
-  overrides when explicitly passed. Feeds the `rq3_results_{predictor}*.csv`
-  filenames.
-- `run_rq_ext: bool = True` — EXT on the toy log; independent of the three axes above (see below)
+- `predictors: Iterable[str] = ("random_forest",)` — keys into
+  `predictors.dispatch.PREDICTOR_REGISTRY` (`"random_forest"`, `"xgboost"`,
+  `"lstm"`, `"lstm_torch"`, `"gnn"`); RQ3 only (RQ2 has no predictor). RQ3 runs
+  once per `(log_group, predictor, scope)` combination, each to its own
+  `rq3_results_{predictor}*.csv`; RQ2 runs once per `log_group` regardless of
+  how many predictors are requested.
 
-There is no CLI flag for this yet — enable/disable stages by calling `main`
-programmatically:
+Every axis is also a CLI flag, so a slow combination — a heavy predictor on a
+large log group — can be run on its own without editing code:
+
+```bash
+python -m ocpm_eval.run_evaluation                                    # default: Predict-Collab, RQ2+RQ3 partial, random_forest
+python -m ocpm_eval.run_evaluation --rq3-scopes partial full           # + RQ3 full catalog on Predict-Collab
+python -m ocpm_eval.run_evaluation --log-groups predictcollab bpi2013  # + RQ2/RQ3 on BPI2013 as well
+python -m ocpm_eval.run_evaluation --log-groups bpi2013                # BPI2013 only (skips the four study logs)
+python -m ocpm_eval.run_evaluation --rqs RQ3 --predictors gnn xgboost  # RQ3 only, two predictors, Predict-Collab
+python -m ocpm_eval.run_evaluation --help                              # full flag list
+```
+
+or programmatically:
 
 ```python
 from ocpm_eval.run_evaluation import main
 
-main()                                                    # default: Predict-Collab, RQ2+RQ3 partial, + EXT
+main()                                                    # default: Predict-Collab, RQ2+RQ3 partial, random_forest
 main(rq3_scopes=("partial", "full"))                      # + RQ3 full catalog on Predict-Collab
 main(log_groups=("predictcollab", "bpi2013"))              # + RQ2/RQ3 on BPI2013 as well
-main(log_groups=("bpi2013",), run_rq_ext=False)            # BPI2013 only (skips the four study logs)
-main(log_groups=("bpi2013",), rq3_scopes=("partial", "full"),
-     run_rq_ext=False)                                     # BPI2013 (subset + full catalog) only
+main(log_groups=("bpi2013",))                              # BPI2013 only (skips the four study logs)
+main(rqs=("RQ3",), predictors=("gnn", "xgboost"))           # RQ3 only, two predictors, Predict-Collab
+main(log_groups=("bpi2013",), rq3_scopes=("partial", "full"))  # BPI2013 (subset + full catalog) only
 ```
 
 ### With BPI2013 (opt-in real-world validation)
@@ -144,7 +145,7 @@ not share provenance with the four study logs reused from Delgado et al.
 (2025), so it always runs as a separate stage against a separate config
 (`replace(cfg, logs=real_world_ocel_logs())`) and writes to separate CSVs
 (`rq2_fidelity_bpi2013.csv`, `rq3_results_random_forest_bpi2013.csv`), never
-mixing into `rq2_fidelity.csv`/`rq3_results*.csv`.
+mixing into `rq2_fidelity_predictcollab.csv`/`rq3_results*_predictcollab*.csv`.
 
 See [data/logs/README.md](../../data/logs/README.md#bpichallenge2013--real-life-application-log)
 for the log's provenance and the synthesized-`SendTask` design, and
@@ -166,18 +167,13 @@ computation times are reported (V4 profile).
 protocol extends to the full catalog without any pipeline changes —
 passing `rq3_scopes=("partial", "full")` to `run_evaluation.main` also runs it
 over `ocpm_tasks.catalog.EQUIVALENCE_TASKS` (all 14 tasks) and writes
-`rq3_results_random_forest_full.csv`, intended as supplementary coverage rather than a
+`rq3_results_random_forest_predictcollab_full.csv`, intended as supplementary coverage rather than a
 curated result: it confirms all (task, log)
 combinations run end-to-end, but a few of the non-curated tasks (e.g.
 `NV-TNE`, `NV-TNM`) land close to or slightly worse than their trivial
 baseline in some logs — unlike the subset, which was picked to show clear
 separation, the full catalog is a coverage check, not a predictive-quality
-claim. Beyond the 14-task catalog, `ocpm_tasks/extensions.py` implements two
-further object-enabled extension tasks (X-Inf, X-MSt) kept out of
-`catalog.TASKS` — see the EXT section below. X-MSt in particular
-presupposes a send/receive correspondence that the core mapping (rule M4)
-deliberately does not establish, so it needs an enrichment step beyond the
-current converter.
+claim.
 
 ## RQ2 protocol
 

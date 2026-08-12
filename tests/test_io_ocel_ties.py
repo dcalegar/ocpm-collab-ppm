@@ -1,5 +1,5 @@
 """
-Regression test for ``ocpm_eval.io_ocel._break_timestamp_ties``.
+Regression test for ``features.io_ocel._break_timestamp_ties``.
 
 Context (D23/B9): OCPA's positional features cut the prefix with
 ``event_timestamp <= cut_time``, not with the total order prec_L, so two
@@ -25,7 +25,7 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ocpm_eval.io_ocel import _break_timestamp_ties  # noqa: E402
+from features.io_ocel import _break_timestamp_ties  # noqa: E402
 
 
 def _build_db(events):

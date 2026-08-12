@@ -1,11 +1,11 @@
 """
-Regression test for ``ocpm_eval.io_ocel._strip_participant_e2o``.
+Regression test for ``features.io_ocel._strip_participant_e2o``.
 
 Context: OCPA's leading-type execution extraction connects ALL E2O-related
 objects of an event pairwise, regardless of qualifier or type. A log-wide
 object (Participant, M2 scope) reached from events of two DIFFERENT
 CollaborationCases therefore merges those cases into one OCPA process
-execution. The direct `participant` E2O edge (M6) was already stripped down
+execution. The direct `in_participant` E2O edge (M6) was already stripped down
 to one witness row per object for this reason; this test locks in that the
 same treatment now also covers the D25 export-reachability witness edges
 (qualifier `from`/`to`, reused at the E2O level for a Participant that is
@@ -26,7 +26,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ocpm_eval.io_ocel import _strip_participant_e2o  # noqa: E402
+from features.io_ocel import _strip_participant_e2o  # noqa: E402
 from ocpm_tasks.schema import Schema  # noqa: E402
 
 
@@ -49,7 +49,7 @@ def test_strip_removes_cross_case_from_to_witness_edges():
     rows = [
         ("e::C1::01", "part::B", "to"),
         ("e::C2::00", "part::B", "to"),
-        ("e::C1::00", "part::A", "participant"),
+        ("e::C1::00", "part::A", "in_participant"),
     ]
     path = _build_event_object_db(rows)
     out = _strip_participant_e2o(path, Schema())

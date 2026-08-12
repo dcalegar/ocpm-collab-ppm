@@ -23,9 +23,6 @@ class Event:
     msg_type: Optional[str] = None   # = activity of the message event
     msg_from: Optional[str] = None   # sender (from relation)
     msg_to: Optional[str] = None     # receiver (to relation)
-    corr_id: Optional[str] = None    # native correlation id pairing a send with its receive;
-                                     # populated only by an ENRICHMENT step (not by the core
-                                     # mapping M4). Used by the X-MSt extension task.
 
     @property
     def is_msg(self) -> bool:
@@ -48,10 +45,10 @@ class Execution:
     ``from_ocel2_sqlite`` (RQ2/R2) guarantees this directly, with an explicit
     ``ORDER BY ocel_id`` (ocel_id sorts consistently with prec_L once created
     with zero-padded indices, mapping.collab_xes_to_ocel._event_id).
-    ``from_ocpa`` (RQ3/RQ-EXT) does not sort by ocel_id itself and inherits
+    ``from_ocpa`` (RQ3) does not sort by ocel_id itself and inherits
     whatever row order OCPA's importer used -- but by construction it never
     receives a log with within-case timestamp ties to begin with:
-    ``ocpm_eval.io_ocel._break_timestamp_ties`` (D23) nudges every tied
+    ``features.io_ocel._break_timestamp_ties`` (D23) nudges every tied
     within-case timestamp to a strictly increasing value in ocel_id/prec_L
     order before OCPA ever imports the file, so there is nothing left for
     OCPA's unverified row order to get wrong. Verified empirically on

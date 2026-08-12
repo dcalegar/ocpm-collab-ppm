@@ -6,7 +6,7 @@ build_leakage_test_logs.py
 Builds tiny synthetic OCEL 2.0 SQLite fixtures used ONLY by
 tests/test_features_leakage.py (A7, point 3: leakage tests per feature
 family, beyond the remaining-time oracle). Not a paper artifact, not
-one of the four study logs, not the toy_collab log used for X-Inf/X-MSt.
+one of the four study logs.
 
 Two pairs of fixtures, written to tests/fixtures/:
 

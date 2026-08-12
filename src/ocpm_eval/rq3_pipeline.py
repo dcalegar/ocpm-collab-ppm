@@ -20,9 +20,9 @@ from sklearn.model_selection import GroupKFold
 from ocpm_tasks.catalog import TASKS
 from ocpm_tasks import labels as TL
 from .config import ExperimentConfig, LogSpec
-from .io_ocel import load_ocpa_ocel, read_ocel2_labels
-from .features_ocpa import extract_feature_table
-from .predictors.dispatch import resolve as resolve_predictor
+from features.io_ocel import load_ocpa_ocel, read_ocel2_labels
+from features.ocpa import extract_feature_table
+from predictors.dispatch import resolve as resolve_predictor
 
 
 def _a_hat(log, cfg):

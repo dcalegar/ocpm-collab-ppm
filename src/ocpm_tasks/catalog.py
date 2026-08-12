@@ -3,10 +3,6 @@ Catalog of the 14 reformulated prediction tasks (the object-centric reformulatio
 the collaborative baseline of Delgado et al.). Each task declares its anchor object
 type, problem type, value kind, and parameterization.
 
-Beyond this taxonomy, further exploratory extension directions (X-PaL, X-Inf,
-X-Cmp, X-MSt, X-Lag) have been outlined; only X-Inf and X-MSt are implemented,
-in ``extensions.py``, kept out of this catalog (see that module).
-
 This module is pure metadata; the actual label computation lives in ``labels.py``.
 """
 from dataclasses import dataclass

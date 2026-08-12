@@ -8,34 +8,41 @@ RQ1 (XES->OCEL transformation, properties P1.1-P1.6 incl. the P1.2b order check,
 OCEL 2.0 schema validation) is produced by the CONVERTER (a separate tool) and is
 therefore out of scope here.
 
-Three independent axes select what runs: `rqs` (RQ2, RQ3), `log_groups`
-(predictcollab, bpi2013) and `rq3_scopes` (partial = the 6-task representative
+Four independent axes select what runs: `rqs` (RQ2, RQ3), `log_groups`
+(predictcollab, bpi2013), `rq3_scopes` (partial = the 6-task representative
 subset, one task per anchor x problem-type combination; full = all 14 tasks,
-supplementary coverage -- RQ3 only, ignored for RQ2). Output filenames are derived from the
-combination plus the selected predictor, e.g. `rq3_results_random_forest.csv`
-(predictcollab, partial), `rq3_results_random_forest_full.csv` (predictcollab,
-full), `rq2_fidelity_bpi2013.csv` (RQ2 has no predictor axis),
-`rq3_results_random_forest_bpi2013_full.csv` (bpi2013, full). See `main()` below.
+supplementary coverage -- RQ3 only, ignored for RQ2) and `predictors` (any
+subset of `predictors.dispatch.PREDICTOR_REGISTRY`, e.g. random_forest,
+xgboost, lstm, lstm_torch, gnn -- RQ3 only; RQ2 has no predictor axis). Output
+filenames are derived from the combination, e.g. `rq3_results_random_forest_predictcollab.csv`
+(predictcollab, partial, random_forest), `rq3_results_gnn_predictcollab_full.csv`
+(predictcollab, full, gnn), `rq2_fidelity_bpi2013.csv` (RQ2 has no predictor
+axis), `rq3_results_xgboost_bpi2013_full.csv` (bpi2013, full, xgboost). The
+log group always appears in the name, so files stay self-describing as more
+predictors are added. See `main()` below.
 
-RQ-EXT (object-enabled EXTENSION tasks X-Inf, X-MSt; ocpm_tasks/extensions.py) is run
-separately, on a small hand-built toy log (data/logs/ToyCollab/toy_collab.*, see
-mapping/support/build_toy_collab_log.py) with explicit send/receive pairs and msgId
-correlation -- NOT on the four study logs, and its results (`rq_ext_results_toy.csv`)
-are never combined with rq2/rq3. This is a feasibility demo of the object-enabled
-extension tasks (ocpm_tasks/extensions.py), kept separate from the evaluated
-RQ2/RQ3 results. The toy log is designed to exercise both X-Inf (variable
-in-flight backlog) and X-MSt (message synchronization time with correlation).
-Remaining extensions (X-PaL, X-Cmp, X-Lag) are not implemented here.
+Some (predictor, log_group) combinations are slow (BPI2013 in particular, see
+below), so each axis can be restricted independently to run the evaluation in
+parts -- e.g. one predictor on one log group at a time -- either by calling
+`main()` with a subset of each iterable, or via the CLI:
 
-Usage: python -m ocpm_eval.run_evaluation   (adjust paths in config.py)
+    python -m ocpm_eval.run_evaluation                                    # default: RQ2+RQ3 partial, Predict-Collab, random_forest
+    python -m ocpm_eval.run_evaluation --rqs RQ3 --predictors gnn xgboost  # RQ3 only, two predictors, Predict-Collab
+    python -m ocpm_eval.run_evaluation --log-groups bpi2013               # BPI2013 only
+    python -m ocpm_eval.run_evaluation --rq3-scopes full --out-dir /tmp/x  # RQ3 full catalog, custom output dir
+    python -m ocpm_eval.run_evaluation --help                              # full flag list
+
+Log paths/hyperparameters are adjusted in config.py; which stages run is
+adjusted via the CLI flags above (see `_parse_args` below) or by calling
+`main()` directly.
 
 Reproducibility note: RandomForest draws features and bootstrap rows BY
 POSITION, so a reordered column set or row order moves the metrics at a fixed
 random_state even with every feature value, label and sample count unchanged.
 Both orders are pinned at their source, not by the hash seed: the per-activity
-feature columns come from a sorted vocabulary (features_ocpa.build_feature_set)
+feature columns come from a sorted vocabulary (features.ocpa.build_feature_set)
 and the table is sorted by (case_id, event_id) before training
-(features_ocpa.extract_feature_table) -- see the comments there for why the
+(features.ocpa.extract_feature_table) -- see the comments there for why the
 upstream order is not usable as-is.
 
 The __main__ guard below still re-execs once with PYTHONHASHSEED=0 if unset,
@@ -45,15 +52,16 @@ orders above pinned, running this module under different hash seeds reproduces
 every metric to within the last representable digit -- the same spread as two
 runs at one seed -- so no reported figure depends on the variable being set.
 """
+import argparse
 import os
 import sys
 from dataclasses import replace
 from typing import Iterable, Literal, Optional
 from ocpm_tasks.catalog import EQUIVALENCE_TASKS, RQ3_SUBSET
-from .config import ExperimentConfig, ExtExperimentConfig, predictcollab_ocel_logs, real_world_ocel_logs
+from .config import ExperimentConfig, predictcollab_ocel_logs, real_world_ocel_logs
 from .rq2_fidelity import run_rq2
 from .rq3_pipeline import run_rq3
-from .rq_ext_pipeline import run_rq_ext as run_rq_ext_pipeline
+from predictors.dispatch import PREDICTOR_REGISTRY
 
 RQ = Literal["RQ2", "RQ3"]
 LogGroup = Literal["predictcollab", "bpi2013"]
@@ -77,59 +85,81 @@ _RQ3_SCOPES = {
 
 
 def main(cfg: Optional[ExperimentConfig] = None,
-        ext_cfg: Optional[ExtExperimentConfig] = None,
         rqs: Iterable[RQ] = ("RQ2", "RQ3"),
         log_groups: Iterable[LogGroup] = ("predictcollab",),
         rq3_scopes: Iterable[Scope] = ("partial",),
-        predictor: Optional[str] = None,
-        run_rq_ext: bool = True):
-    """Run RQ2/RQ3 over the requested (rq, log_group, rq3_scope) combinations.
+        predictors: Iterable[str] = ("random_forest",)):
+    """Run RQ2/RQ3 over the requested (rq, log_group, rq3_scope, predictor) combinations.
 
-    rq3_scopes is only meaningful when "RQ3" is in rqs; it is ignored for RQ2
-    (RQ2 always evaluates all 14 tasks via EQUIVALENCE_TASKS, unconditionally).
-    RQ-EXT (run_rq_ext) is independent of these three axes -- see rq_ext_pipeline.py
-    and ExtExperimentConfig: it always runs on the ToyCollab log, never on
-    predictcollab/bpi2013, and has no partial/full scope.
+    rq3_scopes and predictors are only meaningful when "RQ3" is in rqs; both
+    are ignored for RQ2 (RQ2 always evaluates all 14 tasks via
+    EQUIVALENCE_TASKS, unconditionally, and has no predictor). RQ2 therefore
+    runs once per log_group regardless of how many predictors are requested.
 
-    predictor selects a key from predictors.dispatch.PREDICTOR_REGISTRY (e.g.
-    "random_forest"). Left as None by default so a predictor already set on a
-    caller-supplied cfg is not silently overridden by this parameter's default;
-    only overrides cfg.predictor when explicitly passed.
+    predictors selects keys from predictors.dispatch.PREDICTOR_REGISTRY (e.g.
+    "random_forest", "xgboost", "lstm", "lstm_torch", "gnn"); RQ3 runs once per
+    (log_group, predictor, scope) combination, each to its own
+    rq3_results_{predictor}*.csv.
     """
     base_cfg = cfg or ExperimentConfig()
-    if predictor is not None:
-        base_cfg = replace(base_cfg, predictor=predictor)
     results = {}
 
     for group in log_groups:
         group_cfg = replace(base_cfg, logs=_LOG_GROUPS[group]())
-        suffix = "" if group == "predictcollab" else f"_{group}"
+        suffix = f"_{group}"
 
         if "RQ2" in rqs:
             print(f"\n########## RQ2 — label fidelity ({group}) ##########")
             results[f"rq2{suffix}"] = run_rq2(group_cfg, out_name=f"rq2_fidelity{suffix}.csv")
 
         if "RQ3" in rqs:
-            for scope in rq3_scopes:
-                scope_cfg = replace(group_cfg, rq3_tasks=_RQ3_SCOPES[scope]())
-                scope_suffix = "" if scope == "partial" else "_full"
-                print(f"\n########## RQ3 — {scope} catalog ({group}) ##########")
-                results[f"rq3{suffix}{scope_suffix}"] = run_rq3(
-                    scope_cfg,
-                    out_name=f"rq3_results_{scope_cfg.predictor}{suffix}{scope_suffix}.csv")
+            for predictor in predictors:
+                predictor_cfg = replace(group_cfg, predictor=predictor)
+                for scope in rq3_scopes:
+                    scope_cfg = replace(predictor_cfg, rq3_tasks=_RQ3_SCOPES[scope]())
+                    scope_suffix = "" if scope == "partial" else "_full"
+                    print(f"\n########## RQ3 — {scope} catalog ({group}, {predictor}) ##########")
+                    results[f"rq3_{predictor}{suffix}{scope_suffix}"] = run_rq3(
+                        scope_cfg,
+                        out_name=f"rq3_results_{predictor}{suffix}{scope_suffix}.csv")
 
     if "RQ2" in rqs or "RQ3" in rqs:
         print("\n[note] RQ1 (transformation + P1 + schema) is the converter's tool.")
 
-    if run_rq_ext:
-        print("\n########## RQ-EXT — object-enabled extensions X-Inf/X-MSt (TOY LOG demo) ##########")
-        results["rq_ext_toy"] = run_rq_ext_pipeline(ext_cfg or ExtExperimentConfig())
-
     return results
+
+
+def _parse_args(argv):
+    p = argparse.ArgumentParser(
+        prog="python -m ocpm_eval.run_evaluation",
+        description="Run RQ2/RQ3 evaluation stages. Combine flags to run a "
+                    "subset -- e.g. one predictor on one log group -- since some "
+                    "(predictor, log_group) combinations are slow (see BPI2013 note "
+                    "in the module docstring).")
+    p.add_argument("--rqs", nargs="+", choices=["RQ2", "RQ3"],
+                   default=["RQ2", "RQ3"], help="which RQs to run (default: both)")
+    p.add_argument("--log-groups", nargs="+", choices=list(_LOG_GROUPS),
+                   default=["predictcollab"],
+                   help="which log groups to run (default: predictcollab; bpi2013 is opt-in, slow)")
+    p.add_argument("--rq3-scopes", nargs="+", choices=list(_RQ3_SCOPES),
+                   default=["partial"],
+                   help="RQ3 task catalog scope; ignored for RQ2 (default: partial)")
+    p.add_argument("--predictors", nargs="+", choices=sorted(PREDICTOR_REGISTRY),
+                   default=["random_forest"],
+                   help="RQ3 predictors to evaluate, one run per predictor (default: random_forest)")
+    p.add_argument("--out-dir", default=None,
+                   help="override ExperimentConfig.out_dir (default: data/results)")
+    return p.parse_args(argv)
 
 
 if __name__ == "__main__":
     if os.environ.get("PYTHONHASHSEED") != "0":
         os.environ["PYTHONHASHSEED"] = "0"
         os.execv(sys.executable, [sys.executable, "-m", "ocpm_eval.run_evaluation"] + sys.argv[1:])
-    main()
+    args = _parse_args(sys.argv[1:])
+    cfg = ExperimentConfig(out_dir=args.out_dir) if args.out_dir else None
+    main(cfg=cfg,
+        rqs=tuple(args.rqs),
+        log_groups=tuple(args.log_groups),
+        rq3_scopes=tuple(args.rq3_scopes),
+        predictors=tuple(args.predictors))
