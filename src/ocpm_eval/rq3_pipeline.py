@@ -6,9 +6,11 @@ For each log and each task in the representative subset: build the object-centri
 join them by (case_id, k), and run 5-fold cross-validation GROUPED BY
 CollaborationCase (all prefixes of a case stay in one fold). Reports the
 descriptive metric (macro F1 / MAE) as mean +/- sd over folds, plus a trivial
-baseline. No computation times are reported (V4).
+baseline. Per-task/per-log elapsed time is printed to stdout for progress
+monitoring only; it is not part of the persisted results (V4).
 """
 import os
+import time
 import collections
 from typing import List, Dict, Optional
 import numpy as np
@@ -58,6 +60,7 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
 
     rows: List[dict] = []
     for key in cfg.rq3_tasks:
+        t_task_start = time.perf_counter()
         task = TASKS[key]
         param = _param(task, a_hat, p_star)
         # labels joined by event_id (the table carries event_id and case_id)
@@ -94,15 +97,17 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
         for tr, te in gkf.split(idx, groups=groups):
             train_mask = pd.Series(False, index=tt.index); train_mask.iloc[tr] = True
             test_mask = pd.Series(False, index=tt.index); test_mask.iloc[te] = True
-            r = fit_fn(tt, feature_cols, "_y", task,
+            r = fit_fn(feats, tt, "_y", task,
                       train_mask, test_mask, cfg)
             if r:
                 ms.append(r["metric"]); bs.append(r["baseline"])
+        elapsed = round(time.perf_counter() - t_task_start, 2)
         rec["metric_name"] = metric_name
         rec["metric_mean"] = float(np.mean(ms)) if ms else None
         rec["metric_sd"] = float(np.std(ms)) if ms else None
         rec["baseline_mean"] = float(np.mean(bs)) if bs else None
         rec["folds"] = len(ms)
+        print(f"  [{key}] {elapsed:.1f}s")
         rows.append(rec)
     return rows
 
@@ -114,11 +119,14 @@ def run_rq3(cfg: Optional[ExperimentConfig] = None,
     out: List[dict] = []
     for spec in cfg.logs:
         print(f"\n===== RQ3 LOG: {spec.name} =====")
+        t_log = time.perf_counter()
         try:
             out.extend(run_one_log(spec, cfg))
         except Exception as ex:                       # noqa: BLE001
             print(f"[{spec.name}] ERROR: {ex}")
             out.append({"log": spec.name, "error": str(ex)})
+        log_elapsed = time.perf_counter() - t_log
+        print(f"  ⏱ {spec.name} total: {log_elapsed:.1f}s")
     df = pd.DataFrame(out)
     df.to_csv(os.path.join(cfg.out_dir, out_name), index=False)
     print(f"[ok] wrote {out_name}")

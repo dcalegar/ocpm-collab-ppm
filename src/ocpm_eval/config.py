@@ -55,6 +55,12 @@ class ExperimentConfig:
     rf_n_estimators: int = 200
     rf_max_depth: Optional[int] = None
 
+    # LSTM hyperparameters
+    lstm_units: int = 64
+    lstm_epochs: int = 20
+    lstm_batch_size: int = 32
+    lstm_learning_rate: float = 0.001
+
     # Key into predictors.dispatch.PREDICTOR_REGISTRY -- which fit_and_score_fold
     # implementation run_rq3/run_rq_ext use. Only "random_forest" exists today;
     # more predictors (xgboost, lstm, transformer, gnn) register there as added.
@@ -104,6 +110,10 @@ class ExtExperimentConfig:
     random_state: int = 3395
     rf_n_estimators: int = 200
     rf_max_depth: Optional[int] = None
+    lstm_units: int = 64
+    lstm_epochs: int = 20
+    lstm_batch_size: int = 32
+    lstm_learning_rate: float = 0.001
     predictor: str = "random_forest"   # see ExperimentConfig.predictor
 
     out_dir: str = "data/results"

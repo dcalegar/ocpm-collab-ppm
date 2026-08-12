@@ -9,6 +9,7 @@ import gc
 import os
 import time
 import warnings
+import pandas as pd
 from typing import Dict, List, Tuple
 from ocpm_tasks.adapters import from_ocpa, from_ocel2_sqlite, _normalize_ocel_sqlite_timestamps
 from ocpm_tasks.model import ObjectCentricLog
@@ -278,6 +279,58 @@ def load_ocpa_ocel(schema, path: str):
     norm_path = _normalize_ocel_sqlite_timestamps(stripped_path)
     tie_broken_path = _break_timestamp_ties(norm_path)
     params = {"execution_extraction": "leading_type", "leading_type": schema.ot_cc}
+    
+    import random
+    
+    # Patch pandas merge to avoid MergeError with duplicated suffixes in OCPA 
+    # (caused by multiple event types sharing column names like ocel_activity)
+    _orig_merge = pd.DataFrame.merge
+    def _patched_merge(self, right, *args, **kwargs):
+        if 'suffixes' not in kwargs:
+            suffix_x = '_x'
+            suffix_y = '_y'
+            i = 1
+            while True:
+                conflict = False
+                for col in self.columns:
+                    if col.endswith(suffix_x) or col.endswith(suffix_y):
+                        conflict = True
+                        break
+                for col in right.columns:
+                    if col.endswith(suffix_x) or col.endswith(suffix_y):
+                        conflict = True
+                        break
+                if not conflict:
+                    break
+                suffix_x = f'_x{i}'
+                suffix_y = f'_y{i}'
+                i += 1
+            kwargs['suffixes'] = (suffix_x, suffix_y)
+        return _orig_merge(self, right, *args, **kwargs)
+    
+    pd.DataFrame.merge = _patched_merge
+    
+    # Patch random.sample to avoid ValueError when OCPA tries to sample 3 elements for logging
+    # from a dictionary that might have fewer than 3 elements (e.g. in small test logs)
+    _orig_sample = random.sample
+    def _patched_sample(population, k, **kwargs):
+        if hasattr(population, '__len__') and len(population) < k:
+            k = len(population)
+        return _orig_sample(population, k, **kwargs)
+    random.sample = _patched_sample
+
+    # Patch pd.DataFrame.update to fix OCPA bug where event_df (integer index) 
+    # is updated with aggregated_data (ocel_event_id index), resulting in 0 matches
+    _orig_update = pd.DataFrame.update
+    def _patched_update(self, other, join='left', overwrite=True, filter_func=None, errors='ignore'):
+        if 'event_id' in self.columns and getattr(other.index, 'name', None) == 'ocel_event_id':
+            self.set_index('event_id', inplace=True)
+            _orig_update(self, other, join, overwrite, filter_func, errors)
+            self.reset_index(inplace=True)
+            return
+        return _orig_update(self, other, join, overwrite, filter_func, errors)
+    pd.DataFrame.update = _patched_update
+    
     try:
         try:
             return ocel2_import_factory.apply(tie_broken_path, parameters=params)
@@ -287,6 +340,9 @@ def load_ocpa_ocel(schema, path: str):
             # verify the partitioning (the alignment oracle in features_ocpa will flag it).
             return ocel2_import_factory.apply(tie_broken_path)
     finally:
+        pd.DataFrame.merge = _orig_merge
+        random.sample = _orig_sample
+        pd.DataFrame.update = _orig_update
         if tie_broken_path != norm_path:
             _unlink_temp_sqlite(tie_broken_path)
         if norm_path != stripped_path:
