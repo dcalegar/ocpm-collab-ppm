@@ -92,9 +92,11 @@ df = run_rq3(cfg)                 # -> pandas.DataFrame, also written to results
 (`test_extensions_toy.py` for the X-Inf/X-MSt extension tasks, plus
 `test_mapping_checks.py` for the converter's consistency checks); run them
 directly with `python tests/<file>.py` (also pytest-compatible). `ocpm_eval`
-itself has no dedicated unit tests; validate a change here by running the
-evaluation above and inspecting the `results/*.csv` outputs (RQ2 fidelity's
-`agreement` column should be ~1.0; RQ3 rows should have `ran_end_to_end=True`).
+has `test_predictors_registry.py`, a synthetic-table smoke test per
+`predictors.dispatch.PREDICTOR_REGISTRY` entry, but no end-to-end pipeline
+tests; validate a pipeline change by running the evaluation above and
+inspecting the `results/*.csv` outputs (RQ2 fidelity's `agreement` column
+should be ~1.0; RQ3 rows should have `ran_end_to_end=True`).
 
 Point the evaluation at your own logs by editing the registry in
 `config.py` (`LogSpec(name, ocel_path, xes_path)` — `ocel_path` is the

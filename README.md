@@ -278,11 +278,14 @@ enable them.
 
 Automated regression tests live in [`tests/`](tests/): `test_mapping_checks.py`
 (the P1.1–P1.6 consistency checks of the converter, incl. deliberate-corruption
-scenarios) and `test_extensions_toy.py` (the X-Inf/X-MSt extension tasks of
-`ocpm_tasks/extensions.py`). Run them directly — `python tests/test_mapping_checks.py`
-and `python tests/test_extensions_toy.py` (also pytest-compatible; pytest is not
-installed in the provided venvs). The evaluation pipelines of `ocpm_eval` have no
-dedicated unit tests; validate a change there by running the evaluation above and
+scenarios), `test_extensions_toy.py` (the X-Inf/X-MSt extension tasks of
+`ocpm_tasks/extensions.py`), and `test_predictors_registry.py` (a synthetic-table
+smoke test per `predictors.dispatch.PREDICTOR_REGISTRY` entry —
+`random_forest`, `lstm`, `lstm_torch` — covering both classification and
+regression). Run them directly — e.g. `python tests/test_mapping_checks.py`
+(also pytest-compatible; pytest is not installed in the provided venvs).
+Beyond the registry smoke test, the evaluation pipelines have no end-to-end
+unit tests; validate a pipeline change by running the evaluation above and
 inspecting the `results/*.csv` outputs (RQ2 fidelity's `agreement` column should
 be ~1.0; RQ3 rows should have `ran_end_to_end=True`).
 

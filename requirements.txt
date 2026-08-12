@@ -18,5 +18,9 @@ numpy==2.2.6
 pandas==2.3.3
 scipy==1.15.3
 joblib==1.5.3
+
+# LSTM predictors (predictors/lstm.py, predictors/lstm_torch.py) -- not part
+# of the pin above, since no published results/ used them yet. Both install
+# and run natively on Apple Silicon (arm64) with no extra package required.
 tensorflow==2.21.0
 torch==2.13.0
