@@ -24,3 +24,18 @@ joblib==1.5.3
 # and run natively on Apple Silicon (arm64) with no extra package required.
 tensorflow==2.21.0
 torch==2.13.0
+
+# GNN (predictors/gnn.py) and XGBoost (predictors/xgboost.py) predictors --
+# same caveat as above, not part of the published-results pin.
+# dgl: base build; CUDA-enabled DGL wheels must match the runtime's
+# PyTorch/CUDA versions.
+# xgboost: on macOS, requires the OpenMP runtime (`brew install libomp` --
+# only works if your Homebrew prefix is arm64-native, i.e. /opt/homebrew;
+# see the Apple Silicon note in README.md). If your Homebrew is
+# Intel-prefixed (/usr/local) instead, xgboost's import fails with
+# "Library not loaded: @rpath/libomp.dylib"; work around it without
+# installing anything else by pointing the loader at the libomp.dylib
+# already bundled with torch:
+#   export DYLD_LIBRARY_PATH="$(python -c 'import torch, os; print(os.path.join(os.path.dirname(torch.__file__), "lib"))')"
+dgl==1.1.2
+xgboost==3.2.0

@@ -55,11 +55,33 @@ class ExperimentConfig:
     rf_n_estimators: int = 200
     rf_max_depth: Optional[int] = None
 
+    # XGBoost hyperparameters (fixed across grouped folds).
+    xgb_n_estimators: int = 200
+    xgb_max_depth: int = 6
+    xgb_learning_rate: float = 0.05
+    xgb_subsample: float = 0.8
+    xgb_colsample_bytree: float = 0.8
+    xgb_reg_lambda: float = 1.0
+
     # LSTM hyperparameters
     lstm_units: int = 64
     lstm_epochs: int = 20
     lstm_batch_size: int = 32
     lstm_learning_rate: float = 0.001
+
+    # Direct event-graph GNN (OCPA graph extraction + DGL GraphConv).
+    gnn_hidden_dim: int = 64
+    gnn_epochs: int = 100
+    gnn_batch_size: int = 32
+    gnn_learning_rate: float = 0.001
+    gnn_early_stopping_patience: int = 10
+    gnn_early_stopping_min_delta: float = 0.0001
+    gnn_huber_delta: float = 1.0
+    gnn_device: str = "auto"  # "auto", "cpu", or "cuda"
+    gnn_verbose: bool = True
+    gnn_log_every: int = 5
+    # Maximum subgraph node counts (cut included); short prefixes are retained.
+    gnn_k_values: tuple = (4, 8, 16)
 
     # Key into predictors.dispatch.PREDICTOR_REGISTRY -- which fit_and_score_fold
     # implementation run_rq3/run_rq_ext use. Only "random_forest" exists today;
@@ -110,6 +132,12 @@ class ExtExperimentConfig:
     random_state: int = 3395
     rf_n_estimators: int = 200
     rf_max_depth: Optional[int] = None
+    xgb_n_estimators: int = 200
+    xgb_max_depth: int = 6
+    xgb_learning_rate: float = 0.05
+    xgb_subsample: float = 0.8
+    xgb_colsample_bytree: float = 0.8
+    xgb_reg_lambda: float = 1.0
     lstm_units: int = 64
     lstm_epochs: int = 20
     lstm_batch_size: int = 32

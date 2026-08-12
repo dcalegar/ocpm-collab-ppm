@@ -55,6 +55,7 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
 
     feats = extract_feature_table(spec.name, cfg.schema, spec.ocel_path, ocel_log,
                                   ocpa_ocel=ocpa_ocel)
+    feats["log_name"] = spec.name
     table, feature_cols = feats["table"], feats["feature_cols"]
     fit_fn = resolve_predictor(cfg.predictor)
 
@@ -92,21 +93,27 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
             continue
 
         gkf = GroupKFold(n_splits=n_splits)
-        ms, bs = [], []
+        ms, bs, selected_ks = [], [], []
         idx = np.arange(len(tt))
-        for tr, te in gkf.split(idx, groups=groups):
+        for fold_no, (tr, te) in enumerate(gkf.split(idx, groups=groups), start=1):
+            if cfg.predictor == "gnn" and getattr(cfg, "gnn_verbose", True):
+                print(f"  [GNN][{spec.name}][{key}] fold {fold_no}/{n_splits}")
             train_mask = pd.Series(False, index=tt.index); train_mask.iloc[tr] = True
             test_mask = pd.Series(False, index=tt.index); test_mask.iloc[te] = True
             r = fit_fn(feats, tt, "_y", task,
                       train_mask, test_mask, cfg)
             if r:
                 ms.append(r["metric"]); bs.append(r["baseline"])
+                if "best_k" in r:
+                    selected_ks.append(r["best_k"])
         elapsed = round(time.perf_counter() - t_task_start, 2)
         rec["metric_name"] = metric_name
         rec["metric_mean"] = float(np.mean(ms)) if ms else None
         rec["metric_sd"] = float(np.std(ms)) if ms else None
         rec["baseline_mean"] = float(np.mean(bs)) if bs else None
         rec["folds"] = len(ms)
+        if selected_ks:
+            rec["selected_k"] = ",".join(map(str, selected_ks))
         print(f"  [{key}] {elapsed:.1f}s")
         rows.append(rec)
     return rows
@@ -126,7 +133,7 @@ def run_rq3(cfg: Optional[ExperimentConfig] = None,
             print(f"[{spec.name}] ERROR: {ex}")
             out.append({"log": spec.name, "error": str(ex)})
         log_elapsed = time.perf_counter() - t_log
-        print(f"  ⏱ {spec.name} total: {log_elapsed:.1f}s")
+        print(f"  [time] {spec.name} total: {log_elapsed:.1f}s")
     df = pd.DataFrame(out)
     df.to_csv(os.path.join(cfg.out_dir, out_name), index=False)
     print(f"[ok] wrote {out_name}")
