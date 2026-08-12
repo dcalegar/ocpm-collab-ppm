@@ -1,3 +1,0 @@
-log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds
-ToyCollab,X-Inf,CollaborationCase,Count regression,random_forest,1032,True,mae,0.9177493205566956,0.1421351710325545,1.210370057689602,5
-ToyCollab,X-MSt,Message,Regression (time),random_forest,573,True,mae,2.3290080772221478,0.15005606453012474,3.2444241037376047,5
