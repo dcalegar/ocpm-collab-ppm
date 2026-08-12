@@ -6,7 +6,8 @@ For each log and each task in the representative subset: build the object-centri
 join them by (case_id, k), and run 5-fold cross-validation GROUPED BY
 CollaborationCase (all prefixes of a case stay in one fold). Reports the
 descriptive metric (macro F1 / MAE) as mean +/- sd over folds, plus a trivial
-baseline. No computation times are reported (V4).
+baseline. Per-task/per-log elapsed time is printed to stdout for progress
+monitoring only; it is not part of the persisted results (V4).
 """
 import os
 import time
