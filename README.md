@@ -280,9 +280,10 @@ Automated regression tests live in [`tests/`](tests/): `test_mapping_checks.py`
 (the P1.1–P1.6 consistency checks of the converter, incl. deliberate-corruption
 scenarios), `test_extensions_toy.py` (the X-Inf/X-MSt extension tasks of
 `ocpm_tasks/extensions.py`), and `test_predictors_registry.py` (a synthetic-table
-smoke test per `predictors.dispatch.PREDICTOR_REGISTRY` entry —
-`random_forest`, `lstm`, `lstm_torch` — covering both classification and
-regression). Run them directly — e.g. `python tests/test_mapping_checks.py`
+classification/regression smoke test per `predictors.dispatch.PREDICTOR_REGISTRY`
+entry — `random_forest`, `lstm`, `lstm_torch`, `xgboost` — plus a registry-presence
+check for `gnn`, which needs OCPA's `feature_storage` graphs and so isn't exercised
+against the synthetic table). Run them directly — e.g. `python tests/test_mapping_checks.py`
 (also pytest-compatible; pytest is not installed in the provided venvs).
 Beyond the registry smoke test, the evaluation pipelines have no end-to-end
 unit tests; validate a pipeline change by running the evaluation above and
