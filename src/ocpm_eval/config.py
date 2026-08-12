@@ -69,6 +69,14 @@ class ExperimentConfig:
     lstm_batch_size: int = 32
     lstm_learning_rate: float = 0.001
 
+    # Transformer hyperparameters
+    transformer_units: int = 64
+    transformer_epochs: int = 20
+    transformer_batch_size: int = 32
+    transformer_learning_rate: float = 0.001
+    transformer_heads: int = 4
+    transformer_layers: int = 2
+
     # Direct event-graph GNN (OCPA graph extraction + DGL GraphConv).
     gnn_hidden_dim: int = 64
     gnn_epochs: int = 100

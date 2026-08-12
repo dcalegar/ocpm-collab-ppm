@@ -9,6 +9,7 @@ from .lstm import fit_and_score_fold as fit_and_score_fold_lstm
 from .lstm_torch import fit_and_score_fold as fit_and_score_fold_lstm_torch
 from .gnn import fit_and_score_fold as fit_and_score_fold_gnn
 from .xgboost import fit_and_score_fold as fit_and_score_fold_xgboost
+from .transformer import fit_and_score_fold as fit_and_score_fold_transformer
 
 PREDICTOR_REGISTRY: Dict[str, Callable] = {
     "random_forest": fit_and_score_fold_rf,
@@ -16,6 +17,7 @@ PREDICTOR_REGISTRY: Dict[str, Callable] = {
     "lstm_torch": fit_and_score_fold_lstm_torch,
     "gnn": fit_and_score_fold_gnn,
     "xgboost": fit_and_score_fold_xgboost,
+    "transformer": fit_and_score_fold_transformer,
 }
 
 

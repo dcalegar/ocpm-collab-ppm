@@ -59,6 +59,11 @@ def test_registry_has_xgboost():
     assert resolve("xgboost") is PREDICTOR_REGISTRY["xgboost"]
 
 
+def test_registry_has_transformer():
+    assert "transformer" in PREDICTOR_REGISTRY
+    assert resolve("transformer") is PREDICTOR_REGISTRY["transformer"]
+
+
 def test_resolve_unknown_predictor_raises():
     try:
         resolve("does_not_exist")
@@ -133,6 +138,24 @@ def test_lstm_torch_classification():
 def test_lstm_torch_regression():
     cfg = ExperimentConfig(lstm_epochs=2, lstm_units=8)
     fit_fn = PREDICTOR_REGISTRY["lstm_torch"]
+    feats = {"feature_cols": FEATURE_COLS}
+    result = fit_fn(feats, _TABLE, "_y_reg", _REG_TASK, _TRAIN, _TEST, cfg)
+    assert set(result) == {"metric", "baseline", "n_test"}
+    assert result["n_test"] == 2
+
+
+def test_transformer_classification():
+    cfg = ExperimentConfig(transformer_epochs=2, transformer_units=8)
+    fit_fn = PREDICTOR_REGISTRY["transformer"]
+    feats = {"feature_cols": FEATURE_COLS}
+    result = fit_fn(feats, _TABLE, "_y_clf", _CLF_TASK, _TRAIN, _TEST, cfg)
+    assert set(result) == {"metric", "baseline", "n_test"}
+    assert result["n_test"] == 2
+
+
+def test_transformer_regression():
+    cfg = ExperimentConfig(transformer_epochs=2, transformer_units=8)
+    fit_fn = PREDICTOR_REGISTRY["transformer"]
     feats = {"feature_cols": FEATURE_COLS}
     result = fit_fn(feats, _TABLE, "_y_reg", _REG_TASK, _TRAIN, _TEST, cfg)
     assert set(result) == {"metric", "baseline", "n_test"}
