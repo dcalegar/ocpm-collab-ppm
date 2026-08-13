@@ -109,7 +109,7 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg, timer
     import torch.nn as nn
     from dgl.nn import GlobalAttentionPooling, GraphConv
     from torch.utils.data import DataLoader
-    from .common import NullStageTimer
+    from .common import NullStageTimer, resolve_device
 
     timer = timer or NullStageTimer()
     seed = getattr(cfg, "random_state", 3395)
@@ -117,19 +117,12 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg, timer
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
-    requested_device = getattr(cfg, "gnn_device", "auto").lower()
-    if requested_device not in ("auto", "cpu", "cuda"):
-        raise ValueError("gnn_device must be 'auto', 'cpu', or 'cuda'")
-    if requested_device == "cuda" and not torch.cuda.is_available():
-        raise RuntimeError("gnn_device='cuda', but CUDA is not available")
-    use_cuda = requested_device == "cuda" or (
-        requested_device == "auto" and torch.cuda.is_available())
-    device = torch.device("cuda" if use_cuda else "cpu")
+    device = resolve_device(cfg)
     if device.type == "cuda":
         try:
             dgl.graph(([0], [0]), num_nodes=1).to(device)
         except Exception as exc:
-            if requested_device == "cuda":
+            if getattr(cfg, "device", "cpu").lower() == "cuda":
                 raise RuntimeError(
                     "CUDA is available in PyTorch, but this DGL build cannot use it") from exc
             device = torch.device("cpu")

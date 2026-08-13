@@ -12,7 +12,7 @@ shared tabular contract below.
 
 | Module | Purpose |
 |---|---|
-| `common.py` | `xy_split` — shared train/test split with train-fit categorical encoding |
+| `common.py` | `xy_split` — shared train/test split with train-fit categorical encoding; `resolve_device` — shared CPU/CUDA device resolution for `gnn.py`/`lstm_torch.py`/`transformer.py` |
 | `dispatch.py` | `PREDICTOR_REGISTRY` / `resolve` — maps a config-selectable predictor key to its `fit_and_score_fold` |
 | `random_forest.py` | fixed `RandomForestClassifier`/`Regressor`, the default predictor |
 | `xgboost.py` | `XGBClassifier`/`Regressor` |
@@ -70,6 +70,19 @@ that order itself, since nothing here re-sorts or checks it -- an unsorted
 `tt` trains and predicts without error, just against a temporally scrambled
 sequence. `random_forest.py`/`xgboost.py`/`gnn.py` score each row
 independently and are unaffected.
+
+**Device selection (`gnn.py`/`lstm_torch.py`/`transformer.py` only).** All
+three resolve `cfg.device` (`"auto"`/`"cpu"`/`"cuda"`, see
+`ExperimentConfig.device`) via `predictors.common.resolve_device`.
+`random_forest.py`/`xgboost.py` are CPU-only regardless (`xgboost.py` uses
+`tree_method="hist"`, not a GPU histogram method). The default is `"cpu"`,
+not `"auto"`: measured on this workload, CUDA's per-batch/per-graph dispatch
+overhead made training slower wall-clock than plain CPU, both for GNN's tiny
+per-sample subgraphs (`gnn_k_values` up to 16 nodes, batch size 32 -- GPU
+utilization sampled at ~4-37% during training) and for LSTM's many short,
+variable-length per-case sequences (where the same effect was already found
+with MPS on Apple Silicon). Pass `--device cuda`/`--device auto` (CLI) or
+`ExperimentConfig(device=...)` (programmatic) to override.
 
 ## Usage
 

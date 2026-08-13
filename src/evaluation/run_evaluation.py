@@ -160,6 +160,11 @@ def _parse_args(argv):
                    help="RQ3 only: also write a per-stage wall-clock + RSS "
                         "memory profile to rq3_profile_{predictor}*.csv "
                         "(default: off, see evaluation.profiling)")
+    p.add_argument("--device", choices=["auto", "cpu", "cuda"], default=None,
+                   help="override ExperimentConfig.device, used by every "
+                        "GPU-capable predictor (gnn, lstm_torch, transformer; "
+                        "random_forest/xgboost are CPU-only regardless) "
+                        "(default: cfg default, 'cpu' -- see config.py)")
     return p.parse_args(argv)
 
 
@@ -177,6 +182,8 @@ if __name__ == "__main__":
         cfg_overrides["regenerate_folds"] = True
     if args.profile:
         cfg_overrides["profile"] = True
+    if args.device:
+        cfg_overrides["device"] = args.device
     cfg = ExperimentConfig(**cfg_overrides) if cfg_overrides else None
     main(cfg=cfg,
         rqs=tuple(args.rqs),

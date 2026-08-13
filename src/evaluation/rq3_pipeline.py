@@ -148,8 +148,19 @@ def load_or_generate_folds(case_ids: Iterable[str], n_folds: int, seed: int,
     return fold_of
 
 
+def _log(msg: str, log_file=None) -> None:
+    """Print AND (if given) append to a persistent per-run progress log file,
+    flushed immediately -- so progress is visible via `tail -f` from outside
+    whatever process/redirection launched this run, not just on its stdout."""
+    print(msg)
+    if log_file is not None:
+        log_file.write(msg + "\n")
+        log_file.flush()
+
+
 def run_one_log(spec: LogSpec, cfg: ExperimentConfig,
-                profiler: "Optional[ProfileCollector]" = None) -> List[dict]:
+                profiler: "Optional[ProfileCollector]" = None,
+                log_file=None) -> List[dict]:
     profiler = profiler or NullProfileCollector()
     with profiler.stage("ocel_load", spec.name, cfg.predictor):
         ocpa_ocel = load_ocpa_ocel(cfg.schema, spec.ocel_path)
@@ -217,15 +228,17 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig,
                 # the fixed partition (unlike the old per-task GroupKFold) no
                 # longer prevents it by construction, so it must be handled.
                 continue
-            if cfg.predictor == "gnn" and getattr(cfg, "gnn_verbose", True):
-                print(f"  [GNN][{spec.name}][{key}] fold {fold_no + 1}/{cfg.n_folds}")
             # Bound timer, not a "fit_predict" wrap: each predictor module
             # records its own "fit"/"predict" stages internally (see
             # predictors/README.md) so training and inference are broken out
             # separately rather than measured as one combined stage.
             timer = StageTimer(profiler, spec.name, cfg.predictor, task=key, fold=fold_no)
+            t_fold_start = time.perf_counter()
             r = fit_fn(feats, tt, "_y", task,
                       train_mask, test_mask, cfg, timer)
+            fold_elapsed = time.perf_counter() - t_fold_start
+            _log(f"    [{spec.name}][{key}] fold {fold_no + 1}/{cfg.n_folds}: "
+                f"{fold_elapsed:.1f}s", log_file)
             if r:
                 ms.append(r["metric"]); bs.append(r["baseline"])
                 if "best_k" in r:
@@ -238,7 +251,7 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig,
         rec["folds"] = len(ms)
         if selected_ks:
             rec["selected_k"] = ",".join(map(str, selected_ks))
-        print(f"  [{key}] {elapsed:.1f}s")
+        _log(f"  [{key}] {elapsed:.1f}s", log_file)
         rows.append(rec)
     return rows
 
@@ -252,17 +265,27 @@ def run_rq3(cfg: Optional[ExperimentConfig] = None,
     # V4 "no computation times in the results" profile still holds for
     # rq3_results_*.csv itself (see module docstring).
     profiler = ProfileCollector() if cfg.profile else None
+    # Always-on (unlike profiling): a plain-text progress log, one line per
+    # per-fold/per-task/per-log elapsed-time message (see _log), so progress
+    # on a long run is visible via `tail -f` from any terminal, independent
+    # of whatever redirected (or didn't redirect) this process's stdout.
+    progress_name = out_name.replace("rq3_results", "rq3_progress", 1).replace(".csv", ".log")
+    if progress_name == out_name:
+        progress_name = f"rq3_progress_{out_name}.log"
+    progress_path = os.path.join(cfg.out_dir, progress_name)
     out: List[dict] = []
-    for spec in cfg.logs:
-        print(f"\n===== RQ3 LOG: {spec.name} =====")
-        t_log = time.perf_counter()
-        try:
-            out.extend(run_one_log(spec, cfg, profiler=profiler))
-        except Exception as ex:                       # noqa: BLE001
-            print(f"[{spec.name}] ERROR: {ex}")
-            out.append({"log": spec.name, "error": str(ex)})
-        log_elapsed = time.perf_counter() - t_log
-        print(f"  [time] {spec.name} total: {log_elapsed:.1f}s")
+    with open(progress_path, "w") as log_file:
+        for spec in cfg.logs:
+            _log(f"\n===== RQ3 LOG: {spec.name} =====", log_file)
+            t_log = time.perf_counter()
+            try:
+                out.extend(run_one_log(spec, cfg, profiler=profiler, log_file=log_file))
+            except Exception as ex:                       # noqa: BLE001
+                _log(f"[{spec.name}] ERROR: {ex}", log_file)
+                out.append({"log": spec.name, "error": str(ex)})
+            log_elapsed = time.perf_counter() - t_log
+            _log(f"  [time] {spec.name} total: {log_elapsed:.1f}s", log_file)
+    print(f"[ok] wrote {progress_name}")
     df = pd.DataFrame(out)
     df.to_csv(os.path.join(cfg.out_dir, out_name), index=False)
     print(f"[ok] wrote {out_name}")

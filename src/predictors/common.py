@@ -17,6 +17,25 @@ class NullStageTimer:
         yield
 
 
+def resolve_device(cfg):
+    """Resolve cfg.device ("auto"/"cpu"/"cuda", default "cpu") to a torch.device,
+    shared by every GPU-capable predictor (gnn, lstm_torch, transformer --
+    random_forest and xgboost are CPU-only regardless). "auto" picks CUDA
+    when available; that is deliberately not the default -- see
+    ExperimentConfig.device's comment for the measured dispatch-overhead
+    regression this default avoids. torch is imported lazily so importing
+    this module doesn't force a torch dependency on predictors that don't
+    need it."""
+    import torch
+    requested = getattr(cfg, "device", "cpu").lower()
+    if requested not in ("auto", "cpu", "cuda"):
+        raise ValueError("device must be 'auto', 'cpu', or 'cuda'")
+    if requested == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("device='cuda', but CUDA is not available")
+    use_cuda = requested == "cuda" or (requested == "auto" and torch.cuda.is_available())
+    return torch.device("cuda" if use_cuda else "cpu")
+
+
 def xy_split(table: pd.DataFrame, feature_cols: List[str], y_col: str, train_mask, test_mask):
     """Split into train/test and encode categorical columns fit on train only.
 

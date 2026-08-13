@@ -13,7 +13,7 @@ import torch.nn as nn
 import math
 
 from tasks.catalog import Task
-from .common import NullStageTimer, xy_split
+from .common import NullStageTimer, resolve_device, xy_split
 
 
 class PositionalEncoding(nn.Module):
@@ -171,8 +171,9 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
     lengths_te = [len(s) for s in seq_X_te]
     input_dim = seq_X_tr[0].shape[-1]
 
-    # CPU/GPU Device routing
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # CPU/GPU device routing, via the shared cfg.device (see
+    # ExperimentConfig.device and predictors.common.resolve_device).
+    device = resolve_device(cfg)
 
     units = getattr(cfg, "transformer_units", getattr(cfg, "lstm_units", 64))
     epochs = getattr(cfg, "transformer_epochs", getattr(cfg, "lstm_epochs", 20))

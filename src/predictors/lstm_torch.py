@@ -14,7 +14,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from tasks.catalog import Task
-from .common import NullStageTimer, xy_split
+from .common import NullStageTimer, resolve_device, xy_split
 
 
 class LSTMModel(nn.Module):
@@ -101,13 +101,16 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
     X_te_pad, lengths_te = pad_sequences(seq_X_te)
     input_dim = X_tr_pad.shape[2]
 
-    # CPU/GPU device routing. MPS (Apple Silicon) was tried and reverted: for
+    # CPU/GPU device routing, via the shared cfg.device (see
+    # ExperimentConfig.device and predictors.common.resolve_device). MPS
+    # (Apple Silicon) was tried and reverted, and CUDA measured no better: for
     # this workload (many short, variable-length per-case sequences run
-    # through pack_padded_sequence) MPS's per-op dispatch overhead made it
-    # slower than CPU on both predictcollab and, far more severely, on the
-    # larger BPIC2013 log -- see run_evaluation.py docstring's reproducibility
-    # note for why device choice must stay fixed across a reported run.
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # through pack_padded_sequence) per-op dispatch overhead made GPU slower
+    # than CPU on both predictcollab and, far more severely, on the larger
+    # BPIC2013 log -- hence cfg.device defaulting to "cpu". See
+    # run_evaluation.py docstring's reproducibility note for why device
+    # choice must stay fixed across a reported run.
+    device = resolve_device(cfg)
 
     units = getattr(cfg, "lstm_units", 64)
     epochs = getattr(cfg, "lstm_epochs", 20)
@@ -164,11 +167,11 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
                     optimizer.zero_grad()
                     out = model(bx, bl)
                     if num_classes > 2:
-                        loss = criterion(out.view(-1, num_classes), by.view(-1))
+                        loss = criterion(out.reshape(-1, num_classes), by.reshape(-1))
                     else:
-                        loss = criterion(out.view(-1), by.view(-1))
+                        loss = criterion(out.reshape(-1), by.reshape(-1))
 
-                    loss = (loss * bmask.view(-1)).sum() / bmask.sum().clamp(min=1)
+                    loss = (loss * bmask.reshape(-1)).sum() / bmask.sum().clamp(min=1)
                     loss.backward()
                     optimizer.step()
 

@@ -61,6 +61,17 @@ class ExperimentConfig:
     folds_dir: str = "data/folds"
     regenerate_folds: bool = False
 
+    # Torch device for every GPU-capable predictor (gnn, lstm_torch,
+    # transformer -- random_forest and xgboost are CPU-only regardless).
+    # "auto" picks CUDA when available, but that is NOT the default: measured
+    # on this workload, CUDA's per-batch/per-graph dispatch overhead made
+    # training slower wall-clock than plain CPU, both for GNN's tiny
+    # per-sample subgraphs (gnn_k_values up to 16 nodes) and for LSTM's many
+    # short, variable-length per-case sequences (see lstm_torch.py's device
+    # comment for the earlier, narrower version of this finding re: MPS).
+    # See predictors.common.resolve_device, used by all three.
+    device: str = "cpu"  # "auto", "cpu", or "cuda"
+
     # ---- Predictor hyperparameters -----------------------------------------
     # One block per predictors.dispatch.PREDICTOR_REGISTRY entry, read by that
     # predictor's fit_and_score_fold via cfg.<prefix>_*; unrelated to whichever
@@ -119,7 +130,7 @@ class ExperimentConfig:
     gnn_k_values: tuple = (4, 8, 16)
 
     # GNN runtime/logging knobs -- not hyperparameters, don't affect the fitted model.
-    gnn_device: str = "auto"  # "auto", "cpu", or "cuda"
+    # Device selection moved to the shared `device` field above.
     gnn_verbose: bool = True
     gnn_log_every: int = 5
     # -------------------------------------------------------------------------

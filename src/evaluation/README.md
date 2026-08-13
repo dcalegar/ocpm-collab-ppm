@@ -30,6 +30,7 @@ package is the fuller, cross-validated version of the same pattern.
 | `rq3_pipeline.py` | RQ3 — end-to-end feasibility: `features.ocpa` features + `tasks` labels joined, 5-fold CV grouped by `CollaborationCase` against a persisted per-log fold assignment, scored by a `predictors` predictor |
 | `run_evaluation.py` | orchestrator — runs the requested (rq, log_group, rq3_scope, predictor) combinations and writes all CSVs |
 | `profiling.py` | opt-in per-stage wall-clock + peak-RSS profiling (`--profile`), written to its own `rq3_profile_*.csv` so no computation times enter `rq3_results_*.csv` |
+| (always on, see `rq3_pipeline.py::run_rq3`) | plain-text progress log `rq3_progress_{predictor}_{log_group}[_full].log`, one line per fold/task/log elapsed time, flushed immediately -- `tail -f` it from any terminal to watch a long run regardless of how its stdout was (or wasn't) redirected |
 | `plot_rq3_metrics.py` | standalone reporting script — grouped bar charts from `rq3_results_*.csv` and, when present, `rq3_profile_*.csv` |
 
 Feature extraction (`load_ocpa_ocel`/`read_ocel2_labels`/`extract_feature_table`)
@@ -139,6 +140,7 @@ Four further flags are path/run knobs rather than axes:
 | `--folds-dir DIR` | override `ExperimentConfig.folds_dir` (default `data/folds`) |
 | `--regenerate-folds` | rebuild each log's persisted `CollaborationCase -> fold` assignment instead of reusing it (see [RQ3 protocol](#rq3-protocol)) |
 | `--profile` | RQ3 only: also write a per-stage wall-clock + peak-RSS profile to `rq3_profile_{predictor}*.csv`, alongside — never inside — the results CSV |
+| `--device {auto,cpu,cuda}` | override `ExperimentConfig.device` (default `cpu`), used by every GPU-capable predictor (`gnn`, `lstm_torch`, `transformer`; `random_forest`/`xgboost` are CPU-only regardless). `auto` picks CUDA when available, but that isn't the default: measured on this workload, CUDA's per-batch/per-graph dispatch overhead made training slower wall-clock than CPU (see [`predictors/README.md`](../predictors/README.md)) |
 
 or programmatically:
 
