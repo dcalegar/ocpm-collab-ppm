@@ -215,7 +215,7 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig,
             continue
 
         tt_fold = tt["case_id"].astype(str).map(fold_of)
-        ms, bs, selected_ks = [], [], []
+        ms, bs = [], []
         for fold_no in range(cfg.n_folds):
             test_mask = tt_fold == fold_no
             train_mask = ~test_mask
@@ -241,16 +241,12 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig,
                 f"{fold_elapsed:.1f}s", log_file)
             if r:
                 ms.append(r["metric"]); bs.append(r["baseline"])
-                if "best_k" in r:
-                    selected_ks.append(r["best_k"])
         elapsed = round(time.perf_counter() - t_task_start, 2)
         rec["metric_name"] = metric_name
         rec["metric_mean"] = float(np.mean(ms)) if ms else None
         rec["metric_sd"] = float(np.std(ms)) if ms else None
         rec["baseline_mean"] = float(np.mean(bs)) if bs else None
         rec["folds"] = len(ms)
-        if selected_ks:
-            rec["selected_k"] = ",".join(map(str, selected_ks))
         _log(f"  [{key}] {elapsed:.1f}s", log_file)
         rows.append(rec)
     return rows

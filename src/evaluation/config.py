@@ -66,9 +66,9 @@ class ExperimentConfig:
     # "auto" picks CUDA when available, but that is NOT the default: measured
     # on this workload, CUDA's per-batch/per-graph dispatch overhead made
     # training slower wall-clock than plain CPU, both for GNN's tiny
-    # per-sample subgraphs (gnn_k_values up to 16 nodes) and for LSTM's many
-    # short, variable-length per-case sequences (see lstm_torch.py's device
-    # comment for the earlier, narrower version of this finding re: MPS).
+    # per-sample subgraphs (gnn_k nodes) and for LSTM's many short,
+    # variable-length per-case sequences (see lstm_torch.py's device comment
+    # for the earlier, narrower version of this finding re: MPS).
     # See predictors.common.resolve_device, used by all three.
     device: str = "cpu"  # "auto", "cpu", or "cuda"
 
@@ -118,21 +118,23 @@ class ExperimentConfig:
     transformer_layers: int = 2
 
     # GNN hyperparameters (direct event-graph predictor: OCPA graph extraction
-    # + DGL GraphConv).
+    # + DGL GraphConv). Trained once per fold directly on the full development
+    # split, matching every other predictor's fixed-hyperparameter protocol
+    # (see the LSTM comment above and evaluation.tex's methodology paragraph,
+    # which need the same update this config carries).
     gnn_hidden_dim: int = 64
-    gnn_epochs: int = 100
+    gnn_epochs: int = 50
     gnn_batch_size: int = 32
     gnn_learning_rate: float = 0.001
-    gnn_early_stopping_patience: int = 10
-    gnn_early_stopping_min_delta: float = 0.0001
     gnn_huber_delta: float = 1.0
-    # Maximum subgraph node counts (cut included); short prefixes are retained.
-    gnn_k_values: tuple = (4, 8, 16)
+    # Fixed maximum subgraph node count (cut included); short prefixes retain
+    # their natural size.
+    gnn_k: int = 8
 
     # GNN runtime/logging knobs -- not hyperparameters, don't affect the fitted model.
     # Device selection moved to the shared `device` field above.
     gnn_verbose: bool = True
-    gnn_log_every: int = 5
+    gnn_log_every: int = 10
     # -------------------------------------------------------------------------
 
     # Key into predictors.dispatch.PREDICTOR_REGISTRY -- selects which
