@@ -1,6 +1,6 @@
 """Direct object-centric event-graph predictor using OCPA graphs and DGL."""
 from dataclasses import dataclass
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -16,15 +16,6 @@ class EventGraphSample:
     target_index: int
     x: np.ndarray
     y: object
-
-
-def execution_train_validation_split(case_ids: Sequence[str], seed: int):
-    """Split the outer 80% development fold into 70% train / 10% validation."""
-    ids = sorted(set(map(str, case_ids)))
-    rng = np.random.default_rng(seed)
-    rng.shuffle(ids)
-    n_val = max(1, int(round(len(ids) / 8))) if len(ids) > 1 else 0
-    return set(ids[n_val:]), set(ids[:n_val])
 
 
 def _graph_index(storage) -> Dict[str, Tuple[object, Dict[str, int]]]:
@@ -84,7 +75,7 @@ def extract_k_prefix_graphs(feats: dict, rows: pd.DataFrame, y_col: str,
 
 
 def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
-    """Select the configured k on validation executions, then evaluate test once."""
+    """Train once with a fixed k on the development fold, then evaluate test."""
     import dgl
     import torch
     import torch.nn as nn
@@ -113,15 +104,11 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
                     "CUDA is available in PyTorch, but this DGL build cannot use it") from exc
             device = torch.device("cpu")
     development, test = tt.loc[train_mask], tt.loc[test_mask]
-    train_cases, val_cases = execution_train_validation_split(
-        development["case_id"].astype(str), seed)
-    train = development[development["case_id"].astype(str).isin(train_cases)]
-    validation = development[development["case_id"].astype(str).isin(val_cases)]
-    if train.empty or validation.empty or test.empty:
+    if development.empty or test.empty:
         return {}
 
     cols = feats["feature_cols"]
-    scaler = StandardScaler().fit(train[cols].fillna(0.0))
+    scaler = StandardScaler().fit(development[cols].fillna(0.0))
     scaled_feats = dict(feats)
     scaled_feats["table"] = feats["table"].copy()
     scaled_feats["table"][cols] = scaled_feats["table"][cols].astype(float)
@@ -131,8 +118,8 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
     scaled_tt[cols] = scaled_tt[cols].astype(float)
     scaled_tt.loc[:, cols] = scaler.transform(tt[cols].fillna(0.0))
     classification = task.kind in ("categorical", "binary")
-    # Include validation-only classes for the final development refit, without
-    # using any label information from the test fold.
+    # Fit the vocabulary on the complete development fold without using any
+    # label information from the test fold.
     encoder = (LabelEncoder().fit(development[y_col].astype(str))
                if classification else None)
     class_index = ({label: i for i, label in enumerate(encoder.classes_)}
@@ -191,124 +178,14 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
         return (dgl.batch(graphs), torch.stack(labels),
                 torch.as_tensor(target_indices, dtype=torch.long))
 
-    def train_for(k):
-        training, _ = prepare(train, k)
-        validating, _ = prepare(validation, k)
-        if not training or not validating:
-            if verbose:
-                print(f"    {context} k={k}: skipped (insufficient subgraphs)")
-            return None
-        if verbose:
-            print(f"    {context} k={k}: train={len(training)}, "
-                  f"validation={len(validating)}")
-        model = GCN(len(encoder.classes_) if classification else 1).to(device)
-        optimizer = torch.optim.Adam(model.parameters(),
-                                     lr=getattr(cfg, "gnn_learning_rate", 0.001))
-        if classification:
-            training_labels = np.asarray([
-                int(label.item()) for _, label, _ in training])
-            counts = np.bincount(training_labels,
-                                 minlength=len(encoder.classes_))
-            weights = np.zeros(len(counts), dtype=np.float32)
-            present = counts > 0
-            weights[present] = (len(training_labels) /
-                                (present.sum() * counts[present]))
-            loss_fn = nn.CrossEntropyLoss(
-                weight=torch.as_tensor(weights, device=device))
-        else:
-            loss_fn = nn.HuberLoss(
-                delta=getattr(cfg, "gnn_huber_delta", 1.0))
-        loader = DataLoader(training, batch_size=getattr(cfg, "gnn_batch_size", 32),
-                            shuffle=True, collate_fn=collate)
-        epochs = getattr(cfg, "gnn_epochs", 100)
-        patience = max(0, getattr(cfg, "gnn_early_stopping_patience", 10))
-        min_delta = max(0.0, getattr(cfg, "gnn_early_stopping_min_delta", 0.0001))
-        validation_graph, validation_labels, validation_targets = collate(validating)
-        validation_graph = validation_graph.to(device)
-        validation_labels = validation_labels.to(device)
-        validation_targets = validation_targets.to(device)
-        best_objective = float("inf")
-        best_state = None
-        best_epoch = 0
-        epochs_without_improvement = 0
-        for epoch in range(1, epochs + 1):
-            model.train()
-            total_loss = 0.0
-            batches = 0
-            for graph, labels, targets in loader:
-                graph = graph.to(device)
-                labels = labels.to(device)
-                targets = targets.to(device)
-                optimizer.zero_grad()
-                output = model(graph, targets)
-                loss = (loss_fn(output, labels) if classification else
-                        loss_fn(output.squeeze(-1), labels))
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
-                optimizer.step()
-                total_loss += float(loss.detach().cpu())
-                batches += 1
-            model.eval()
-            with torch.no_grad():
-                validation_prediction = model(validation_graph, validation_targets)
-            validation_actual = validation_labels.detach().cpu().numpy()
-            validation_predicted = validation_prediction.detach().cpu().numpy()
-            if classification:
-                validation_metric = f1_score(
-                    validation_actual, validation_predicted.argmax(1),
-                    average="macro", zero_division=0)
-                objective = -validation_metric
-                metric_name = "f1_macro"
-            else:
-                validation_metric = mean_absolute_error(
-                    validation_actual, validation_predicted.squeeze(-1))
-                objective = validation_metric
-                metric_name = "mae"
-
-            if objective < best_objective - min_delta:
-                best_objective = objective
-                best_epoch = epoch
-                epochs_without_improvement = 0
-                best_state = {
-                    name: value.detach().cpu().clone()
-                    for name, value in model.state_dict().items()
-                }
-            else:
-                epochs_without_improvement += 1
-            if verbose and (epoch == 1 or epoch % log_every == 0 or epoch == epochs):
-                print(f"      epoch {epoch}/{epochs} "
-                      f"loss={total_loss / max(1, batches):.6f} "
-                      f"validation_{metric_name}={validation_metric:.6f}")
-            if patience and epochs_without_improvement >= patience:
-                if verbose:
-                    print(f"      early stopping at epoch {epoch}; "
-                          f"best_epoch={best_epoch}")
-                break
-
-        if best_state is None:
-            return None
-        if verbose:
-            shown = -best_objective if classification else best_objective
-            print(f"    {context} k={k}: best_epoch={best_epoch} "
-                  f"validation_{metric_name}={shown:.6f}")
-        del model
-        if device.type == "cuda":
-            torch.cuda.empty_cache()
-        return best_objective, best_epoch
-
-    candidates = []
-    for k in getattr(cfg, "gnn_k_values", tuple(range(2, 9))):
-        result = train_for(k)
-        if result is not None:
-            candidates.append((result[0], k, result[1]))
-    if not candidates:
-        return {}
-    _, best_k, best_epoch = min(candidates, key=lambda candidate: candidate[0])
+    configured_k = getattr(cfg, "gnn_k", 8)
+    if configured_k < 1:
+        raise ValueError("gnn_k must be positive")
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     model = GCN(len(encoder.classes_) if classification else 1).to(device)
-    development_data, _ = prepare(development, best_k)
+    development_data, _ = prepare(development, configured_k)
     if not development_data:
         return {}
     if classification:
@@ -330,8 +207,11 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
     loader = DataLoader(
         development_data, batch_size=getattr(cfg, "gnn_batch_size", 32),
         shuffle=True, collate_fn=collate)
-    for _ in range(best_epoch):
+    epochs = getattr(cfg, "gnn_epochs", 100)
+    for epoch in range(1, epochs + 1):
         model.train()
+        total_loss = 0.0
+        batches = 0
         for graph, labels, targets in loader:
             graph = graph.to(device)
             labels = labels.to(device)
@@ -343,9 +223,14 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
             optimizer.step()
+            total_loss += float(loss.detach().cpu())
+            batches += 1
+        if verbose and (epoch == 1 or epoch % log_every == 0 or epoch == epochs):
+            print(f"      epoch {epoch}/{epochs} "
+                  f"loss={total_loss / max(1, batches):.6f}")
     if verbose:
-        print(f"    {context} selected_k={best_k} refit_epochs={best_epoch}")
-    testing, samples = prepare(test, best_k)
+        print(f"    {context} configured_k={configured_k} epochs={epochs}")
+    testing, samples = prepare(test, configured_k)
     if not testing:
         return {}
     model.eval()
@@ -374,4 +259,4 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
         print(f"    {context} test_{metric_name}={metric:.6f} "
               f"baseline={baseline:.6f} n={len(samples)}")
     return {"metric": float(metric), "baseline": float(baseline),
-            "n_test": len(samples), "best_k": int(best_k)}
+            "n_test": len(samples)}

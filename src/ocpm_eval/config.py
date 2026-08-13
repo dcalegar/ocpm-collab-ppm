@@ -82,14 +82,13 @@ class ExperimentConfig:
     gnn_epochs: int = 100
     gnn_batch_size: int = 32
     gnn_learning_rate: float = 0.001
-    gnn_early_stopping_patience: int = 10
-    gnn_early_stopping_min_delta: float = 0.0001
     gnn_huber_delta: float = 1.0
     gnn_device: str = "auto"  # "auto", "cpu", or "cuda"
     gnn_verbose: bool = True
     gnn_log_every: int = 5
-    # Maximum subgraph node counts (cut included); short prefixes are retained.
-    gnn_k_values: tuple = (4, 8, 16)
+    # Fixed maximum subgraph node count (cut included); short prefixes retain
+    # their natural size. A fixed value gives the GNN one training per CV fold.
+    gnn_k: int = 8
 
     # Key into predictors.dispatch.PREDICTOR_REGISTRY -- which fit_and_score_fold
     # implementation run_rq3 uses. Only "random_forest" exists today;

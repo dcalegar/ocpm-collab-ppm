@@ -93,7 +93,7 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
             continue
 
         gkf = GroupKFold(n_splits=n_splits)
-        ms, bs, selected_ks = [], [], []
+        ms, bs = [], []
         idx = np.arange(len(tt))
         for fold_no, (tr, te) in enumerate(gkf.split(idx, groups=groups), start=1):
             if cfg.predictor == "gnn" and getattr(cfg, "gnn_verbose", True):
@@ -104,16 +104,12 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
                       train_mask, test_mask, cfg)
             if r:
                 ms.append(r["metric"]); bs.append(r["baseline"])
-                if "best_k" in r:
-                    selected_ks.append(r["best_k"])
         elapsed = round(time.perf_counter() - t_task_start, 2)
         rec["metric_name"] = metric_name
         rec["metric_mean"] = float(np.mean(ms)) if ms else None
         rec["metric_sd"] = float(np.std(ms)) if ms else None
         rec["baseline_mean"] = float(np.mean(bs)) if bs else None
         rec["folds"] = len(ms)
-        if selected_ks:
-            rec["selected_k"] = ",".join(map(str, selected_ks))
         print(f"  [{key}] {elapsed:.1f}s")
         rows.append(rec)
     return rows
