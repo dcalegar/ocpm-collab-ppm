@@ -79,13 +79,13 @@ class ExperimentConfig:
 
     # Direct event-graph GNN (OCPA graph extraction + DGL GraphConv).
     gnn_hidden_dim: int = 64
-    gnn_epochs: int = 100
+    gnn_epochs: int = 50
     gnn_batch_size: int = 32
     gnn_learning_rate: float = 0.001
     gnn_huber_delta: float = 1.0
     gnn_device: str = "auto"  # "auto", "cpu", or "cuda"
     gnn_verbose: bool = True
-    gnn_log_every: int = 5
+    gnn_log_every: int = 10
     # Fixed maximum subgraph node count (cut included); short prefixes retain
     # their natural size. A fixed value gives the GNN one training per CV fold.
     gnn_k: int = 8
