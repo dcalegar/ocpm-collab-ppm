@@ -2,10 +2,11 @@
 
 Model-to-model transformation **μ: extended collaborative XES → OCEL 2.0**
 (Berti et al. 2023, Definition 2), implementing mapping rules **M1–M8** and
-machine-checking consistency properties **P1.1–P1.6**. This is RQ1 of the
-study: the converter that produces the rich object-centric logs consumed by
-[`ocpm_tasks`](../ocpm_tasks/README.md), [`features`](../features/README.md),
-and [`ocpm_eval`](../ocpm_eval/README.md).
+machine-checking consistency properties **P1.1–P1.7**. This is RQ1 of the
+study (see [Research questions](../../README.md#research-questions)): the
+converter that produces the rich object-centric logs consumed by
+[`tasks`](../tasks/README.md), [`features`](../features/README.md),
+and [`evaluation`](../evaluation/README.md).
 
 It is a standalone tool: pure pandas/Python for the transformation and
 checks (unit-testable without pm4py), with pm4py used only at the two I/O
@@ -19,9 +20,11 @@ Given an extended collaborative XES log, `collab_xes_to_ocel.py`:
    ordering each trace by `(timestamp, source order)`.
 2. **Transforms** it into four OCEL 2.0 tables (events, objects, E2O
    relations, O2O relations) per rules M1–M8 (see below).
-3. **Checks** the result against consistency properties P1.1–P1.6 and
+3. **Checks** the result against consistency properties P1.1–P1.7 and
    prints a pass/fail report with transformation stats (event/object/
-   relation counts, message counts).
+   relation counts, message counts). P1.1–P1.6 run over the pre-export
+   `TransformResult`; P1.7 runs after the export witnesses are added, over
+   the E2O table actually handed to the exporters (see below).
 4. **Exports** `<output>.jsonocel` and `<output>.sqlite`.
 5. **Validates** the exported `.jsonocel` against the embedded OCEL 2.0
    JSON schema (draft-07) — full validation via `jsonschema` if installed,
@@ -83,7 +86,7 @@ and the converter raises rather than emitting a log that violates them:
 The qualifier vocabulary is unaffected and stays fixed, so participant objects
 remain addressable without naming any of their types — through `in_participant`,
 `for_participant`, `from` and `to`. That is how the downstream reader
-identifies them (`ocpm_tasks/schema.py::Schema.is_participant_type`), rather
+identifies them (`tasks/schema.py::Schema.is_participant_type`), rather
 than by comparing against a single type name.
 
 ## Event order preservation (criterion P1.2)
@@ -105,7 +108,7 @@ P1.2b verifies this on every export).
 - The mapping emits no separate order attribute; the zero-padded rank inside
   the id is the order carrier
 
-The project's own reader (`ocpm_tasks/adapters.py::from_ocel2_sqlite`) issues
+The project's own reader (`tasks/adapters.py::from_ocel2_sqlite`) issues
 `ORDER BY ocel_id` accordingly. Third-party importers that scan tables
 unordered (e.g. pm4py's OCEL2-SQLite reader) should have their events re-sorted
 by event id after reading.
@@ -190,10 +193,13 @@ The extended XES must carry the `collab` extension attributes defined in
 
 ```
 mapping/
-├── collab_xes_to_ocel.py   # the transformation (M1-M8), checks (P1.1-P1.6), I/O, CLI
+├── collab_xes_to_ocel.py   # the transformation (M1-M8), checks (P1.1-P1.7), I/O, CLI
 └── support/
     ├── collab.xesext           # collab XES extension definition (source vocabulary)
     ├── ocel20-schema-json.json # OCEL 2.0 JSON schema (draft-07), reference copy
+    ├── build_leakage_test_logs.py # builds the tests/fixtures/leak_*.sqlite logs
+                                  #   used by tests/test_features_leakage.py (needs
+                                  #   pm4py>=2.7, i.e. this venv, not the OCPA one)
     └── printOCEL.py             # debug script: load a .jsonocel with pm4py, discover
                                   #   an OC-Petri-net / OC-DFG, save PNGs (not part of
                                   #   the conversion pipeline; requires graphviz)
@@ -210,7 +216,7 @@ the `pm4py==2.2.32` pinned by OCPA in the evaluation environment — run this
 tool from a **separate virtual environment**. See the root
 [README.md](../../README.md#setup-virtual-environments) for the full
 two-environment setup (`.venv-mapping` here, `.venv` for
-`ocpm_eval`/`ocpm_tasks`), including the Apple Silicon and Windows notes.
+`evaluation`/`tasks`), including the Apple Silicon and Windows notes.
 
 **macOS / Linux:**
 
@@ -236,13 +242,13 @@ pip install -e .
 
 The converted `.sqlite`/`.jsonocel` files are the **R2** input consumed
 downstream:
-- `ocpm_tasks.adapters.from_ocel2_sqlite` / `from_ocpa` build the neutral
+- `tasks.adapters.from_ocel2_sqlite` / `from_ocpa` build the neutral
   object-centric model from them for label computation.
 - `features` reads the same files for both labels (`io_ocel.py`) and
   OCPA feature extraction (`ocpa.py`).
 - RQ2 fidelity also reads the *original* `.xes` directly (R1, source-level
   labels) to check agreement against the R2 labels — see
-  `ocpm_eval/rq2_fidelity.py`.
+  `evaluation/rq2_fidelity.py`.
 
 See [`data/logs/`](../../data/logs/) for example XES sources and their
 converted OCEL 2.0 outputs.

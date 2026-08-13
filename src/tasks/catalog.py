@@ -11,7 +11,7 @@ from typing import Optional, Dict, List
 # Target anchors. CC, ORCHESTRATION_CASE and MESSAGE are object types of the
 # mapping; PARTICIPANT is the anchor ROLE of the tasks about participants, not
 # an object type -- rule M2 gives each participant identifier a type of its own,
-# so there is no single "Participant" type in the OCEL (see ocpm_tasks/schema.py).
+# so there is no single "Participant" type in the OCEL (see tasks/schema.py).
 # These strings are reporting metadata only: no label function reads Task.anchor.
 CC = "CollaborationCase"
 PARTICIPANT = "Participant"
@@ -31,7 +31,6 @@ class Task:
     anchor: str
     problem_type: str
     kind: str                     # "categorical" | "numeric" | "binary"
-    object_enabled: bool = False
     # "participant" (NE-NMPa/NV-PaT/NV-NMPa/OB-P), "activity" (OB-M), or
     # "direction" (NE-NPaM/NV-TNM, values "send"/"receive", default "send"
     # when param is None -- see labels.py::_NE_NPaM/_NV_TNM) -- or None for
@@ -53,13 +52,11 @@ TASKS: Dict[str, Task] = {
     "NV-PaT":  Task("NV-PaT",  ORCHESTRATION_CASE, REG_TIME, "numeric", param="participant"),
     "NV-TNE":  Task("NV-TNE",  CC,          REG_TIME, "numeric"),
     "NV-TNM":  Task("NV-TNM",  MESSAGE,     REG_TIME, "numeric", param="direction"),
-    "NV-NMPr": Task("NV-NMPr", MESSAGE,     COUNT, "numeric", object_enabled=True),
-    "NV-NMPa": Task("NV-NMPa", MESSAGE,     COUNT, "numeric", object_enabled=True,
-                    param="participant"),
+    "NV-NMPr": Task("NV-NMPr", MESSAGE,     COUNT, "numeric"),
+    "NV-NMPa": Task("NV-NMPa", MESSAGE,     COUNT, "numeric", param="participant"),
     # --- Outcome-based ---
     "OB-P":    Task("OB-P",    ORCHESTRATION_CASE, BINARY, "binary", param="participant"),
-    "OB-M":    Task("OB-M",    MESSAGE,     BINARY, "binary", object_enabled=True,
-                    param="activity"),
+    "OB-M":    Task("OB-M",    MESSAGE,     BINARY, "binary", param="activity"),
 }
 
 # The 14 tasks, used for RQ2's label-equivalence check.

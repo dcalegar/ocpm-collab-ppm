@@ -21,11 +21,10 @@ Row<->event alignment uses the documented Feature_Storage structure
 oracle (OCPA remaining time == NV-PrT) validates it and also detects an event-id
 mismatch. VERIFY: that node.event_id matches the OCEL event ids.
 """
-import os
 from typing import List, Dict
 import pandas as pd
 
-from ocpm_tasks.model import ObjectCentricLog
+from tasks.model import ObjectCentricLog
 from .io_ocel import load_ocpa_ocel  # noqa: F401  (re-exported for callers)
 
 

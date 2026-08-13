@@ -1,7 +1,7 @@
 """
-ocpm_eval — evaluation stages for the object-centric collaborative PPM study.
+evaluation — RQ2/RQ3 evaluation stages for the object-centric collaborative PPM study.
 
-Orchestrates the decoupled ``ocpm_tasks`` (task definitions and labels),
+Orchestrates the decoupled ``tasks`` (task definitions and labels),
 ``features`` (OCEL reading and OCPA feature extraction) and ``predictors``
 (per-learner fit/score) libraries into the RQ2/RQ3 pipelines. One module per
 evaluation stage:

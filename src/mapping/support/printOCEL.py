@@ -7,7 +7,7 @@ from pm4py.ocel import (
     discover_oc_petri_net,
     discover_ocdfg
 )
-from pm4py.vis import view_ocpn, save_vis_ocpn, save_vis_ocdfg
+from pm4py.vis import save_vis_ocpn, save_vis_ocdfg
 
 modelname = sys.argv[1] if len(sys.argv) > 1 else "BPI2013_incidents_collaborative"
 

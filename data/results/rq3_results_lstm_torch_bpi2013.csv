@@ -1,7 +1,0 @@
-log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity
-BPI2013,NE-NPaA,Participant,Multiclass classification,lstm_torch,62030,True,f1_macro,0.08467771834488087,0.007540951473639834,0.03678071837497615,5,,
-BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,lstm_torch,18481,True,f1_macro,1.0,0.0,1.0,5,,
-BPI2013,NV-PrT,CollaborationCase,Regression (time),lstm_torch,62030,True,mae,1402304.9943876988,82550.0808361337,1157647.6922617955,5,,
-BPI2013,NV-PaT,OrchestrationCase,Regression (time),lstm_torch,62030,True,mae,714506.9333785959,52926.29005047035,679910.8537965302,5,Org line C,
-BPI2013,NV-NMPr,Message,Count regression,lstm_torch,62030,True,mae,1.6897976438942819,0.055839547007673296,1.3931162340802838,5,,
-BPI2013,OB-M,Message,Binary classification,lstm_torch,62030,True,f1_macro,0.7018213563811256,0.0051923713238540715,0.41246587479766184,5,,Queued

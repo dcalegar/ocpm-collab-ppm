@@ -44,7 +44,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from features.io_ocel import load_ocpa_ocel, read_ocel2_labels     # noqa: E402
 from features.ocpa import extract_feature_table                    # noqa: E402
-from ocpm_tasks.schema import Schema                                # noqa: E402
+from tasks.schema import Schema                                # noqa: E402
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 

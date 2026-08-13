@@ -2,7 +2,7 @@
 Per-fold training and scoring using a PyTorch Transformer predictor.
 Supports both classification (macro F1) and regression (MAE) tasks.
 """
-from typing import Dict
+from typing import Dict, List
 import numpy as np
 import pandas as pd
 from sklearn.metrics import f1_score, mean_absolute_error
@@ -11,10 +11,9 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 import torch
 import torch.nn as nn
 import math
-from torch.utils.data import DataLoader, TensorDataset
 
-from ocpm_tasks.catalog import Task
-from .common import xy_split
+from tasks.catalog import Task
+from .common import NullStageTimer, xy_split
 
 
 class PositionalEncoding(nn.Module):
@@ -52,26 +51,83 @@ class TransformerModel(nn.Module):
         
         self.dropout = nn.Dropout(0.2)
         self.fc = nn.Linear(hidden_dim, output_dim)
+        self._causal_mask_cache = {}
+
+    def _causal_mask(self, seq_len, device):
+        key = (seq_len, device)
+        mask = self._causal_mask_cache.get(key)
+        if mask is None:
+            mask = torch.triu(torch.ones(seq_len, seq_len, dtype=torch.bool, device=device), diagonal=1)
+            self._causal_mask_cache[key] = mask
+        return mask
 
     def forward(self, x, src_key_padding_mask):
         # x is (batch, seq, input_dim)
         x = self.input_projection(x)
         x = self.pos_encoder(x)
-        
+
         seq_len = x.size(1)
-        # Create a boolean causal mask to match src_key_padding_mask type
-        causal_mask = torch.triu(torch.ones(seq_len, seq_len, dtype=torch.bool, device=x.device), diagonal=1)
-        
+        causal_mask = self._causal_mask(seq_len, x.device)
+
         # transformer output is (batch, seq, hidden_dim)
         out = self.transformer_encoder(x, mask=causal_mask, src_key_padding_mask=src_key_padding_mask)
-        
+
         out = self.dropout(out)
         out = self.fc(out)
         return out
 
 
+def _pad_X(X_list: List[np.ndarray]):
+    """Pad a batch of variable-length case sequences to THIS batch's own max
+    length. Padding every batch to a dataset-wide max (the previous approach)
+    forces every batch's self-attention -- O(seq_len^2) per layer, unlike the
+    LSTM predictor's packed-sequence O(seq_len) -- to pay the cost of the
+    single longest case in the whole train/test set on every batch of every
+    epoch. On logs with a long-tailed case-length distribution (e.g. BPI2013:
+    median case length 7, max 135) that turns a handful of outlier cases into
+    a blanket ~(135/7)^2 ~= 370x attention-cost multiplier applied uniformly,
+    which is what made the transformer predictor hang on BPI2013 while the
+    LSTM predictor finished the same log in ~26 minutes."""
+    lengths = [len(x) for x in X_list]
+    max_len = max(lengths)
+    dim = X_list[0].shape[-1]
+    bx = np.zeros((len(X_list), max_len, dim), dtype=np.float32)
+    for i, x in enumerate(X_list):
+        bx[i, :lengths[i], :] = x
+    return bx, np.asarray(lengths, dtype=np.int64), max_len
+
+
+def _pad_y(y_list: List[np.ndarray], lengths, max_len, pad_value):
+    by = np.full((len(y_list), max_len), pad_value, dtype=np.float32)
+    for i, y in enumerate(y_list):
+        by[i, :lengths[i]] = y
+    return by
+
+
+def _length_bucketed_batches(lengths: List[int], batch_size: int):
+    """Group cases of similar length into the same batch (sort by length,
+    chunk, then shuffle chunk ORDER) so a batch's padding target tracks its
+    own members instead of a rare long outlier. Batch composition is
+    deterministic given `lengths`; only the order batches are visited in
+    varies epoch to epoch, via the module-level np.random seeding already
+    done by the caller."""
+    order = np.argsort(lengths, kind="stable")
+    batches = [order[i:i + batch_size] for i in range(0, len(order), batch_size)]
+    np.random.shuffle(batches)
+    return batches
+
+
+def _create_padding_mask(lengths, max_len):
+    mask = torch.ones((len(lengths), max_len), dtype=torch.bool)
+    for i, l in enumerate(lengths):
+        mask[i, :l] = False
+    return mask
+
+
 def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
-                       task: Task, train_mask, test_mask, cfg) -> Dict[str, float]:
+                       task: Task, train_mask, test_mask, cfg,
+                       timer=None) -> Dict[str, float]:
+    timer = timer or NullStageTimer()
     feature_cols = feats["feature_cols"]
     X_tr, X_te, y_tr, y_te = xy_split(tt, feature_cols, y_col, train_mask, test_mask)
     if len(y_tr) == 0 or len(y_te) == 0:
@@ -111,21 +167,9 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
     seq_X_tr, seq_y_tr = make_sequences(X_tr_scaled, y_tr_used, case_ids_tr)
     seq_X_te, seq_y_te = make_sequences(X_te_scaled, y_te_used, case_ids_te)
 
-    def pad_sequences(seq_list, padding_value=0.0):
-        lengths = [len(s) for s in seq_list]
-        max_len = max(lengths)
-        dim = seq_list[0].shape[-1] if seq_list[0].ndim > 1 else 1
-        padded = np.full((len(seq_list), max_len, dim), padding_value, dtype=np.float32)
-        for i, s in enumerate(seq_list):
-            if s.ndim == 1:
-                padded[i, :len(s), 0] = s
-            else:
-                padded[i, :len(s), :] = s
-        return padded, lengths
-
-    X_tr_pad, lengths_tr = pad_sequences(seq_X_tr)
-    X_te_pad, lengths_te = pad_sequences(seq_X_te)
-    input_dim = X_tr_pad.shape[2]
+    lengths_tr = [len(s) for s in seq_X_tr]
+    lengths_te = [len(s) for s in seq_X_te]
+    input_dim = seq_X_tr[0].shape[-1]
 
     # CPU/GPU Device routing
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -136,84 +180,90 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
     lr = getattr(cfg, "transformer_learning_rate", getattr(cfg, "lstm_learning_rate", 0.001))
     num_heads = getattr(cfg, "transformer_heads", 4)
     num_layers = getattr(cfg, "transformer_layers", 2)
-    
+
     # Check if units is divisible by num_heads (d_model must be divisible by nhead)
     if units % num_heads != 0:
         units = (units // num_heads) * num_heads
         if units == 0: units = num_heads
 
-    X_tr_tens = torch.tensor(X_tr_pad, dtype=torch.float32).to(device)
-    lengths_tr_tens = torch.tensor(lengths_tr, dtype=torch.int64)
-    
-    X_te_tens = torch.tensor(X_te_pad, dtype=torch.float32).to(device)
-    lengths_te_tens = torch.tensor(lengths_te, dtype=torch.int64)
-
-    def create_padding_mask(lengths_tensor, max_len):
-        mask = torch.ones((len(lengths_tensor), max_len), dtype=torch.bool)
-        for i, l in enumerate(lengths_tensor):
-            mask[i, :l] = False
-        return mask
+    def predict_in_batches(model, seq_X, lengths, eval_batch_size):
+        # Sequential (order-preserving), locally-padded batches: avoids
+        # padding the whole test set to its single longest case, and keeps
+        # output rows aligned with `lengths` for the flat_pred reconstruction
+        # below (no sort/unsort needed since order is never disturbed).
+        outputs = []
+        model.eval()
+        with torch.no_grad():
+            for i in range(0, len(seq_X), eval_batch_size):
+                chunk_X = seq_X[i:i + eval_batch_size]
+                bx, blen, _ = _pad_X(chunk_X)
+                bx_tens = torch.tensor(bx, dtype=torch.float32).to(device)
+                pad_mask = _create_padding_mask(blen, bx_tens.size(1)).to(device)
+                out = model(bx_tens, pad_mask)
+                outputs.append(out.cpu())
+        return outputs
 
     if task.kind in ("categorical", "binary"):
         y_tr_s, y_te_s = y_tr_used, y_te_used
         le = LabelEncoder()
         le.fit(y_tr_s)
         num_classes = len(le.classes_)
-        
+
         if num_classes < 2:
             const_label = le.classes_[0]
             pred_labels = [const_label] * len(y_te_s)
             score = float(f1_score(y_te_s, pred_labels, average="macro", zero_division=0))
             return {"metric": score, "baseline": score, "n_test": int(len(y_te_s))}
 
-        y_tr_enc, _ = pad_sequences([le.transform(seq) for seq in seq_y_tr], padding_value=-1)
-        y_tr_enc = y_tr_enc.squeeze(-1)
-        
-        mask_tr = y_tr_enc != -1
-        y_tr_tens = torch.tensor(np.where(mask_tr, y_tr_enc, 0), dtype=torch.long if num_classes > 2 else torch.float32).to(device)
-        mask_tr_tens = torch.tensor(mask_tr, dtype=torch.bool).to(device)
-        
+        y_enc_tr = [le.transform(seq).astype(np.float32) for seq in seq_y_tr]
+
         output_dim = num_classes if num_classes > 2 else 1
         model = TransformerModel(input_dim, units, output_dim, is_classification=True, num_heads=num_heads, num_layers=num_layers).to(device)
-        
+
         criterion = nn.CrossEntropyLoss(reduction='none') if num_classes > 2 else nn.BCEWithLogitsLoss(reduction='none')
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-        
-        dataset = TensorDataset(X_tr_tens, y_tr_tens, lengths_tr_tens, mask_tr_tens)
-        loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        
-        model.train()
-        for epoch in range(epochs):
-            for bx, by, bl, bmask in loader:
-                optimizer.zero_grad()
-                src_key_padding_mask = create_padding_mask(bl, bx.size(1)).to(device)
-                out = model(bx, src_key_padding_mask)
-                if num_classes > 2:
-                    loss = criterion(out.view(-1, num_classes), by.view(-1))
-                else:
-                    loss = criterion(out.view(-1), by.view(-1))
-                
-                loss = (loss * bmask.view(-1)).sum() / bmask.sum().clamp(min=1)
-                loss.backward()
-                optimizer.step()
-                
-        model.eval()
-        with torch.no_grad():
-            src_key_padding_mask_te = create_padding_mask(lengths_te_tens, X_te_tens.size(1)).to(device)
-            out_te = model(X_te_tens, src_key_padding_mask_te)
+
+        with timer.stage("fit"):
+            model.train()
+            for epoch in range(epochs):
+                for idx in _length_bucketed_batches(lengths_tr, batch_size):
+                    bx, blen, max_len = _pad_X([seq_X_tr[i] for i in idx])
+                    by_pad = _pad_y([y_enc_tr[i] for i in idx], blen, max_len, pad_value=-1.0)
+                    bmask = by_pad != -1.0
+                    by_used = np.where(bmask, by_pad, 0)
+
+                    bx_tens = torch.tensor(bx, dtype=torch.float32).to(device)
+                    by_tens = torch.tensor(by_used, dtype=torch.long if num_classes > 2 else torch.float32).to(device)
+                    bmask_tens = torch.tensor(bmask, dtype=torch.bool).to(device)
+
+                    optimizer.zero_grad()
+                    src_key_padding_mask = _create_padding_mask(blen, max_len).to(device)
+                    out = model(bx_tens, src_key_padding_mask)
+                    if num_classes > 2:
+                        loss = criterion(out.reshape(-1, num_classes), by_tens.reshape(-1))
+                    else:
+                        loss = criterion(out.reshape(-1), by_tens.reshape(-1))
+
+                    loss = (loss * bmask_tens.reshape(-1)).sum() / bmask_tens.sum().clamp(min=1)
+                    loss.backward()
+                    optimizer.step()
+
+        with timer.stage("predict"):
+            outputs = predict_in_batches(model, seq_X_te, lengths_te, batch_size)
             if num_classes > 2:
-                probs = torch.softmax(out_te, dim=-1).cpu().numpy()
-                pred_enc_all = np.argmax(probs, axis=-1)
+                pred_chunks = [np.argmax(torch.softmax(o, dim=-1).numpy(), axis=-1) for o in outputs]
             else:
-                probs = torch.sigmoid(out_te).cpu().numpy()
-                pred_enc_all = (probs > 0.5).astype(int).squeeze(-1)
-                
+                pred_chunks = [(torch.sigmoid(o).numpy() > 0.5).astype(int).squeeze(-1) for o in outputs]
+
         flat_pred = []
-        for i, l in enumerate(lengths_te):
-            flat_pred.extend(pred_enc_all[i, :l])
-            
+        pos = 0
+        for chunk in pred_chunks:
+            for row in chunk:
+                flat_pred.extend(row[:lengths_te[pos]])
+                pos += 1
+
         pred_labels = le.inverse_transform(flat_pred)
-        
+
         maj = pd.Series(y_tr_s).mode().iloc[0]
         return {
             "metric": float(f1_score(y_te_s, pred_labels, average="macro", zero_division=0)),
@@ -221,42 +271,46 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
             "n_test": int(len(y_te_s)),
         }
     else:
-        y_tr_pad, _ = pad_sequences([seq.astype(float) for seq in seq_y_tr], padding_value=-9999.0)
-        y_tr_pad = y_tr_pad.squeeze(-1)
-        
-        mask_tr = y_tr_pad != -9999.0
-        y_tr_tens = torch.tensor(np.where(mask_tr, y_tr_pad, 0.0), dtype=torch.float32).to(device)
-        mask_tr_tens = torch.tensor(mask_tr, dtype=torch.bool).to(device)
-        
+        y_tr_float = [seq.astype(np.float32) for seq in seq_y_tr]
+
         model = TransformerModel(input_dim, units, 1, is_classification=False, num_heads=num_heads, num_layers=num_layers).to(device)
         criterion = nn.MSELoss(reduction='none')
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-        
-        dataset = TensorDataset(X_tr_tens, y_tr_tens, lengths_tr_tens, mask_tr_tens)
-        loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        
-        model.train()
-        for epoch in range(epochs):
-            for bx, by, bl, bmask in loader:
-                optimizer.zero_grad()
-                src_key_padding_mask = create_padding_mask(bl, bx.size(1)).to(device)
-                out = model(bx, src_key_padding_mask).squeeze(-1)
-                loss = criterion(out, by)
-                loss = (loss * bmask).sum() / bmask.sum().clamp(min=1)
-                loss.backward()
-                optimizer.step()
-                
-        model.eval()
-        with torch.no_grad():
-            src_key_padding_mask_te = create_padding_mask(lengths_te_tens, X_te_tens.size(1)).to(device)
-            out_te = model(X_te_tens, src_key_padding_mask_te).squeeze(-1).cpu().numpy()
-            
+
+        with timer.stage("fit"):
+            model.train()
+            for epoch in range(epochs):
+                for idx in _length_bucketed_batches(lengths_tr, batch_size):
+                    bx, blen, max_len = _pad_X([seq_X_tr[i] for i in idx])
+                    by_pad = _pad_y([y_tr_float[i] for i in idx], blen, max_len, pad_value=-9999.0)
+                    bmask = by_pad != -9999.0
+                    by_used = np.where(bmask, by_pad, 0.0)
+
+                    bx_tens = torch.tensor(bx, dtype=torch.float32).to(device)
+                    by_tens = torch.tensor(by_used, dtype=torch.float32).to(device)
+                    bmask_tens = torch.tensor(bmask, dtype=torch.bool).to(device)
+
+                    optimizer.zero_grad()
+                    src_key_padding_mask = _create_padding_mask(blen, max_len).to(device)
+                    out = model(bx_tens, src_key_padding_mask).squeeze(-1)
+                    loss = criterion(out, by_tens)
+                    loss = (loss * bmask_tens).sum() / bmask_tens.sum().clamp(min=1)
+                    loss.backward()
+                    optimizer.step()
+
+        with timer.stage("predict"):
+            outputs = predict_in_batches(model, seq_X_te, lengths_te, batch_size)
+
         flat_pred = []
-        for i, l in enumerate(lengths_te):
-            flat_pred.extend(out_te[i, :l])
+        pos = 0
+        for o in outputs:
+            arr = o.squeeze(-1).numpy()
+            for row in arr:
+                flat_pred.extend(row[:lengths_te[pos]])
+                pos += 1
         flat_pred = np.array(flat_pred)
         flat_pred = y_scaler.inverse_transform(flat_pred.reshape(-1, 1)).flatten()
-            
+
         y_te_float = y_te.astype(float).to_numpy()
         median = float(np.median(y_tr.astype(float).to_numpy()))
 

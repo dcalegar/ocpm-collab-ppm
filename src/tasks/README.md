@@ -1,24 +1,32 @@
-# ocpm_tasks — object-centric collaborative prediction-task library
+# tasks — object-centric collaborative prediction-task library
 
 Standalone library for the 14 reformulated prediction tasks over collaborative
 process logs: task definitions, ground-truth label functions, and a neutral
 object-centric model they operate on. It has **no dependency on `mapping` or
-`ocpm_eval`** — only `pandas` at import time (`pm4py`/`ocpa` are imported lazily,
-only if you use the corresponding adapter).
+`evaluation`**, and no third-party dependency at all at import time: the task
+logic (`schema`/`model`/`catalog`/`labels`/`fidelity`) is pure Python, and
+`adapters` — the only module needing `pandas`, plus `pm4py`/`ocpa` for the
+corresponding adapter — is loaded lazily on first access. The label functions
+therefore run in an environment where none of those are installed. This
+library backs RQ2 (see
+[Research questions](../../README.md#research-questions)).
 
 ## Install
 
-Copy or vendor the `ocpm_tasks` package into your project (it's a plain
-directory with no package-specific dependencies beyond pandas), or depend on
-this repo and import it as `ocpm_tasks`.
+Copy or vendor the `tasks` package into your project (it's a plain directory
+with no package-specific dependencies), or depend on this repo and import it
+as `tasks`. Nothing extra is needed to define tasks and compute labels; only
+the adapters pull in third-party packages:
 
 ```bash
-pip install pandas
+pip install pandas          # for tasks.adapters (from_ocel2_sqlite / build_from_relations)
+pip install pm4py           # only for adapters.from_pm4py
+pip install ocpa            # only for adapters.from_ocpa
 ```
 
 ## What this library does (and does not)
 
-`ocpm_tasks` only supplies the **ground-truth / task-definition side** of a
+`tasks` only supplies the **ground-truth / task-definition side** of a
 prediction pipeline — it never trains or runs a model:
 
 * `catalog.TASKS` — metadata for each of the 14 tasks (target anchor,
@@ -54,9 +62,9 @@ pieces line up.
 Build the neutral model with one of the adapters, then compute labels for any task:
 
 ```python
-from ocpm_tasks.adapters import from_ocel2_sqlite
-from ocpm_tasks.catalog import TASKS
-from ocpm_tasks.labels import build_context, compute_label_rows
+from tasks.adapters import from_ocel2_sqlite
+from tasks.catalog import TASKS
+from tasks.labels import build_context, compute_label_rows
 
 log = from_ocel2_sqlite("my_log.sqlite")   # or from_pm4py(...) / from_ocpa(...)
 ctx = build_context(log)
@@ -79,21 +87,21 @@ If your OCEL uses different object-type/qualifier names, pass a custom
 
 ## Connecting to a concrete prediction with OCPA
 
-`ocpm_tasks` produces the target `y`; OCPA can supply both the parsed log
+`tasks` produces the target `y`; OCPA can supply both the parsed log
 and the per-cut-point feature vector `X`. The two line up on `event_id`:
 
 ```python
 from ocpa.objects.log.importer.ocel2.sqlite import factory as ocel_import
 from ocpa.algo.predictive_monitoring import factory as predictive_monitoring, tabular
 
-from ocpm_tasks.adapters import from_ocpa
-from ocpm_tasks.catalog import TASKS
-from ocpm_tasks.labels import build_context, compute_label_rows
+from tasks.adapters import from_ocpa
+from tasks.catalog import TASKS
+from tasks.labels import build_context, compute_label_rows
 
 # 1. Parse once with OCPA (native OCEL 2.0 import).
 ocpa_ocel = ocel_import.apply("my_log.sqlite")
 
-# 2. Build the neutral ocpm_tasks model from the SAME parsed log, so
+# 2. Build the neutral tasks model from the SAME parsed log, so
 #    case/event ids line up with OCPA's.
 log = from_ocpa(ocpa_ocel)
 ctx = build_context(log)
@@ -113,7 +121,7 @@ table["event_id"] = [str(n.event_id) for fg in feature_storage.feature_graphs
 case_by_event_id = {str(e.event_id): ex.case_id for ex in log for e in ex.events}
 table["case_id"] = table["event_id"].map(case_by_event_id)
 
-# 4. Target (y): ocpm_tasks labels, joined by event_id.
+# 4. Target (y): tasks labels, joined by event_id.
 task = TASKS["NE-NMPr"]
 labels = {str(eid): y for (_case, eid, _k, y)
           in compute_label_rows(log, task, ctx=ctx)}
@@ -143,8 +151,8 @@ oracle (checking OCPA's own remaining-time feature against the NV-PrT
 label to catch id/partitioning mismatches), grouped cross-validation by
 collaboration instance, and a trivial baseline — see
 `features/ocpa.py`, `predictors/random_forest.py` and
-`ocpm_eval/rq3_pipeline.py` in this repo. They are *consumers* of
-`ocpm_tasks` (not part of it) and show the full RQ3 pipeline end to end.
+`evaluation/rq3_pipeline.py` in this repo. They are *consumers* of
+`tasks` (not part of it) and show the full RQ3 pipeline end to end.
 
 ## Bringing your own OCEL
 

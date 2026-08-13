@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional, Callable
 
 from .model import ObjectCentricLog, Execution
-from .catalog import Task, TASKS
+from .catalog import Task
 
 BOTTOM = "__BOTTOM__"
 

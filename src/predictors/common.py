@@ -1,6 +1,20 @@
 """Shared helpers reused across predictor modules."""
+from contextlib import contextmanager
 from typing import List
 import pandas as pd
+
+
+class NullStageTimer:
+    """Default for fit_and_score_fold's optional `timer` parameter, used
+    when the caller (a direct call, e.g. tests/test_predictors_registry.py,
+    or any pipeline not doing profiling) doesn't pass one. Duck-types
+    evaluation.profiling.StageTimer's `.stage(name)` context manager without
+    importing evaluation -- this package stays decoupled from it (see
+    predictors/README.md)."""
+
+    @contextmanager
+    def stage(self, name: str):
+        yield
 
 
 def xy_split(table: pd.DataFrame, feature_cols: List[str], y_col: str, train_mask, test_mask):

@@ -13,7 +13,7 @@ Four independent axes select what runs: `rqs` (RQ2, RQ3), `log_groups`
 subset, one task per anchor x problem-type combination; full = all 14 tasks,
 supplementary coverage -- RQ3 only, ignored for RQ2) and `predictors` (any
 subset of `predictors.dispatch.PREDICTOR_REGISTRY`, e.g. random_forest,
-xgboost, lstm, lstm_torch, gnn -- RQ3 only; RQ2 has no predictor axis). Output
+xgboost, lstm, lstm_torch, transformer, gnn -- RQ3 only; RQ2 has no predictor axis). Output
 filenames are derived from the combination, e.g. `rq3_results_random_forest_predictcollab.csv`
 (predictcollab, partial, random_forest), `rq3_results_gnn_predictcollab_full.csv`
 (predictcollab, full, gnn), `rq2_fidelity_bpi2013.csv` (RQ2 has no predictor
@@ -26,11 +26,11 @@ below), so each axis can be restricted independently to run the evaluation in
 parts -- e.g. one predictor on one log group at a time -- either by calling
 `main()` with a subset of each iterable, or via the CLI:
 
-    python -m ocpm_eval.run_evaluation                                    # default: RQ2+RQ3 partial, Predict-Collab, random_forest
-    python -m ocpm_eval.run_evaluation --rqs RQ3 --predictors gnn xgboost  # RQ3 only, two predictors, Predict-Collab
-    python -m ocpm_eval.run_evaluation --log-groups bpi2013               # BPI2013 only
-    python -m ocpm_eval.run_evaluation --rq3-scopes full --out-dir /tmp/x  # RQ3 full catalog, custom output dir
-    python -m ocpm_eval.run_evaluation --help                              # full flag list
+    python -m evaluation.run_evaluation                                    # default: RQ2+RQ3 partial, Predict-Collab, random_forest
+    python -m evaluation.run_evaluation --rqs RQ3 --predictors gnn xgboost  # RQ3 only, two predictors, Predict-Collab
+    python -m evaluation.run_evaluation --log-groups bpi2013               # BPI2013 only
+    python -m evaluation.run_evaluation --rq3-scopes full --out-dir /tmp/x  # RQ3 full catalog, custom output dir
+    python -m evaluation.run_evaluation --help                              # full flag list
 
 Log paths/hyperparameters are adjusted in config.py; which stages run is
 adjusted via the CLI flags above (see `_parse_args` below) or by calling
@@ -57,7 +57,7 @@ import os
 import sys
 from dataclasses import replace
 from typing import Iterable, Literal, Optional
-from ocpm_tasks.catalog import EQUIVALENCE_TASKS, RQ3_SUBSET
+from tasks.catalog import EQUIVALENCE_TASKS, RQ3_SUBSET
 from .config import ExperimentConfig, predictcollab_ocel_logs, real_world_ocel_logs
 from .rq2_fidelity import run_rq2
 from .rq3_pipeline import run_rq3
@@ -97,7 +97,7 @@ def main(cfg: Optional[ExperimentConfig] = None,
     runs once per log_group regardless of how many predictors are requested.
 
     predictors selects keys from predictors.dispatch.PREDICTOR_REGISTRY (e.g.
-    "random_forest", "xgboost", "lstm", "lstm_torch", "gnn"); RQ3 runs once per
+    "random_forest", "xgboost", "lstm", "lstm_torch", "transformer", "gnn"); RQ3 runs once per
     (log_group, predictor, scope) combination, each to its own
     rq3_results_{predictor}*.csv.
     """
@@ -131,7 +131,7 @@ def main(cfg: Optional[ExperimentConfig] = None,
 
 def _parse_args(argv):
     p = argparse.ArgumentParser(
-        prog="python -m ocpm_eval.run_evaluation",
+        prog="python -m evaluation.run_evaluation",
         description="Run RQ2/RQ3 evaluation stages. Combine flags to run a "
                     "subset -- e.g. one predictor on one log group -- since some "
                     "(predictor, log_group) combinations are slow (see BPI2013 note "
@@ -149,15 +149,35 @@ def _parse_args(argv):
                    help="RQ3 predictors to evaluate, one run per predictor (default: random_forest)")
     p.add_argument("--out-dir", default=None,
                    help="override ExperimentConfig.out_dir (default: data/results)")
+    p.add_argument("--folds-dir", default=None,
+                   help="override ExperimentConfig.folds_dir (default: data/folds)")
+    p.add_argument("--regenerate-folds", action="store_true",
+                   help="regenerate each log's persisted CollaborationCase->fold "
+                        "assignment even if data/folds/{log}_folds.csv already "
+                        "exists (default: reuse it, or generate it once if "
+                        "missing -- see rq3_pipeline.load_or_generate_folds)")
+    p.add_argument("--profile", action="store_true",
+                   help="RQ3 only: also write a per-stage wall-clock + RSS "
+                        "memory profile to rq3_profile_{predictor}*.csv "
+                        "(default: off, see evaluation.profiling)")
     return p.parse_args(argv)
 
 
 if __name__ == "__main__":
     if os.environ.get("PYTHONHASHSEED") != "0":
         os.environ["PYTHONHASHSEED"] = "0"
-        os.execv(sys.executable, [sys.executable, "-m", "ocpm_eval.run_evaluation"] + sys.argv[1:])
+        os.execv(sys.executable, [sys.executable, "-m", "evaluation.run_evaluation"] + sys.argv[1:])
     args = _parse_args(sys.argv[1:])
-    cfg = ExperimentConfig(out_dir=args.out_dir) if args.out_dir else None
+    cfg_overrides = {}
+    if args.out_dir:
+        cfg_overrides["out_dir"] = args.out_dir
+    if args.folds_dir:
+        cfg_overrides["folds_dir"] = args.folds_dir
+    if args.regenerate_folds:
+        cfg_overrides["regenerate_folds"] = True
+    if args.profile:
+        cfg_overrides["profile"] = True
+    cfg = ExperimentConfig(**cfg_overrides) if cfg_overrides else None
     main(cfg=cfg,
         rqs=tuple(args.rqs),
         log_groups=tuple(args.log_groups),

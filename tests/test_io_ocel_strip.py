@@ -27,7 +27,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from features.io_ocel import _strip_participant_e2o  # noqa: E402
-from ocpm_tasks.schema import Schema  # noqa: E402
+from tasks.schema import Schema  # noqa: E402
 
 
 def _build_event_object_db(rows):

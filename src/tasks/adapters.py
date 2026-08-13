@@ -300,7 +300,6 @@ def from_ocpa(ocpa_ocel, schema: Optional[Schema] = None) -> ObjectCentricLog:
     # importer; strip it to restore the original OCEL attribute names used in Schema.
     log_df = ocpa_ocel.log.log   # indexed by original OCEL event ids
     eog = ocpa_ocel.graph.eog
-    ot_set = set(ocpa_ocel.object_types)
     ev_attr_cols = [c for c in log_df.columns
                     if c.startswith("event_")
                     and c not in ("event_id", "event_activity", "event_timestamp")]

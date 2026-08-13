@@ -11,14 +11,14 @@ import time
 import warnings
 import pandas as pd
 from typing import Dict, List, Tuple
-from ocpm_tasks.adapters import from_ocpa, from_ocel2_sqlite, _normalize_ocel_sqlite_timestamps
-from ocpm_tasks.model import ObjectCentricLog
+from tasks.adapters import from_ocpa, from_ocel2_sqlite, _normalize_ocel_sqlite_timestamps
+from tasks.model import ObjectCentricLog
 
 # Direct event->participant E2O qualifier (in_participant) added by the
 # converter (collab_xes_to_ocel.py). It is a genuine relation of the conceptual
 # model (rule M6): a participant is reachable both directly, via this
 # edge, and indirectly via in_orchestration -> for_participant (see
-# ocpm_tasks/schema.py); their agreement is checked by P1.6. OCPA's
+# tasks/schema.py); their agreement is checked by P1.6. OCPA's
 # leading-type extraction connects ALL E2O-related objects of an event
 # pairwise regardless of type, so this edge merges every
 # CollaborationCase's process execution with every other one that shares

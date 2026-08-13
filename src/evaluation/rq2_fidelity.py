@@ -14,13 +14,13 @@ The mapping preserves prec_L and label semantics by construction, so
 """
 import os
 from datetime import datetime
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict
 import pandas as pd
 
-from ocpm_tasks.catalog import TASKS, EQUIVALENCE_TASKS
-from ocpm_tasks import labels as TL
-from ocpm_tasks import fidelity as FID
-from ocpm_tasks.fidelity import Row
+from tasks.catalog import TASKS, EQUIVALENCE_TASKS
+from tasks import labels as TL
+from tasks import fidelity as FID
+from tasks.fidelity import Row
 from .config import ExperimentConfig, LogSpec
 from features.io_ocel import read_ocel2_labels
 
@@ -176,15 +176,27 @@ def _src_label(key: str, evs: List[dict], i: int, param, bottom: str) -> object:
     raise ValueError(f"No source-level Θ_τ^L implementation for task {key}")
 
 
-def _compute_source_rows(xes_path: str, task, param, bottom: str) -> List[Row]:
+def _compute_source_rows(src_cases: Dict[str, List[dict]], task, param,
+                         bottom: str) -> List[Row]:
     """Compute Θ_τ^L: source-level label rows from the collaborative XES log.
 
-    Reads the XES directly using source accessors without building an intermediate
+    ``src_cases`` is the already-parsed source log (a ``_read_xes_cases``
+    result), read ONCE per log by the caller rather than per (task, param)
+    here. The parse -- pm4py.read_xes over the whole file plus the B11
+    timestamp re-derivation -- does not depend on the task or its parameter,
+    while the number of (task, param) combinations is large: the
+    participant-parameterized tasks (NE-NMPa/NV-PaT/NV-NMPa/OB-P) sweep all of
+    P_L and OB-M sweeps the full activity alphabet A_L, which is 27-55
+    combinations on the four study logs and 115 on BPI2013. Re-reading a
+    65,533-event XES 115 times dominated RQ2's runtime and changed nothing
+    about the labels.
+
+    Reads the XES using source accessors without building an intermediate
     ObjectCentricLog. Returns rows (case_id, event_id, k, label) aligned by
     (case_id, k) with the R2 rows from labels.compute_label_rows.
     """
     rows: List[Row] = []
-    for case_id, evs in _read_xes_cases(xes_path).items():
+    for case_id, evs in src_cases.items():
         n = len(evs)
         for i in range(n - 1):
             y = _src_label(task.key, evs, i, param, bottom)
@@ -204,7 +216,7 @@ def _compute_source_rows(xes_path: str, task, param, bottom: str) -> List[Row]:
 _DIRECTION_TASKS = {k for k, t in TASKS.items() if t.param == "direction"}
 
 
-def _params_for(task, ocel_log, cfg):
+def _params_for(task, ocel_log):
     """Relevant parameter values for a parameterized task (resolved from R2 log)."""
     if task.key in _DIRECTION_TASKS:
         return ["send", "receive"]
@@ -232,12 +244,16 @@ def _params_for(task, ocel_log, cfg):
 def run_one_log(spec: LogSpec, cfg: ExperimentConfig) -> List[dict]:
     r2_log = read_ocel2_labels(spec.ocel_path, cfg.schema)
     ctx2 = TL.build_context(r2_log, cfg.bottom)
+    # Parsed once for the whole log and reused across every (task, param)
+    # combination below -- see _compute_source_rows for why. Never mutated:
+    # _src_label only reads the per-case event dicts.
+    src_cases = _read_xes_cases(spec.xes_path)
     out: List[dict] = []
 
     for key in EQUIVALENCE_TASKS:
         task = TASKS[key]
-        for param in _params_for(task, r2_log, cfg):
-            r1_rows = _compute_source_rows(spec.xes_path, task, param, cfg.bottom)
+        for param in _params_for(task, r2_log):
+            r1_rows = _compute_source_rows(src_cases, task, param, cfg.bottom)
             r2_rows = TL.compute_label_rows(r2_log, task, param, ctx2, drop_bottom=False)
             res = FID.compare_equivalence(r1_rows, r2_rows, task, cfg.bottom, cfg.numeric_tol)
             res.update({"log": spec.name, "param": param})

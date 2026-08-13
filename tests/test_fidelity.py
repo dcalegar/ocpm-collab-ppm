@@ -1,5 +1,5 @@
 """
-Regression tests for ``ocpm_tasks.fidelity.compare_equivalence``.
+Regression tests for ``tasks.fidelity.compare_equivalence``.
 
 Before this change, ``agreement`` was computed only over the KEY
 INTERSECTION of the reference and object-centric label rows, with
@@ -16,8 +16,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from ocpm_tasks.catalog import TASKS               # noqa: E402
-from ocpm_tasks.fidelity import compare_equivalence  # noqa: E402
+from tasks.catalog import TASKS               # noqa: E402
+from tasks.fidelity import compare_equivalence  # noqa: E402
 
 BOTTOM = "__BOTTOM__"
 

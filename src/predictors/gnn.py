@@ -1,6 +1,6 @@
 """Direct object-centric event-graph predictor using OCPA graphs and DGL."""
 from dataclasses import dataclass
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -35,13 +35,24 @@ def _graph_index(storage) -> Dict[str, Tuple[object, Dict[str, int]]]:
     return result
 
 
-def extract_k_prefix_graphs(feats: dict, rows: pd.DataFrame, y_col: str,
-                            k: int) -> List[EventGraphSample]:
+def extract_k_prefix_graphs(feats: dict, rows: pd.DataFrame, y_col: str, k: int,
+                            graph_index: Optional[Dict] = None,
+                            rank_cache: Optional[dict] = None) -> List[EventGraphSample]:
     """Extract variable-size induced graphs from structural predecessors.
 
     ``k`` includes the cut event, as in prefix-based predictive monitoring.
     The other nodes are its closest ancestors in the OCPA event graph. Initial
     prefixes shorter than k are retained at their natural size.
+
+    The BFS ranking of ancestors is independent of k -- only the final
+    truncation uses it. ``rank_cache`` (keyed by event_id) memoizes that
+    ranking so callers that request the same event at several k (e.g. the
+    k-selection search in fit_and_score_fold, which reuses the same train/
+    validation events for every candidate k) traverse each event's graph
+    once rather than once per k. ``graph_index`` similarly skips rebuilding
+    the event_id -> (graph, order) lookup on every call. Pass a fresh dict
+    per (log, task, fold) for each; both are populated lazily and never
+    invalidated internally.
     """
     if k < 1:
         raise ValueError("k must be positive")
@@ -51,26 +62,34 @@ def extract_k_prefix_graphs(feats: dict, rows: pd.DataFrame, y_col: str,
     labelled.index = labelled["event_id"].astype(str)
     full = feats["table"].copy()
     full.index = full["event_id"].astype(str)
-    cols, graph_by_event = feats["feature_cols"], _graph_index(feats["feature_storage"])
+    cols = feats["feature_cols"]
+    graph_by_event = (graph_index if graph_index is not None
+                      else _graph_index(feats["feature_storage"]))
+    cache = {} if rank_cache is None else rank_cache
     samples = []
     for target_id in labelled.index:
         if target_id not in graph_by_event:
             continue
         graph, order = graph_by_event[target_id]
-        predecessors, raw_edges = {event_id: [] for event_id in order}, []
-        for edge in graph.edges:
-            source, target = str(edge.source), str(edge.target)
-            if source in order and target in order:
-                predecessors[target].append(source)
-                raw_edges.append((source, target))
-        distances, queue = {target_id: 0}, [target_id]
-        while queue:
-            current = queue.pop(0)
-            for parent in predecessors.get(current, ()):
-                if parent not in distances:
-                    distances[parent] = distances[current] + 1
-                    queue.append(parent)
-        chosen = sorted(distances, key=lambda e: (distances[e], -order[e]))[:k]
+        if target_id in cache:
+            ranked, raw_edges = cache[target_id]
+        else:
+            predecessors, raw_edges = {event_id: [] for event_id in order}, []
+            for edge in graph.edges:
+                source, target = str(edge.source), str(edge.target)
+                if source in order and target in order:
+                    predecessors[target].append(source)
+                    raw_edges.append((source, target))
+            distances, queue = {target_id: 0}, [target_id]
+            while queue:
+                current = queue.pop(0)
+                for parent in predecessors.get(current, ()):
+                    if parent not in distances:
+                        distances[parent] = distances[current] + 1
+                        queue.append(parent)
+            ranked = sorted(distances, key=lambda e: (distances[e], -order[e]))
+            cache[target_id] = (ranked, raw_edges)
+        chosen = ranked[:k]
         chosen.sort(key=order.get)
         local = {event_id: i for i, event_id in enumerate(chosen)}
         edges = tuple((local[s], local[t]) for s, t in raw_edges
@@ -83,14 +102,16 @@ def extract_k_prefix_graphs(feats: dict, rows: pd.DataFrame, y_col: str,
     return samples
 
 
-def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
+def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg, timer=None):
     """Select the configured k on validation executions, then evaluate test once."""
     import dgl
     import torch
     import torch.nn as nn
     from dgl.nn import GlobalAttentionPooling, GraphConv
     from torch.utils.data import DataLoader
+    from .common import NullStageTimer
 
+    timer = timer or NullStageTimer()
     seed = getattr(cfg, "random_state", 3395)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
@@ -130,6 +151,13 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
     scaled_tt = tt.copy()
     scaled_tt[cols] = scaled_tt[cols].astype(float)
     scaled_tt.loc[:, cols] = scaler.transform(tt[cols].fillna(0.0))
+    # Built once and reused for every k candidate and every split (train/
+    # validation/development/test) in this fold: the event_id -> (graph,
+    # order) lookup and each event's BFS ancestor ranking are both
+    # independent of k and of feature scaling, so recomputing them per k
+    # candidate (as before) only redid the same graph traversal.
+    graph_index = _graph_index(scaled_feats["feature_storage"])
+    rank_cache: dict = {}
     classification = task.kind in ("categorical", "binary")
     # Include validation-only classes for the final development refit, without
     # using any label information from the test fold.
@@ -169,7 +197,8 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
     def prepare(frame, k):
         ids = set(frame["event_id"].astype(str))
         source = scaled_tt[scaled_tt["event_id"].astype(str).isin(ids)]
-        samples = extract_k_prefix_graphs(scaled_feats, source, y_col, k)
+        samples = extract_k_prefix_graphs(scaled_feats, source, y_col, k,
+                                          graph_index=graph_index, rank_cache=rank_cache)
         pairs = []
         # Only test labels can be outside the development-fitted vocabulary.
         # Keep them as an extra true-label index so they count as errors without
@@ -228,7 +257,7 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
         validation_labels = validation_labels.to(device)
         validation_targets = validation_targets.to(device)
         best_objective = float("inf")
-        best_state = None
+        found_improvement = False
         best_epoch = 0
         epochs_without_improvement = 0
         for epoch in range(1, epochs + 1):
@@ -269,10 +298,7 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
                 best_objective = objective
                 best_epoch = epoch
                 epochs_without_improvement = 0
-                best_state = {
-                    name: value.detach().cpu().clone()
-                    for name, value in model.state_dict().items()
-                }
+                found_improvement = True
             else:
                 epochs_without_improvement += 1
             if verbose and (epoch == 1 or epoch % log_every == 0 or epoch == epochs):
@@ -285,7 +311,7 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
                           f"best_epoch={best_epoch}")
                 break
 
-        if best_state is None:
+        if not found_improvement:
             return None
         if verbose:
             shown = -best_objective if classification else best_objective
@@ -296,65 +322,70 @@ def fit_and_score_fold(feats, tt, y_col, task, train_mask, test_mask, cfg):
             torch.cuda.empty_cache()
         return best_objective, best_epoch
 
-    candidates = []
-    for k in getattr(cfg, "gnn_k_values", tuple(range(2, 9))):
-        result = train_for(k)
-        if result is not None:
-            candidates.append((result[0], k, result[1]))
-    if not candidates:
-        return {}
-    _, best_k, best_epoch = min(candidates, key=lambda candidate: candidate[0])
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-    model = GCN(len(encoder.classes_) if classification else 1).to(device)
-    development_data, _ = prepare(development, best_k)
-    if not development_data:
-        return {}
-    if classification:
-        development_labels = np.asarray([
-            int(label.item()) for _, label, _ in development_data])
-        counts = np.bincount(development_labels,
-                             minlength=len(encoder.classes_))
-        weights = np.zeros(len(counts), dtype=np.float32)
-        present = counts > 0
-        weights[present] = (len(development_labels) /
-                            (present.sum() * counts[present]))
-        development_loss = nn.CrossEntropyLoss(
-            weight=torch.as_tensor(weights, device=device))
-    else:
-        development_loss = nn.HuberLoss(
-            delta=getattr(cfg, "gnn_huber_delta", 1.0))
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=getattr(cfg, "gnn_learning_rate", 0.001))
-    loader = DataLoader(
-        development_data, batch_size=getattr(cfg, "gnn_batch_size", 32),
-        shuffle=True, collate_fn=collate)
-    for _ in range(best_epoch):
-        model.train()
-        for graph, labels, targets in loader:
+    with timer.stage("fit"):
+        # Covers both the k-selection search (each candidate k is its own
+        # train/validate loop) and the final development refit -- both only
+        # ever touch train/validation data, never the held-out test fold.
+        candidates = []
+        for k in getattr(cfg, "gnn_k_values", tuple(range(2, 9))):
+            result = train_for(k)
+            if result is not None:
+                candidates.append((result[0], k, result[1]))
+        if not candidates:
+            return {}
+        _, best_k, best_epoch = min(candidates, key=lambda candidate: candidate[0])
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        model = GCN(len(encoder.classes_) if classification else 1).to(device)
+        development_data, _ = prepare(development, best_k)
+        if not development_data:
+            return {}
+        if classification:
+            development_labels = np.asarray([
+                int(label.item()) for _, label, _ in development_data])
+            counts = np.bincount(development_labels,
+                                 minlength=len(encoder.classes_))
+            weights = np.zeros(len(counts), dtype=np.float32)
+            present = counts > 0
+            weights[present] = (len(development_labels) /
+                                (present.sum() * counts[present]))
+            development_loss = nn.CrossEntropyLoss(
+                weight=torch.as_tensor(weights, device=device))
+        else:
+            development_loss = nn.HuberLoss(
+                delta=getattr(cfg, "gnn_huber_delta", 1.0))
+        optimizer = torch.optim.Adam(
+            model.parameters(), lr=getattr(cfg, "gnn_learning_rate", 0.001))
+        loader = DataLoader(
+            development_data, batch_size=getattr(cfg, "gnn_batch_size", 32),
+            shuffle=True, collate_fn=collate)
+        for _ in range(best_epoch):
+            model.train()
+            for graph, labels, targets in loader:
+                graph = graph.to(device)
+                labels = labels.to(device)
+                targets = targets.to(device)
+                optimizer.zero_grad()
+                output = model(graph, targets)
+                loss = (development_loss(output, labels) if classification else
+                        development_loss(output.squeeze(-1), labels))
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+                optimizer.step()
+    if verbose:
+        print(f"    {context} selected_k={best_k} refit_epochs={best_epoch}")
+    with timer.stage("predict"):
+        testing, samples = prepare(test, best_k)
+        if not testing:
+            return {}
+        model.eval()
+        with torch.no_grad():
+            graph, labels, targets = collate(testing)
             graph = graph.to(device)
             labels = labels.to(device)
             targets = targets.to(device)
-            optimizer.zero_grad()
-            output = model(graph, targets)
-            loss = (development_loss(output, labels) if classification else
-                    development_loss(output.squeeze(-1), labels))
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
-            optimizer.step()
-    if verbose:
-        print(f"    {context} selected_k={best_k} refit_epochs={best_epoch}")
-    testing, samples = prepare(test, best_k)
-    if not testing:
-        return {}
-    model.eval()
-    with torch.no_grad():
-        graph, labels, targets = collate(testing)
-        graph = graph.to(device)
-        labels = labels.to(device)
-        targets = targets.to(device)
-        prediction = model(graph, targets)
+            prediction = model(graph, targets)
     if classification:
         actual = labels.detach().cpu().numpy()
         predicted = prediction.argmax(1).detach().cpu().numpy()

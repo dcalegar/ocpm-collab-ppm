@@ -2,10 +2,10 @@
 
 Collaborative event logs used by the pipeline. Each log is provided as an extended
 collaborative XES (`.xes`, original/source format), an OCEL 2.0 SQLite (`.sqlite`,
-converted by `src/mapping/`, the format `ocpm_eval`/OCPA consumes natively), a JSONOCEL
+converted by `src/mapping/`, the format `evaluation`/OCPA consumes natively), a JSONOCEL
 mirror (`.jsonocel`), and, where generated, OC-DFG/OCPN visualization PNGs.
 
-## `Predict-Collab/` — the four study logs (RQ2/RQ3)
+## `Predict-Collab/` — the four study logs (RQ2/RQ3, see [Research questions](../../README.md#research-questions))
 
 Four collaborative logs (`collectivelog_{healthcare,artificial1,artificial5,real4}_collab.*`)
 reused, as-is, from prior work on predictive process monitoring for collaborative
@@ -37,7 +37,7 @@ originally published in:
 Delgado et al. obtained/redistributed these four logs through the Predict-Collab
 tool's repository (https://gitlab.fing.edu.uy/open-coal/predict-collab/); this
 project reuses them unmodified. They are the logs registered in
-`src/ocpm_eval/config.py::predictcollab_ocel_logs()` and used for this
+`src/evaluation/config.py::predictcollab_ocel_logs()` and used for this
 project's RQ2 (label fidelity) and RQ3 (prediction) evaluations.
 
 ## `BPIChallenge2013/` — real-life application log
@@ -70,9 +70,9 @@ instances, 65,533 events, 25 participants, 4,051 synthesized `SendTask`
 events).
 
 This log is kept out of `predictcollab_ocel_logs()`/RQ2/RQ3's regular CSVs: it
-is registered separately in `src/ocpm_eval/config.py::real_world_ocel_logs()`
+is registered separately in `src/evaluation/config.py::real_world_ocel_logs()`
 and run as an opt-in stage (`log_groups=("bpi2013",)`) writing to its own
 `rq2_fidelity_bpi2013.csv`/`rq3_results_random_forest_bpi2013.csv`, since it does not share
 provenance with the four study logs reused from Delgado et al. (2025). See
-[src/ocpm_eval/README.md](../../src/ocpm_eval/README.md#usage) for how to run
+[src/evaluation/README.md](../../src/evaluation/README.md#usage) for how to run
 it.

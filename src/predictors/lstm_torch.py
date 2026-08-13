@@ -13,8 +13,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from ocpm_tasks.catalog import Task
-from .common import xy_split
+from tasks.catalog import Task
+from .common import NullStageTimer, xy_split
 
 
 class LSTMModel(nn.Module):
@@ -29,8 +29,13 @@ class LSTMModel(nn.Module):
         # Pack sequence to ignore padding during LSTM computation
         packed_x = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
         packed_out, _ = self.lstm(packed_x)
-        out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True, total_length=x.size(1))
-        
+        # No total_length: pad back only to this call's own max(lengths), not
+        # the padded input's full time axis. x is padded to the fold-wide max
+        # sequence length (set once in fit_and_score_fold), so a mini-batch
+        # that doesn't contain the fold's longest case would otherwise force
+        # dropout+fc over padding far beyond anything this batch needs.
+        out, _ = nn.utils.rnn.pad_packed_sequence(packed_out, batch_first=True)
+
         out = self.dropout(out)
         out = self.fc(out)
         # Activation (softmax/sigmoid) is handled implicitly by CrossEntropyLoss/BCEWithLogitsLoss
@@ -38,7 +43,9 @@ class LSTMModel(nn.Module):
 
 
 def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
-                       task: Task, train_mask, test_mask, cfg) -> Dict[str, float]:
+                       task: Task, train_mask, test_mask, cfg,
+                       timer=None) -> Dict[str, float]:
+    timer = timer or NullStageTimer()
     feature_cols = feats["feature_cols"]
     X_tr, X_te, y_tr, y_te = xy_split(tt, feature_cols, y_col, train_mask, test_mask)
     if len(y_tr) == 0 or len(y_te) == 0:
@@ -146,29 +153,35 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
         dataset = TensorDataset(X_tr_tens, y_tr_tens, lengths_tr_tens, mask_tr_tens)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         
-        model.train()
-        for epoch in range(epochs):
-            for bx, by, bl, bmask in loader:
-                optimizer.zero_grad()
-                out = model(bx, bl)
+        with timer.stage("fit"):
+            model.train()
+            for epoch in range(epochs):
+                for bx, by, bl, bmask in loader:
+                    # Match by/bmask's time axis to what forward() now
+                    # returns (this batch's own max length, see forward()).
+                    m = int(bl.max())
+                    by, bmask = by[:, :m], bmask[:, :m]
+                    optimizer.zero_grad()
+                    out = model(bx, bl)
+                    if num_classes > 2:
+                        loss = criterion(out.view(-1, num_classes), by.view(-1))
+                    else:
+                        loss = criterion(out.view(-1), by.view(-1))
+
+                    loss = (loss * bmask.view(-1)).sum() / bmask.sum().clamp(min=1)
+                    loss.backward()
+                    optimizer.step()
+
+        with timer.stage("predict"):
+            model.eval()
+            with torch.no_grad():
+                out_te = model(X_te_tens, lengths_te_tens)
                 if num_classes > 2:
-                    loss = criterion(out.view(-1, num_classes), by.view(-1))
+                    probs = torch.softmax(out_te, dim=-1).cpu().numpy()
+                    pred_enc_all = np.argmax(probs, axis=-1)
                 else:
-                    loss = criterion(out.view(-1), by.view(-1))
-                
-                loss = (loss * bmask.view(-1)).sum() / bmask.sum().clamp(min=1)
-                loss.backward()
-                optimizer.step()
-                
-        model.eval()
-        with torch.no_grad():
-            out_te = model(X_te_tens, lengths_te_tens)
-            if num_classes > 2:
-                probs = torch.softmax(out_te, dim=-1).cpu().numpy()
-                pred_enc_all = np.argmax(probs, axis=-1)
-            else:
-                probs = torch.sigmoid(out_te).cpu().numpy()
-                pred_enc_all = (probs > 0.5).astype(int).squeeze(-1)
+                    probs = torch.sigmoid(out_te).cpu().numpy()
+                    pred_enc_all = (probs > 0.5).astype(int).squeeze(-1)
                 
         flat_pred = []
         for i, l in enumerate(lengths_te):
@@ -197,19 +210,23 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
         dataset = TensorDataset(X_tr_tens, y_tr_tens, lengths_tr_tens, mask_tr_tens)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         
-        model.train()
-        for epoch in range(epochs):
-            for bx, by, bl, bmask in loader:
-                optimizer.zero_grad()
-                out = model(bx, bl).squeeze(-1)
-                loss = criterion(out, by)
-                loss = (loss * bmask).sum() / bmask.sum().clamp(min=1)
-                loss.backward()
-                optimizer.step()
-                
-        model.eval()
-        with torch.no_grad():
-            out_te = model(X_te_tens, lengths_te_tens).squeeze(-1).cpu().numpy()
+        with timer.stage("fit"):
+            model.train()
+            for epoch in range(epochs):
+                for bx, by, bl, bmask in loader:
+                    m = int(bl.max())
+                    by, bmask = by[:, :m], bmask[:, :m]
+                    optimizer.zero_grad()
+                    out = model(bx, bl).squeeze(-1)
+                    loss = criterion(out, by)
+                    loss = (loss * bmask).sum() / bmask.sum().clamp(min=1)
+                    loss.backward()
+                    optimizer.step()
+
+        with timer.stage("predict"):
+            model.eval()
+            with torch.no_grad():
+                out_te = model(X_te_tens, lengths_te_tens).squeeze(-1).cpu().numpy()
             
         flat_pred = []
         for i, l in enumerate(lengths_te):

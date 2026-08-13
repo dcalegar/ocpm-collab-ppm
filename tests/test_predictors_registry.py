@@ -1,6 +1,6 @@
 """
 Smoke test for the predictors/ subpackage introduced when RandomForest logic was
-moved out of the old ocpm_eval/models.py and behind predictors.dispatch.PREDICTOR_REGISTRY
+moved out of the old evaluation/models.py and behind predictors.dispatch.PREDICTOR_REGISTRY
 (see .claude/planPredictores.md, "Modularization"). No OCEL log needed -- exercises
 PREDICTOR_REGISTRY["random_forest"] directly on a tiny synthetic table, for one
 classification and one regression task, so a future predictor addition/refactor has a
@@ -14,9 +14,9 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import pandas as pd                                                       # noqa: E402
-from ocpm_eval.config import ExperimentConfig                             # noqa: E402
+from evaluation.config import ExperimentConfig                             # noqa: E402
 from predictors.dispatch import PREDICTOR_REGISTRY, resolve               # noqa: E402
-from ocpm_tasks.catalog import Task, CC, BINARY, REG_TIME                 # noqa: E402
+from tasks.catalog import Task, CC, BINARY, REG_TIME                 # noqa: E402
 
 FEATURE_COLS = ["x1", "x2"]
 

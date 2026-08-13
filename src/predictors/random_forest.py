@@ -4,19 +4,21 @@ fixed RandomForest is used per problem type, with a trivial baseline (majority c
 for classification; median for regression) as a sanity reference.
 Categorical/binary -> macro F1; numeric -> MAE.
 """
-from typing import Dict, List
+from typing import Dict
 import numpy as np
 import pandas as pd
 
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import f1_score, mean_absolute_error
 
-from ocpm_tasks.catalog import Task
-from .common import xy_split
+from tasks.catalog import Task
+from .common import NullStageTimer, xy_split
 
 
 def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
-                       task: Task, train_mask, test_mask, cfg) -> Dict[str, float]:
+                       task: Task, train_mask, test_mask, cfg,
+                       timer=None) -> Dict[str, float]:
+    timer = timer or NullStageTimer()
     feature_cols = feats["feature_cols"]
     X_tr, X_te, y_tr, y_te = xy_split(tt, feature_cols, y_col, train_mask, test_mask)
     if len(y_tr) == 0 or len(y_te) == 0:
@@ -29,8 +31,10 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
         clf = RandomForestClassifier(
             n_estimators=cfg.rf_n_estimators, max_depth=cfg.rf_max_depth,
             random_state=cfg.random_state, n_jobs=-1, class_weight="balanced")
-        clf.fit(X_tr, y_tr_s)
-        pred = clf.predict(X_te)
+        with timer.stage("fit"):
+            clf.fit(X_tr, y_tr_s)
+        with timer.stage("predict"):
+            pred = clf.predict(X_te)
         maj = pd.Series(y_tr_s).mode().iloc[0]
         return {
             "metric": float(f1_score(y_te_s, pred, average="macro", zero_division=0)),
@@ -41,8 +45,10 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
     reg = RandomForestRegressor(
         n_estimators=cfg.rf_n_estimators, max_depth=cfg.rf_max_depth,
         random_state=cfg.random_state, n_jobs=-1)
-    reg.fit(X_tr, y_tr.astype(float))
-    pred = reg.predict(X_te)
+    with timer.stage("fit"):
+        reg.fit(X_tr, y_tr.astype(float))
+    with timer.stage("predict"):
+        pred = reg.predict(X_te)
     median = float(np.median(y_tr.astype(float)))
     return {
         "metric": float(mean_absolute_error(y_te.astype(float), pred)),

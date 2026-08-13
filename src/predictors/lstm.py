@@ -3,7 +3,7 @@ Per-fold training and scoring using a TensorFlow/Keras LSTM predictor.
 Supports both classification (macro F1) and regression (MAE) tasks, following
 the same predictor contract as random_forest.py.
 """
-from typing import Dict, List
+from typing import Dict
 import numpy as np
 import pandas as pd
 from sklearn.metrics import f1_score, mean_absolute_error
@@ -11,12 +11,14 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 
 import tensorflow as tf
 
-from ocpm_tasks.catalog import Task
-from .common import xy_split
+from tasks.catalog import Task
+from .common import NullStageTimer, xy_split
 
 
 def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
-                       task: Task, train_mask, test_mask, cfg) -> Dict[str, float]:
+                       task: Task, train_mask, test_mask, cfg,
+                       timer=None) -> Dict[str, float]:
+    timer = timer or NullStageTimer()
     feature_cols = feats["feature_cols"]
     X_tr, X_te, y_tr, y_te = xy_split(tt, feature_cols, y_col, train_mask, test_mask)
     if len(y_tr) == 0 or len(y_te) == 0:
@@ -32,7 +34,7 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
     X_tr_scaled = scaler.fit_transform(X_tr)
     X_te_scaled = scaler.transform(X_te)
 
-    # Group into sequences by case_id (GroupKFold ensures all events of a case are in the same fold)
+    # Group into sequences by case_id (the fold split is grouped by case_id, so all events of a case are in the same fold)
     case_ids_tr = tt.loc[train_mask, "case_id"].values
     case_ids_te = tt.loc[test_mask, "case_id"].values
 
@@ -73,7 +75,21 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
         le = LabelEncoder()
         le.fit(y_tr_s)
         num_classes = len(le.classes_)
-        
+
+        if num_classes < 2:
+            # Degenerate fold: the training target is constant, so there is
+            # nothing to learn. The single-logit sigmoid head used below when
+            # num_classes <= 2 has no negative class to separate and can still
+            # emit index 1 for some test row, which le.inverse_transform then
+            # rejects ("y contains previously unseen labels: [1]") -- the whole
+            # fold dies on a fold that carries no signal to begin with.
+            # Predicting the constant matches the trivial baseline. Same guard
+            # as lstm_torch.py and transformer.py.
+            const_label = le.classes_[0]
+            pred_labels = [const_label] * len(y_te_s)
+            score = float(f1_score(y_te_s, pred_labels, average="macro", zero_division=0))
+            return {"metric": score, "baseline": score, "n_test": int(len(y_te_s))}
+
         y_tr_enc = pad_sequences([le.transform(seq) for seq in seq_y_tr], padding='post', value=-1)
         
         # We need a sample weight to ignore padded values in loss computation
@@ -90,9 +106,11 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
 
         loss_fn = "sparse_categorical_crossentropy" if num_classes > 2 else "binary_crossentropy"
         model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr), loss=loss_fn)
-        model.fit(X_tr_pad, y_tr_enc_valid, sample_weight=sample_weight, epochs=epochs, batch_size=batch_size, verbose=0)
+        with timer.stage("fit"):
+            model.fit(X_tr_pad, y_tr_enc_valid, sample_weight=sample_weight, epochs=epochs, batch_size=batch_size, verbose=0)
 
-        probs = model.predict(X_te_pad, verbose=0)
+        with timer.stage("predict"):
+            probs = model.predict(X_te_pad, verbose=0)
         # Extract only the valid (unpadded) predictions and flatten
         flat_probs = np.concatenate([probs[i, :len(seq_X_te[i])] for i in range(len(seq_X_te))])
         pred_enc = np.argmax(flat_probs, axis=1) if num_classes > 2 else (flat_probs > 0.5).astype(int).flatten()
@@ -118,9 +136,11 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
         ])
 
         model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr), loss="mse")
-        model.fit(X_tr_pad, y_tr_pad_valid, sample_weight=sample_weight, epochs=epochs, batch_size=batch_size, verbose=0)
+        with timer.stage("fit"):
+            model.fit(X_tr_pad, y_tr_pad_valid, sample_weight=sample_weight, epochs=epochs, batch_size=batch_size, verbose=0)
 
-        pred = model.predict(X_te_pad, verbose=0)
+        with timer.stage("predict"):
+            pred = model.predict(X_te_pad, verbose=0)
         flat_pred = np.concatenate([pred[i, :len(seq_X_te[i])] for i in range(len(seq_X_te))]).flatten()
         flat_pred = y_scaler.inverse_transform(flat_pred.reshape(-1, 1)).flatten()
         

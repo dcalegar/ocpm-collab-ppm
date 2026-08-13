@@ -1,6 +1,6 @@
 """
 features — object-centric feature extraction for OCEL 2.0 logs, decoupled from any
-particular predictor or evaluation pipeline. Reused by ``ocpm_eval``'s RQ3
+particular predictor or evaluation pipeline. Reused by ``evaluation``'s RQ3
 pipeline, but importable on its own.
 
   io_ocel   OCEL 2.0 SQLite -> OCPA object (features) / neutral model (labels),
