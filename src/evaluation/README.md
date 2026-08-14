@@ -36,6 +36,7 @@ package is the fuller, cross-validated version of the same pattern.
 | `profiling.py` | opt-in per-stage wall-clock + peak-RSS profiling (`--profile`), written to its own `rq3_profile_*.csv` so no computation times enter `rq3_results_*.csv` |
 | (always on, see `rq3_pipeline.py::run_rq3`) | plain-text progress log `rq3_progress_{predictor}_{log_group}[_full].log`, one line per fold/task/log elapsed time, flushed immediately -- `tail -f` it from any terminal to watch a long run regardless of how its stdout was (or wasn't) redirected |
 | `plot_rq3_metrics.py` | standalone reporting script — grouped bar charts from `rq3_results_*.csv` and, when present, `rq3_profile_*.csv` |
+| `audit_stage.py` | standalone integrity check of a written stage directory — degenerate cells, tied optima, unfitted cells, fold coverage, timing outliers; exits non-zero on a problem |
 | [`RQ3_EXECUTION_PLAN.md`](RQ3_EXECUTION_PLAN.md) | not a module — the ordered command list to run the full RQ3 sweep (all log groups × scopes × predictors) end to end |
 
 Feature extraction (`load_ocpa_ocel`/`read_ocel2_labels`/`extract_feature_table`)
@@ -287,6 +288,98 @@ expected/verifying outcome, not a tunable metric.
 RQ2 *equivalence* needs the original XES (R1); pass `xes_path` in each
 `LogSpec`. The bundled example logs in `data/logs/` include both the
 `.xes` source and its converted `.sqlite`, so this runs out of the box.
+
+## Auditing a finished stage (`audit_stage.py`)
+
+Run this before drawing conclusions from a stage — it re-reads the written CSVs
+and reports the conditions that silently distort an analysis:
+
+```bash
+python -m evaluation.audit_stage --log-group predictcollab --scope full
+python -m evaluation.audit_stage --all       # every stage directory present
+```
+
+It computes nothing and writes nothing. Exit status is 1 for a **problem**
+(ragged coverage, a partially-fitted cell, a fold far off its cell's median, a
+`degenerate` flag contradicting the metrics, a missing `degenerate` column) and
+0 when only **informational** findings appear. Ties and degenerate cells are
+properties of the data, not defects — but the report lists them because both
+must be excluded from win counts and cost totals (see below).
+
+The two most valuable checks are the ones easiest to miss by eye: a cell fitted
+in some folds but not all still looks complete in a per-task aggregate, and a
+cell with a tied optimum makes a naive `argmax` win count depend on file load
+order rather than on the data.
+
+## Degenerate targets in the results
+
+`rq3_results_*.csv` carries two predictor-independent columns describing the
+target itself, recorded by `run_one_log` before any model runs:
+
+| Column | Meaning |
+|---|---|
+| `n_labels` | distinct values of the labelled target for that (log, task) |
+| `degenerate` | True when the training target is constant in *every* fold |
+
+A degenerate task cannot be learned, so every predictor necessarily scores
+exactly the trivial baseline: the row is a tie at `metric_mean ==
+baseline_mean` by construction. Read those rows as *"nothing to learn here"*,
+never as "all models perfect", and exclude them before counting per-task wins
+or they inflate the denominator with cells nobody could win.
+
+The flag records the cause rather than the symptom deliberately.
+`metric_mean == baseline_mean` is what degeneracy *produces*, and a genuinely
+perfectly-predictable task would look identical — so the symptom cannot be
+relied on to identify it.
+
+This is a property of the (log, task) pair, so it is the same for every
+predictor. It is unrelated to *how* each predictor handles the case: some
+short-circuit it and some fit the constant target normally (see
+[Degenerate folds](#degenerate-folds)).
+
+## Profiling
+
+`--profile` writes `rq3_profile_{predictor}_{log_group}[_full].csv` next to the
+results CSV. Rows are not uniformly grained, which matters when aggregating:
+
+| Stage | Recorded | `task` | `fold` |
+|---|---|---|---|
+| `ocel_load`, `feature_extraction` | once per **log** | empty | empty |
+| `labeling` | once per **(log, task)** | set | empty |
+| `fit`, `predict` | once per **(log, task, fold)** | set | set |
+
+So a filter keyed on `(log, task)` silently misses the first two — the
+duplication trap called out in
+[`RQ3_EXECUTION_PLAN.md`](RQ3_EXECUTION_PLAN.md#recovering-from-a-single-bad-log-task-timing-outlier).
+
+### The `note` column
+
+Empty for an ordinary stage. Set when a stage was entered but deliberately did
+no work, so its near-zero `seconds` is not mistaken for a genuinely fast one —
+the two are otherwise identical in the CSV, and some real stages do legitimately
+measure in microseconds. **Exclude noted rows before aggregating cost**; they
+record that something was skipped, not how long it took.
+
+### Degenerate folds
+
+When a fold's training target is constant (`num_classes < 2`),
+`lstm_torch`/`transformer` skip building a model and return that constant,
+which matches the trivial baseline exactly (`metric == baseline`).
+`random_forest`/`xgboost`/`gnn` have no such shortcut and fit the constant
+target normally.
+
+The shortcut still enters the `fit`/`predict` stages, tagged
+`skipped:constant-target` (`predictors.common.DEGENERATE_CONSTANT_TARGET`), so
+the cell is present and self-describing rather than absent. Regression-tested
+by `tests/test_predictors_registry.py::test_degenerate_fold_still_records_fit_and_predict_stages`,
+with `..._non_degenerate_...` guarding that ordinary folds stay untagged.
+
+The consequence for cost comparison is real, not cosmetic: on such a cell the
+sequence models do no work while the other three pay to fit it, so summed `fit`
+seconds are not automatically like-for-like. Check for tagged rows first and
+confirm any ranking holds on the subset every model actually fitted.
+`plot_rq3_metrics.py` drops tagged rows when aggregating, so a short-circuited
+cell shows no bar for that model instead of a misleading near-zero one.
 
 ## Reporting (`plot_rq3_metrics.py`)
 

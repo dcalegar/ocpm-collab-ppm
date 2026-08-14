@@ -22,8 +22,12 @@ list.
   defaults to `device="cpu"` (`ExperimentConfig.device`, see
   [`predictors/README.md`](../predictors/README.md#device-selection-gnnpylstm_torchpytransformerpy-only))
   — CUDA's per-batch/per-graph dispatch overhead measured *slower* than CPU
-  for these workloads' small graphs/sequences. Don't pass `--device cuda`
-  unless re-benchmarking that finding.
+  for these workloads' small graphs/sequences. Re-tested on BPI2013 in case
+  the larger log changed the picture: it does not (one GNN fold, 250.5 s CPU
+  vs 324.9 s CUDA, identical metrics), because a bigger log adds *batches*,
+  not work per batch, and the feature table is 7 columns wide. Don't pass
+  `--device cuda` unless you have also changed `gnn_batch_size`/`gnn_k` or
+  the feature width.
 
 ## Commands
 
@@ -61,6 +65,7 @@ PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups pred
 PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups predictcollab --predictors transformer   --rq3-scopes partial --profile
 PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups predictcollab --predictors gnn           --rq3-scopes partial --profile
 
+python -m evaluation.audit_stage      --log-group predictcollab --scope partial
 python -m evaluation.plot_rq3_metrics --log-group predictcollab --scope partial
 ```
 
@@ -73,6 +78,7 @@ PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups pred
 PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups predictcollab --predictors transformer   --rq3-scopes full --profile
 PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups predictcollab --predictors gnn           --rq3-scopes full --profile
 
+python -m evaluation.audit_stage      --log-group predictcollab --scope full
 python -m evaluation.plot_rq3_metrics --log-group predictcollab --scope full
 ```
 
@@ -85,6 +91,7 @@ PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups bpi2
 PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups bpi2013 --predictors transformer   --rq3-scopes partial --profile
 PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups bpi2013 --predictors gnn           --rq3-scopes partial --profile
 
+python -m evaluation.audit_stage      --log-group bpi2013 --scope partial
 python -m evaluation.plot_rq3_metrics --log-group bpi2013 --scope partial
 ```
 
@@ -97,6 +104,7 @@ PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups bpi2
 PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups bpi2013 --predictors transformer   --rq3-scopes full --profile
 PYTHONHASHSEED=0 python -m evaluation.run_evaluation --rqs RQ3 --log-groups bpi2013 --predictors gnn           --rq3-scopes full --profile
 
+python -m evaluation.audit_stage      --log-group bpi2013 --scope full
 python -m evaluation.plot_rq3_metrics --log-group bpi2013 --scope full
 ```
 

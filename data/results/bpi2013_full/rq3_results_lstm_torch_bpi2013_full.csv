@@ -1,15 +1,15 @@
-log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity
-BPI2013,NE-NEPr,CollaborationCase,Multiclass classification,lstm_torch,62030,True,f1_macro,0.4533852129415715,0.057555345818408335,0.18783359015555284,5,,
-BPI2013,NE-NPaA,Participant,Multiclass classification,lstm_torch,62030,True,f1_macro,0.11711324476875284,0.0189722395258505,0.037087345761862206,5,,
-BPI2013,NE-NEPa,Participant,Multiclass classification,lstm_torch,62030,True,f1_macro,0.0769643246091749,0.0042942987016200244,0.008957271010923772,5,,
-BPI2013,NE-NPaM,Participant,Multiclass classification,lstm_torch,16499,True,f1_macro,0.12804986367336338,0.027296891971407843,0.03752728234720606,5,,
-BPI2013,NE-NMPa,OrchestrationCase,Multiclass classification,lstm_torch,14538,True,f1_macro,1.0,0.0,1.0,5,Org line C,
-BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,lstm_torch,18481,True,f1_macro,1.0,0.0,1.0,5,,
-BPI2013,NV-PrT,CollaborationCase,Regression (time),lstm_torch,62030,True,mae,1414591.84480898,190183.2649316706,1156740.769869925,5,,
-BPI2013,NV-PaT,OrchestrationCase,Regression (time),lstm_torch,62030,True,mae,739033.2601293249,71452.29951235159,679187.8359126697,5,Org line C,
-BPI2013,NV-TNE,CollaborationCase,Regression (time),lstm_torch,62030,True,mae,181151.07135894318,9617.263334413863,126967.4297013336,5,,
-BPI2013,NV-TNM,Message,Regression (time),lstm_torch,16499,True,mae,348709.4952679154,43262.46008354904,246048.68412274588,5,,
-BPI2013,NV-NMPr,Message,Count regression,lstm_torch,62030,True,mae,1.633364326296317,0.13256029146170847,1.3919623911563739,5,,
-BPI2013,NV-NMPa,Message,Count regression,lstm_torch,62030,True,mae,0.66314340307913,0.046791950951389646,0.5088158026888501,5,Org line C,
-BPI2013,OB-P,OrchestrationCase,Binary classification,lstm_torch,62030,True,f1_macro,0.6100912261662061,0.008698691410748092,0.41716500826123293,5,Org line C,
-BPI2013,OB-M,Message,Binary classification,lstm_torch,62030,True,f1_macro,0.7057397743811785,0.012988407714046905,0.4124913646160464,5,,Queued
+log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity,n_labels,degenerate
+BPI2013,NE-NEPr,CollaborationCase,Multiclass classification,lstm_torch,62030,True,f1_macro,0.4533852129415715,0.0575553458184083,0.1878335901555528,5,,,4,False
+BPI2013,NE-NPaA,Participant,Multiclass classification,lstm_torch,62030,True,f1_macro,0.1171132447687528,0.0189722395258505,0.0370873457618622,5,,,25,False
+BPI2013,NE-NEPa,Participant,Multiclass classification,lstm_torch,62030,True,f1_macro,0.0769643246091749,0.00429429870162,0.0089572710109237,5,,,73,False
+BPI2013,NE-NPaM,Participant,Multiclass classification,lstm_torch,16499,True,f1_macro,0.1280498636733633,0.0272968919714078,0.037527282347206,5,,,25,False
+BPI2013,NE-NMPa,OrchestrationCase,Multiclass classification,lstm_torch,14538,True,f1_macro,1.0,0.0,1.0,5,Org line C,,1,True
+BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,lstm_torch,18481,True,f1_macro,1.0,0.0,1.0,5,,,1,True
+BPI2013,NV-PrT,CollaborationCase,Regression (time),lstm_torch,62030,True,mae,1414591.84480898,190183.2649316706,1156740.769869925,5,,,57048,False
+BPI2013,NV-PaT,OrchestrationCase,Regression (time),lstm_torch,62030,True,mae,739033.2601293249,71452.29951235159,679187.8359126697,5,Org line C,,39322,False
+BPI2013,NV-TNE,CollaborationCase,Regression (time),lstm_torch,62030,True,mae,181151.0713589432,9617.263334413865,126967.4297013336,5,,,23435,False
+BPI2013,NV-TNM,Message,Regression (time),lstm_torch,16499,True,mae,348709.4952679154,43262.46008354904,246048.68412274588,5,,,11569,False
+BPI2013,NV-NMPr,Message,Count regression,lstm_torch,62030,True,mae,1.633364326296317,0.1325602914617084,1.391962391156374,5,,,51,False
+BPI2013,NV-NMPa,Message,Count regression,lstm_torch,62030,True,mae,0.66314340307913,0.0467919509513896,0.5088158026888501,5,Org line C,,19,False
+BPI2013,OB-P,OrchestrationCase,Binary classification,lstm_torch,62030,True,f1_macro,0.6100912261662061,0.008698691410748,0.4171650082612329,5,Org line C,,2,False
+BPI2013,OB-M,Message,Binary classification,lstm_torch,62030,True,f1_macro,0.7057397743811785,0.0129884077140469,0.4124913646160464,5,,Queued,2,False

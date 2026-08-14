@@ -26,7 +26,11 @@ dispatch overhead made GNN and the sequence models *slower* wall-clock than
 plain CPU, because the per-sample graphs (k=8 nodes) and per-case sequences
 are far too small to amortise kernel-launch cost — GPU utilisation sampled at
 only 4-37% during a CUDA GNN run. So the numbers here reflect a
-CPU-appropriate workload, not GPU starvation.
+CPU-appropriate workload, not GPU starvation. The same A/B was repeated on
+BPI2013 (27x more labelled events) in case scale changed the answer: it does
+not — 250.5 s CPU vs 324.9 s CUDA for one GNN fold, identical metrics —
+because a larger log adds batches rather than work per batch, and the OCPA
+feature table is only 7 columns wide.
 
 Methodology notes: runs were sequential (one predictor at a time, never in
 parallel, so no CPU contention between measured jobs), with
@@ -36,17 +40,20 @@ add some run-to-run variance on short stages.
 ## Highlights
 
 - **The five models are statistically indistinguishable; their cost differs by
-  ~100x.** GNN leads on mean macro-F1 (0.796) over Random Forest (0.767), but
-  that 0.030 spread is barely above the mean fold-to-fold SD (0.023) of a
+  ~100x.** GNN leads on mean macro-F1 (0.783) over Random Forest (0.751), but
+  that 0.032 spread is barely above the mean fold-to-fold SD (0.023) of a
   *single* model. Task by task it dissolves: the winner's margin over second
-  place is smaller than the winner's own fold SD in **21 of 32** classification
-  tasks and **20 of 24** regression tasks, with a median margin of 0.003
-  macro-F1. Meanwhile GNN costs 92.8 min of compute against Random Forest's
-  56 s. *On this benchmark, model choice buys far less than it costs.*
-- **Random Forest wins the most individual tasks (14/56) despite the lowest
-  mean.** Consistent with the noise finding above — with margins this thin,
-  "wins" are close to a coin flip, and they spread across all five (RF 14,
-  LSTM 13, GNN 12, XGBoost 9, Transformer 8).
+  place is smaller than the winner's own fold SD in **20 of 25** decided
+  classification tasks and **20 of 24** regression tasks, with a median margin
+  of 0.005 macro-F1. Meanwhile GNN costs 92.8 min of compute against Random
+  Forest's 56 s. *On this benchmark, model choice buys far less than it costs.*
+- **No model wins a meaningful share of tasks, and 7 of 56 have no winner at
+  all.** Outright wins (a unique best model) split LSTM 13, GNN 12, XGBoost 9,
+  Transformer 8, Random Forest 7 across the 49 decided cells — a spread fully
+  consistent with the noise finding above. The remaining **7 cells are exact
+  ties**, four of them 5-way; counting those for whichever model happens to
+  sort first is what makes naive "wins" tables unstable (see
+  [Ties and degenerate targets](#ties-and-degenerate-targets)).
 - **Cost is driven by training-unit granularity, not data volume.** LSTM and
   Transformer train on one example *per case* (80 cases per dev split);
   GNN trains on one induced subgraph *per labelled event* (~1080 per dev
@@ -85,15 +92,17 @@ add some run-to-run variance on short stages.
   than one actor** — so the pair is a bijective relabeling of the activity and
   induces the identical partition. The catalog effectively contributes 13
   distinct targets here, not 14.
-- **Task family predicts the winner better than overall rank does.** Random
-  Forest takes 8 of 16 `Message`-anchored tasks and 5 of 8 binary
-  classifications — locally-decidable, low-cardinality targets that suit
+- **Task family predicts the winner better than overall rank does.** Counting
+  only outright wins: Random Forest takes 5 of 16 `Message`-anchored tasks —
+  more than any other model, and locally-decidable targets do suit
   axis-aligned splits — yet wins **0 of 16** `Regression (time)` tasks, the
   sharpest specialisation in the table. GNN takes 6 of 12
   `OrchestrationCase`-anchored tasks, where the label depends on the
-  surrounding interaction structure it explicitly models. The sequence models
-  cover the time regressions (LSTM 6 + Transformer 4 of 16), where the ordered
-  prefix is the signal.
+  surrounding interaction structure it explicitly models, and **0 of 16**
+  `Message`-anchored ones — the exact mirror of Random Forest. The sequence
+  models cover the time regressions (LSTM 6 + Transformer 4 of 16), where the
+  ordered prefix is the signal. Note the `Message` and binary families carry
+  most of the ties (4 of 7), so their decided counts are the smallest.
 - **The weakest results are a label-cardinality ceiling, not a modeling
   failure.** `Artificial5/NE-NEPr`+`NE-NEPa` average ~0.40 macro-F1 — the
   catalog's lowest — but that log has 28 distinct activities and a trivial
@@ -107,39 +116,73 @@ add some run-to-run variance on short stages.
 
 ## Accuracy
 
-Mean over all 56 (log, task) rows, by model:
+Mean over the 56 (log, task) rows, by model. Macro-F1 columns exclude the 2
+degenerate cells (see below), so they average 30 classification rows rather
+than 32; "outright wins" counts only the 49 cells with a unique best model:
 
-| Model | Mean macro-F1 ↑ | Mean MAE ↓ | Mean lift over baseline (clf) | Mean lift over baseline (reg) | Task wins |
+| Model | Mean macro-F1 ↑ | Mean MAE ↓ | Mean lift over baseline (clf) | Mean lift over baseline (reg) | Outright wins |
 |---|---|---|---|---|---|
-| GNN | **0.7965** | 3.966 | **+0.548** | 4.339 | 12 |
-| Transformer | 0.7891 | 3.965 | +0.541 | 4.340 | 8 |
-| LSTM | 0.7877 | **3.929** | +0.539 | **4.376** | 13 |
-| XGBoost | 0.7774 | 4.077 | +0.529 | 4.229 | 9 |
-| Random Forest | 0.7667 | 4.244 | +0.518 | 4.061 | **14** |
+| GNN | **0.7829** | 3.966 | **+0.548** | 4.339 | 12 |
+| Transformer | 0.7750 | 3.965 | +0.541 | 4.340 | 8 |
+| LSTM | 0.7736 | **3.929** | +0.539 | **4.376** | **13** |
+| XGBoost | 0.7626 | 4.077 | +0.529 | 4.229 | 9 |
+| Random Forest | 0.7511 | 4.244 | +0.518 | 4.061 | 7 |
 
 ("lift" = metric − baseline for classification, baseline − metric for
 regression; positive is always better than the trivial baseline. All five
-models beat baseline on every task — see `rq3_comparison_f1_macro.png` /
-`rq3_comparison_mae.png`.)
+models beat baseline on every non-degenerate task — see
+`rq3_comparison_f1_macro.png` / `rq3_comparison_mae.png`.)
 
 **Read the ranking with care.** Mean per-task fold SD is 0.023 while the
-best-to-worst model spread is 0.030, and per-task cross-model spread is 0.053
+best-to-worst model spread is 0.032, and per-task cross-model spread is 0.053
 (median 0.040). The column that actually separates the models is not accuracy
 — it is cost, below.
 
-**Per-log difficulty** (mean macro-F1 across all models/tasks):
+### Ties and degenerate targets
+
+7 of the 56 cells have an **exactly tied optimum** across models, so they have
+no winner:
+
+| Cell | Models tied | Why |
+|---|---|---|
+| `Healthcare/OB-M` | all 5 | degenerate — constant target (`n_labels=1`) |
+| `Artificial1/NE-NPaM` | all 5 | degenerate — constant target (`n_labels=1`) |
+| `Real4/OB-M` | all 5 | near-deterministic target, every model saturates |
+| `Real4/OB-P` | all 5 | near-deterministic target, every model saturates |
+| `Artificial5/OB-M` | GNN, RF, XGBoost | |
+| `Real4/NE-NMPa` | RF, XGBoost | |
+| `Real4/NE-NPaM` | RF, XGBoost | |
+
+This matters because it is easy to get wrong. `argmax`/`idxmax` silently awards
+a tied cell to whichever model appears first in the frame, so a "wins per model"
+table computed that way is an artifact of file-load order, not a result: on this
+stage the same data yields Random Forest 14 wins under one ordering and 7 under
+another. Every win count in this document therefore excludes tied cells rather
+than breaking them arbitrarily.
+
+The two degenerate cells are a stronger case of the same problem: their target
+is constant, so *no* model could ever win them and all five necessarily score
+exactly the trivial baseline (1.0). They are excluded from the macro-F1 means
+above, which is why those differ from a naive average over all 32
+classification rows (e.g. GNN 0.783 here vs 0.797 naive).
+
+**Per-log difficulty** (mean macro-F1 across all models/tasks, excluding the
+degenerate cells — which is what drops Healthcare from a naive 0.834 and
+Artificial1 from 0.718):
 
 | Log | Activities | Mean macro-F1 |
 |---|---|---|
 | Real4 | 19 | 0.903 |
-| Healthcare | 21 | 0.834 |
-| Artificial1 | 8 | 0.718 |
+| Healthcare | 21 | 0.810 |
 | Artificial5 | 28 | 0.679 |
+| Artificial1 | 8 | 0.678 |
 
-Cardinality explains the *hardest tasks* (Artificial5's 28-way next-activity
-targets) but not the whole log ordering — Real4 leads despite 19 activities
-because several of its targets are near-deterministic (`NE-NPaM` 0.999,
-`OB-P` 0.999, `NE-NMPa` 0.995).
+Label cardinality explains the *hardest tasks* (Artificial5's 28-way
+next-activity targets) but not log difficulty as a whole: Artificial1 has 8
+activities and Artificial5 has 28, yet they sit within 0.001 of each other.
+Real4 leads despite 19 activities because several of its targets are
+near-deterministic (`OB-M` 1.000, `NE-NPaM` 0.999, `OB-P` 0.999, `NE-NMPa`
+0.995) — the same saturation that makes four of its cells ties.
 
 ## Cost / Profiling
 
@@ -156,6 +199,16 @@ setup described under [Environment](#environment):
 
 Peak RSS varies by only ~1.2x across models, so memory is not a
 differentiator at this log size.
+
+Two of the 16 (log, task) cells — `Healthcare/OB-M` and `Artificial1/NE-NPaM`
+— have a constant training target in all 5 folds. LSTM and Transformer detect
+this and return the constant instead of fitting a model, so they contribute no
+fit time for those two cells, while the other three models fit them normally. The
+bias is small and flatters the sequence models: the cells are worth 1.4 s of
+Random Forest's 41.9 s and 116.3 s of GNN's 5504.8 s, so restricting every
+model to the 14 cells all five fitted moves the GNN/RF fit ratio from 131x to
+133x — no conclusion below depends on it. See
+[`evaluation/README.md`](../../../src/evaluation/README.md#degenerate-folds).
 
 ### Which phase dominates
 
@@ -243,12 +296,14 @@ fold-to-fold variance, so the decision should be made on cost and operational
 fit, not on the leaderboard:
 
 - **Offline / batch evaluation** — Random Forest. Lowest total compute (<1
-  min), most task wins, within 0.03 macro-F1 of the top model. Caveat: it
-  wins no time-regression task at all, so pair it with a sequence model if
-  the target mix is regression-heavy.
+  min) and within 0.032 macro-F1 of the top model, which is inside fold noise.
+  It takes the fewest outright wins (7 of 49), but that ordering is not
+  meaningful at these margins — cost is. Caveat: it wins no time-regression
+  task at all, so pair it with a sequence model if the target mix is
+  regression-heavy.
 - **Online / streaming inference** — LSTM. 24x cheaper per prediction than
-  Random Forest, best MAE, second-most task wins, 5 min total training.
-- **GNN** buys +0.030 macro-F1 for ~131x the fit time and 162x the inference
+  Random Forest, best MAE, most outright wins (13 of 49), 5 min total training.
+- **GNN** buys +0.032 macro-F1 for ~131x the fit time and 162x the inference
   time. Its structural modelling does pay off on `OrchestrationCase`-anchored
   tasks specifically; that, not the global mean, is the case for using it.
 - **XGBoost** is the only choice whose budget depends on the task mix: cheap
@@ -262,7 +317,13 @@ than by model capacity.
 
 ## Reproducing this study on another stage
 
-Every highlight above comes from one of nine checks run over the two CSV
+Checks 1–3 and 9–11 below are automated by
+`python -m evaluation.audit_stage --log-group <group> --scope <scope>`, which
+reports degenerate cells, tied optima, unfitted cells, fold coverage and timing
+outliers, and exits non-zero on a problem. Run it first; the checks below are
+what to do with what it reports, plus the analysis it does not automate.
+
+Every highlight above comes from one of eleven checks run over the two CSV
 families in this directory. None needs anything beyond `rq3_results_*.csv`
 (accuracy) and `rq3_profile_*.csv` (timing, requires `--profile`), so the same
 analysis transfers unchanged to any other stage directory — e.g.
@@ -280,6 +341,8 @@ to a display name, then:
 | 7 | **Scaling** | Does cost track data volume? | Join mean per-fold `fit` seconds to the results CSV's `samples` column on (log, task); compute Pearson r per model and seconds-per-1k-samples. High r ⇒ the model scales with data; low r ⇒ a fixed budget dominates. |
 | 8 | **Task-dependent cost** | Does the target change the cost? | Normalise each model's per-task `fit` seconds by its own mean, then average by `problem_type`. A model with a flat profile (~1.0 everywhere) is task-insensitive; a large spread points to a per-class or per-label mechanism, which you confirm by regressing that model's fit time on the log's label cardinality. |
 | 9 | **Duplicate targets** | Are two tasks secretly the same? | Look for (log, task) pairs whose `metric_mean` is bit-identical across *all* models. Confirm in the log itself, not just the metrics — here, checking that no activity is performed by more than one actor proved the (activity, actor) label is a bijective relabeling of activity. |
+| 10 | **Profile coverage** | Are the cost totals comparing like with like? | Before check 5, drop profile rows with a non-empty `note` — those stages were entered but did no work (here: a constant training target, which LSTM/Transformer short-circuit), so their ~0 s is not a cost measurement. On profiles written before that column existed, detect the same cells by comparing each model's `task` set at `stage == "fit"` against its set at `stage == "labeling"`; the difference never appeared at all. Either way, re-run checks 5–8 restricted to cells *every* model fitted and confirm the ranking is unchanged. Also count distinct `fold` values per (log, task) — a cell fitted in some folds but not all would skew its mean without showing up as an absent task. |
+| 11 | **Degenerate targets** | Is any task unlearnable by construction? | Filter the results CSV on `degenerate == True` (or, on files written before that column existed, `n_labels == 1`). Those rows are ties at `metric_mean == baseline_mean` for every model — exclude them before checks 2 and 3, since they inflate the win-count denominator with cells nobody could win. Do not infer degeneracy from `metric == baseline` alone: that is the symptom, and a perfectly-predictable task produces it too. |
 
 Two practical rules learned running this:
 

@@ -160,6 +160,16 @@ def load_profile(paths: Dict[str, Tuple[Path, bool]]) -> pd.DataFrame:
         return profile
     for col in ("seconds", "rss_peak_mb"):
         profile[col] = pd.to_numeric(profile[col], errors="coerce")
+    # Drop stages that were entered but deliberately did no work (see
+    # evaluation.profiling's `note` column, e.g. a predictor short-circuiting a
+    # constant-target fold). Their ~0s is real but not a cost measurement, and
+    # averaging it into a (model, log, task) cell would draw a near-zero bar
+    # beside genuine ones -- visually identical to "extremely fast". Dropping
+    # them leaves that model's bar absent for that cell instead, which reads
+    # correctly as "did not run here". `note` is absent from profiles written
+    # before it existed; those simply have nothing to drop.
+    if "note" in profile.columns:
+        profile = profile[profile["note"].isna() | (profile["note"] == "")]
     return profile.dropna(subset=["stage", "seconds"])
 
 
@@ -217,6 +227,16 @@ def plot_metric(data: pd.DataFrame, metric: str, models: List[str],
     metric_data["case"] = (
         metric_data["log"].astype(str) + " | " + metric_data["task"].astype(str)
     )
+    # Mark, don't drop. A degenerate (log, task) has a constant target, so every
+    # model necessarily scores exactly the trivial baseline and the bars are
+    # equal-height by construction -- which reads as "all models perfect"
+    # unless it is labelled. Dropping the cell instead (as the profile charts
+    # do for their skipped stages) would be wrong here: the metric is a real
+    # measurement, just not an informative comparison. `degenerate` is absent
+    # from results written before the column existed.
+    if "degenerate" in metric_data.columns:
+        is_degen = metric_data["degenerate"].fillna(False).astype(bool)
+        metric_data.loc[is_degen, "case"] += " (degenerate)"
     return _grouped_bar(
         metric_data, models, "case", "metric_mean", "metric_sd",
         title=f"RQ3 model comparison — {metric}",

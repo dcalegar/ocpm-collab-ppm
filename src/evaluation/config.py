@@ -69,6 +69,10 @@ class ExperimentConfig:
     # per-sample subgraphs (gnn_k nodes) and for LSTM's many short,
     # variable-length per-case sequences (see lstm_torch.py's device comment
     # for the earlier, narrower version of this finding re: MPS).
+    # Confirmed at both scales: a one-fold A/B on BPI2013 (27x the events of
+    # the largest study log) ran 250.5s on CPU vs 324.9s on CUDA. Log size
+    # grows the NUMBER of batches, not the work per batch, and the feature
+    # table is only 7 columns wide there -- see predictors/README.md.
     # See predictors.common.resolve_device, used by all three.
     device: str = "cpu"  # "auto", "cpu", or "cuda"
 

@@ -4,16 +4,24 @@ from typing import List
 import pandas as pd
 
 
+# Marker written to a profile row's `note` column when a predictor entered a
+# stage but deliberately did no work, so the recorded ~0s is readable as "was
+# not run" rather than "ran, very fast" -- the two are otherwise identical in
+# the CSV. Defined here (not in evaluation.profiling) so predictors can label
+# their rows without importing evaluation; see predictors/README.md.
+DEGENERATE_CONSTANT_TARGET = "skipped:constant-target"
+
+
 class NullStageTimer:
     """Default for fit_and_score_fold's optional `timer` parameter, used
     when the caller (a direct call, e.g. tests/test_predictors_registry.py,
     or any pipeline not doing profiling) doesn't pass one. Duck-types
-    evaluation.profiling.StageTimer's `.stage(name)` context manager without
-    importing evaluation -- this package stays decoupled from it (see
+    evaluation.profiling.StageTimer's `.stage(name, note=...)` context manager
+    without importing evaluation -- this package stays decoupled from it (see
     predictors/README.md)."""
 
     @contextmanager
-    def stage(self, name: str):
+    def stage(self, name: str, note: str = None):
         yield
 
 

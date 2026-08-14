@@ -34,7 +34,8 @@ class ProfileCollector:
 
     @contextmanager
     def stage(self, stage: str, log: str, predictor: str,
-             task: Optional[str] = None, fold: Optional[int] = None):
+             task: Optional[str] = None, fold: Optional[int] = None,
+             note: Optional[str] = None):
         # Background poller so a peak reached mid-stage isn't missed just
         # because it was freed again before the stage returned -- a plain
         # before/after delta can silently show ~0 even for a real spike.
@@ -61,6 +62,12 @@ class ProfileCollector:
                 "rss_start_mb": round(samples[0] / 1e6, 2),
                 "rss_end_mb": round(samples[-1] / 1e6, 2),
                 "rss_peak_mb": round(max(samples) / 1e6, 2),
+                # Empty for a normal stage. Set when the stage was entered but
+                # deliberately did no work (predictors.common
+                # .DEGENERATE_CONSTANT_TARGET), which would otherwise be
+                # indistinguishable from a genuinely fast one: both record
+                # ~0 seconds. Filter it out before aggregating cost.
+                "note": note,
             })
 
     def to_frame(self) -> pd.DataFrame:
@@ -74,7 +81,8 @@ class NullProfileCollector:
 
     @contextmanager
     def stage(self, stage: str, log: str, predictor: str,
-             task: Optional[str] = None, fold: Optional[int] = None):
+             task: Optional[str] = None, fold: Optional[int] = None,
+             note: Optional[str] = None):
         yield
 
 
@@ -98,7 +106,7 @@ class StageTimer:
         self._task, self._fold = task, fold
 
     @contextmanager
-    def stage(self, name: str):
+    def stage(self, name: str, note: Optional[str] = None):
         with self._collector.stage(name, self._log, self._predictor,
-                                   task=self._task, fold=self._fold):
+                                   task=self._task, fold=self._fold, note=note):
             yield

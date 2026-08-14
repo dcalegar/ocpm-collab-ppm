@@ -13,7 +13,8 @@ import torch.nn as nn
 import math
 
 from tasks.catalog import Task
-from .common import NullStageTimer, resolve_device, xy_split
+from .common import (DEGENERATE_CONSTANT_TARGET, NullStageTimer,
+                     resolve_device, xy_split)
 
 
 class PositionalEncoding(nn.Module):
@@ -211,8 +212,12 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
         num_classes = len(le.classes_)
 
         if num_classes < 2:
-            const_label = le.classes_[0]
-            pred_labels = [const_label] * len(y_te_s)
+            # Degenerate fold; see lstm_torch.py's fuller comment on this
+            # branch, including why the two no-op stages are still timed.
+            with timer.stage("fit", note=DEGENERATE_CONSTANT_TARGET):
+                const_label = le.classes_[0]
+            with timer.stage("predict", note=DEGENERATE_CONSTANT_TARGET):
+                pred_labels = [const_label] * len(y_te_s)
             score = float(f1_score(y_te_s, pred_labels, average="macro", zero_division=0))
             return {"metric": score, "baseline": score, "n_test": int(len(y_te_s))}
 

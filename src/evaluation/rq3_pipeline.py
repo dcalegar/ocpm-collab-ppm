@@ -215,6 +215,24 @@ def run_one_log(spec: LogSpec, cfg: ExperimentConfig,
             continue
 
         tt_fold = tt["case_id"].astype(str).map(fold_of)
+
+        # Recorded, not left to be inferred: a task whose training target is
+        # constant cannot be learned, so every predictor scores exactly the
+        # trivial baseline and the row is a tie by construction -- it must not
+        # be read as "all models perfect", nor counted as a win for anyone.
+        # `metric_mean == baseline_mean` is what degeneracy *causes*, not what
+        # it *is* (a perfectly-predictable task looks identical), so the cause
+        # is stored directly. Predictor-independent, hence computed here rather
+        # than in predictors/*.py -- some of which short-circuit this case (see
+        # predictors/README.md, "Degenerate folds") while others fit the
+        # constant target normally.
+        n_labels = int(tt["_y"].nunique())
+        rec["n_labels"] = n_labels
+        rec["degenerate"] = bool(
+            all(tt.loc[tt_fold != f, "_y"].nunique() < 2
+                for f in range(cfg.n_folds)
+                if (tt_fold != f).sum() > 0))
+
         ms, bs = [], []
         for fold_no in range(cfg.n_folds):
             test_mask = tt_fold == fold_no

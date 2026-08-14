@@ -1,15 +1,15 @@
-log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity
-BPI2013,NE-NEPr,CollaborationCase,Multiclass classification,transformer,62030,True,f1_macro,0.4341115154921637,0.0501081884373896,0.1878335901555528,5,,
-BPI2013,NE-NEPa,Participant,Multiclass classification,transformer,62030,True,f1_macro,0.0717835898716895,0.0057077520098727,0.0089572710109237,5,,
-BPI2013,NE-NPaM,Participant,Multiclass classification,transformer,16499,True,f1_macro,0.1329884370951672,0.0223173507386697,0.037527282347206,5,,
-BPI2013,NE-NMPa,OrchestrationCase,Multiclass classification,transformer,14538,True,f1_macro,1.0,0.0,1.0,5,Org line C,
-BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,transformer,18481,True,f1_macro,1.0,0.0,1.0,5,,
-BPI2013,NV-PrT,CollaborationCase,Regression (time),transformer,62030,True,mae,1261689.9328731492,156294.2028246674,1156740.769869925,5,,
-BPI2013,NV-PaT,OrchestrationCase,Regression (time),transformer,62030,True,mae,688620.1222461525,91262.55001987991,679187.8359126697,5,Org line C,
-BPI2013,NV-TNE,CollaborationCase,Regression (time),transformer,62030,True,mae,220660.78017650297,16992.776272155974,126967.4297013336,5,,
-BPI2013,NV-TNM,Message,Regression (time),transformer,16499,True,mae,321898.7322183692,44195.44192925318,246048.68412274588,5,,
-BPI2013,NV-NMPr,Message,Count regression,transformer,62030,True,mae,1.44710211116012,0.1212390324332941,1.391962391156374,5,,
-BPI2013,NV-NMPa,Message,Count regression,transformer,62030,True,mae,0.5578051873380525,0.0511721708502842,0.5088158026888501,5,Org line C,
-BPI2013,OB-P,OrchestrationCase,Binary classification,transformer,62030,True,f1_macro,0.6324477063714221,0.0060152518621061,0.4171650082612329,5,Org line C,
-BPI2013,NE-NPaA,Participant,Multiclass classification,transformer,62030,True,f1_macro,0.115598673973313,0.0121625741809969,0.0370873457618622,5,,
-BPI2013,OB-M,Message,Binary classification,transformer,62030,True,f1_macro,0.6371450454725374,0.0246765787811974,0.4124913646160464,5,,Queued
+log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity,n_labels,degenerate
+BPI2013,NE-NEPr,CollaborationCase,Multiclass classification,transformer,62030,True,f1_macro,0.4341115154921637,0.0501081884373896,0.1878335901555528,5,,,4,False
+BPI2013,NE-NEPa,Participant,Multiclass classification,transformer,62030,True,f1_macro,0.0717835898716895,0.0057077520098727,0.0089572710109237,5,,,73,False
+BPI2013,NE-NPaM,Participant,Multiclass classification,transformer,16499,True,f1_macro,0.1329884370951672,0.0223173507386697,0.037527282347206,5,,,25,False
+BPI2013,NE-NMPa,OrchestrationCase,Multiclass classification,transformer,14538,True,f1_macro,1.0,0.0,1.0,5,Org line C,,1,True
+BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,transformer,18481,True,f1_macro,1.0,0.0,1.0,5,,,1,True
+BPI2013,NV-PrT,CollaborationCase,Regression (time),transformer,62030,True,mae,1261689.9328731492,156294.2028246674,1156740.769869925,5,,,57048,False
+BPI2013,NV-PaT,OrchestrationCase,Regression (time),transformer,62030,True,mae,688620.1222461525,91262.55001987991,679187.8359126697,5,Org line C,,39322,False
+BPI2013,NV-TNE,CollaborationCase,Regression (time),transformer,62030,True,mae,220660.78017650297,16992.776272155974,126967.4297013336,5,,,23435,False
+BPI2013,NV-TNM,Message,Regression (time),transformer,16499,True,mae,321898.7322183692,44195.44192925318,246048.68412274588,5,,,11569,False
+BPI2013,NV-NMPr,Message,Count regression,transformer,62030,True,mae,1.44710211116012,0.1212390324332941,1.391962391156374,5,,,51,False
+BPI2013,NV-NMPa,Message,Count regression,transformer,62030,True,mae,0.5578051873380525,0.0511721708502842,0.5088158026888501,5,Org line C,,19,False
+BPI2013,OB-P,OrchestrationCase,Binary classification,transformer,62030,True,f1_macro,0.6324477063714221,0.0060152518621061,0.4171650082612329,5,Org line C,,2,False
+BPI2013,NE-NPaA,Participant,Multiclass classification,transformer,62030,True,f1_macro,0.115598673973313,0.0121625741809969,0.0370873457618622,5,,,25,False
+BPI2013,OB-M,Message,Binary classification,transformer,62030,True,f1_macro,0.6371450454725374,0.0246765787811974,0.4124913646160464,5,,Queued,2,False

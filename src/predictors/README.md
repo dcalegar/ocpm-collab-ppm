@@ -39,9 +39,12 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
 - `train_mask`/`test_mask` are boolean masks over `tt` (one fold of the
   persisted, per-log `CollaborationCase`-grouped split -- see
   `evaluation/README.md#rq3-protocol`).
-- `timer` (optional): an object exposing `timer.stage(name)` as a context
-  manager, used to separately time/profile `"fit"` and `"predict"` within
-  this call (e.g. `with timer.stage("fit"): clf.fit(...)`). `evaluation`
+- `timer` (optional): an object exposing `timer.stage(name, note=None)` as a
+  context manager, used to separately time/profile `"fit"` and `"predict"`
+  within this call (e.g. `with timer.stage("fit"): clf.fit(...)`). Pass `note`
+  only to mark a stage that was entered but deliberately did no work, so its
+  ~0 s is not read as a real measurement (see Degenerate folds below).
+  `evaluation`
   passes a bound `evaluation.profiling.StageTimer` when `cfg.profile=True`;
   any caller that doesn't pass one (including a direct unit-test call, see
   `tests/test_predictors_registry.py`) gets `predictors.common
@@ -49,6 +52,18 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
   `predictors` never imports `evaluation` to get this, keeping the
   decoupling above intact.
 - Returns a metrics dict, or `{}` when a fold is empty.
+
+**Degenerate folds.** When a fold's training target is constant,
+`lstm.py`/`lstm_torch.py`/`transformer.py` return that constant instead of
+building a model — there is nothing to learn, and a single-logit head fed a
+target with no negative class can emit a class index the encoder never saw.
+`random_forest.py`/`xgboost.py`/`gnn.py` have no such branch and fit normally.
+The shortcut still enters the `fit` and `predict` timer stages, tagged with
+`common.DEGENERATE_CONSTANT_TARGET` via `timer.stage(name, note=...)`, so the
+cell is recorded as *explicitly skipped* rather than missing — and its ~0 s is
+not mistaken for a genuinely fast fit. See
+[`evaluation/README.md`](../evaluation/README.md#degenerate-folds) for what that
+means when comparing per-model cost.
 
 **Sequence order precondition (`lstm.py`/`lstm_torch.py`/`transformer.py`
 only).** These three group `tt`'s rows by `case_id` (`pandas.groupby`,
@@ -71,17 +86,28 @@ that order itself, since nothing here re-sorts or checks it -- an unsorted
 sequence. `random_forest.py`/`xgboost.py`/`gnn.py` score each row
 independently and are unaffected.
 
-**Device selection (`gnn.py`/`lstm_torch.py`/`transformer.py` only).** All
-three resolve `cfg.device` (`"auto"`/`"cpu"`/`"cuda"`, see
+## Device selection (`gnn.py`/`lstm_torch.py`/`transformer.py` only)
+
+All three resolve `cfg.device` (`"auto"`/`"cpu"`/`"cuda"`, see
 `ExperimentConfig.device`) via `predictors.common.resolve_device`.
 `random_forest.py`/`xgboost.py` are CPU-only regardless (`xgboost.py` uses
 `tree_method="hist"`, not a GPU histogram method). The default is `"cpu"`,
 not `"auto"`: measured on this workload, CUDA's per-batch/per-graph dispatch
 overhead made training slower wall-clock than plain CPU, both for GNN's tiny
-per-sample subgraphs (`gnn_k_values` up to 16 nodes, batch size 32 -- GPU
-utilization sampled at ~4-37% during training) and for LSTM's many short,
-variable-length per-case sequences (where the same effect was already found
-with MPS on Apple Silicon). Pass `--device cuda`/`--device auto` (CLI) or
+per-sample subgraphs (`gnn_k` nodes, batch size 32 -- GPU utilization sampled
+at ~4-37% during training) and for LSTM's many short, variable-length
+per-case sequences (where the same effect was already found with MPS on
+Apple Silicon).
+
+Re-tested on BPI2013 — 27x more labelled events than the largest study log —
+on the hypothesis that a bigger log would finally amortise the GPU. It does
+not: one GNN fold, same seed, same data, ran **250.5 s on CPU vs 324.9 s on
+CUDA** (30% slower; identical metrics). The reason is that log size grows the
+*number* of batches, not the work *per* batch, and GPU efficiency depends on
+the latter. OCPA's feature table is only **7 columns wide** on BPI2013, so
+each `GraphConv` is a ~(32x8)x7 @ 7x64 matmul no matter how large the log
+gets. Do not expect a GPU win here without changing `gnn_batch_size`/`gnn_k`
+or the feature width. Pass `--device cuda`/`--device auto` (CLI) or
 `ExperimentConfig(device=...)` (programmatic) to override.
 
 ## Usage

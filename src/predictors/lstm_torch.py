@@ -14,7 +14,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from tasks.catalog import Task
-from .common import NullStageTimer, resolve_device, xy_split
+from .common import (DEGENERATE_CONSTANT_TARGET, NullStageTimer,
+                     resolve_device, xy_split)
 
 
 class LSTMModel(nn.Module):
@@ -135,8 +136,18 @@ def fit_and_score_fold(feats: dict, tt: pd.DataFrame, y_col: str,
             # baseline and avoids feeding a single-logit head a target with
             # no negative class, which can otherwise emit a class index the
             # encoder never saw (ValueError on inverse_transform below).
-            const_label = le.classes_[0]
-            pred_labels = [const_label] * len(y_te_s)
+            # Still entered as fit/predict stages even though no model is
+            # built: rq3_profile_*.csv is keyed by (task, fold), so returning
+            # before the stages left those cells with no rows at all --
+            # indistinguishable from missing data, and silently dropped from
+            # this predictor's fit total while random_forest/xgboost/gnn
+            # (which have no such shortcut) do pay to fit the constant. The
+            # rows are tagged so their ~0s is readable as "did no work"
+            # rather than "was very fast". See evaluation/README.md#profiling.
+            with timer.stage("fit", note=DEGENERATE_CONSTANT_TARGET):
+                const_label = le.classes_[0]
+            with timer.stage("predict", note=DEGENERATE_CONSTANT_TARGET):
+                pred_labels = [const_label] * len(y_te_s)
             score = float(f1_score(y_te_s, pred_labels, average="macro", zero_division=0))
             return {"metric": score, "baseline": score, "n_test": int(len(y_te_s))}
 
