@@ -61,8 +61,10 @@ def parse_args() -> argparse.Namespace:
                     "metric, plus (if rq3_profile_*.csv files are present) one "
                     "chart per pipeline stage for time and peak memory."
     )
-    parser.add_argument("--results-dir", type=Path, default=Path("data/results"),
-                        help="directory holding rq3_results_*.csv / rq3_profile_*.csv")
+    parser.add_argument("--results-dir", type=Path, default=None,
+                        help="directory holding rq3_results_*.csv / rq3_profile_*.csv "
+                            "(default: data/results/{log-group}_{scope}, matching "
+                            "run_evaluation.py's per-stage output directory)")
     parser.add_argument("--log-group", default="predictcollab",
                         choices=["predictcollab", "bpi2013"])
     parser.add_argument("--scope", default="full", choices=["partial", "full"],
@@ -79,11 +81,18 @@ def parse_args() -> argparse.Namespace:
         parser.add_argument(f"{flag}-profile", type=Path, default=None,
                             help=f"override the profile CSV for {model} "
                                 "(default: derived the same way; skipped if absent)")
-    parser.add_argument("--output-dir", type=Path,
-                        default=Path("data/results/plots/rq3_metrics"),
-                        help="Directory where PNG charts are saved.")
+    parser.add_argument("--output-dir", type=Path, default=None,
+                        help="directory where PNG charts are saved (default: "
+                            "a 'plots' subdirectory of --results-dir, i.e. "
+                            "data/results/{log-group}_{scope}/plots)")
     parser.add_argument("--dpi", type=int, default=180)
-    return parser.parse_args()
+    args = parser.parse_args()
+    stage = f"{args.log_group}_{args.scope}"
+    if args.results_dir is None:
+        args.results_dir = Path("data/results") / stage
+    if args.output_dir is None:
+        args.output_dir = args.results_dir / "plots"
+    return args
 
 
 def _resolve_paths(args: argparse.Namespace, kind: str) -> Dict[str, Tuple[Path, bool]]:

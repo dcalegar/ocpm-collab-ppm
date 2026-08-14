@@ -1,0 +1,156 @@
+
+===== RQ3 LOG: Healthcare =====
+    [Healthcare][NE-NPaA] fold 1/5: 20.3s
+    [Healthcare][NE-NPaA] fold 2/5: 18.9s
+    [Healthcare][NE-NPaA] fold 3/5: 17.9s
+    [Healthcare][NE-NPaA] fold 4/5: 18.5s
+    [Healthcare][NE-NPaA] fold 5/5: 18.4s
+  [NE-NPaA] 94.0s
+    [Healthcare][NE-NMPr] fold 1/5: 18.8s
+    [Healthcare][NE-NMPr] fold 2/5: 19.0s
+    [Healthcare][NE-NMPr] fold 3/5: 17.8s
+    [Healthcare][NE-NMPr] fold 4/5: 18.4s
+    [Healthcare][NE-NMPr] fold 5/5: 18.6s
+  [NE-NMPr] 92.6s
+    [Healthcare][NV-PrT] fold 1/5: 18.7s
+    [Healthcare][NV-PrT] fold 2/5: 19.1s
+    [Healthcare][NV-PrT] fold 3/5: 17.8s
+    [Healthcare][NV-PrT] fold 4/5: 18.3s
+    [Healthcare][NV-PrT] fold 5/5: 18.5s
+  [NV-PrT] 92.4s
+    [Healthcare][NV-PaT] fold 1/5: 18.8s
+    [Healthcare][NV-PaT] fold 2/5: 18.8s
+    [Healthcare][NV-PaT] fold 3/5: 17.9s
+    [Healthcare][NV-PaT] fold 4/5: 18.3s
+    [Healthcare][NV-PaT] fold 5/5: 18.2s
+  [NV-PaT] 92.0s
+    [Healthcare][NV-NMPr] fold 1/5: 18.7s
+    [Healthcare][NV-NMPr] fold 2/5: 18.8s
+    [Healthcare][NV-NMPr] fold 3/5: 17.8s
+    [Healthcare][NV-NMPr] fold 4/5: 18.5s
+    [Healthcare][NV-NMPr] fold 5/5: 18.3s
+  [NV-NMPr] 92.1s
+    [Healthcare][OB-M] fold 1/5: 18.6s
+    [Healthcare][OB-M] fold 2/5: 18.9s
+    [Healthcare][OB-M] fold 3/5: 17.8s
+    [Healthcare][OB-M] fold 4/5: 18.5s
+    [Healthcare][OB-M] fold 5/5: 18.3s
+  [OB-M] 92.1s
+  [time] Healthcare total: 557.5s
+
+===== RQ3 LOG: Artificial1 =====
+    [Artificial1][NE-NPaA] fold 1/5: 9.6s
+    [Artificial1][NE-NPaA] fold 2/5: 9.6s
+    [Artificial1][NE-NPaA] fold 3/5: 9.7s
+    [Artificial1][NE-NPaA] fold 4/5: 9.6s
+    [Artificial1][NE-NPaA] fold 5/5: 9.6s
+  [NE-NPaA] 48.0s
+    [Artificial1][NE-NMPr] fold 1/5: 7.5s
+    [Artificial1][NE-NMPr] fold 2/5: 7.5s
+    [Artificial1][NE-NMPr] fold 3/5: 7.6s
+    [Artificial1][NE-NMPr] fold 4/5: 7.4s
+    [Artificial1][NE-NMPr] fold 5/5: 7.5s
+  [NE-NMPr] 37.4s
+    [Artificial1][NV-PrT] fold 1/5: 9.5s
+    [Artificial1][NV-PrT] fold 2/5: 9.6s
+    [Artificial1][NV-PrT] fold 3/5: 9.5s
+    [Artificial1][NV-PrT] fold 4/5: 9.7s
+    [Artificial1][NV-PrT] fold 5/5: 9.5s
+  [NV-PrT] 47.8s
+    [Artificial1][NV-PaT] fold 1/5: 9.6s
+    [Artificial1][NV-PaT] fold 2/5: 9.5s
+    [Artificial1][NV-PaT] fold 3/5: 9.5s
+    [Artificial1][NV-PaT] fold 4/5: 9.5s
+    [Artificial1][NV-PaT] fold 5/5: 9.6s
+  [NV-PaT] 47.8s
+    [Artificial1][NV-NMPr] fold 1/5: 9.5s
+    [Artificial1][NV-NMPr] fold 2/5: 9.5s
+    [Artificial1][NV-NMPr] fold 3/5: 9.5s
+    [Artificial1][NV-NMPr] fold 4/5: 9.5s
+    [Artificial1][NV-NMPr] fold 5/5: 9.7s
+  [NV-NMPr] 47.7s
+    [Artificial1][OB-M] fold 1/5: 9.6s
+    [Artificial1][OB-M] fold 2/5: 9.6s
+    [Artificial1][OB-M] fold 3/5: 9.6s
+    [Artificial1][OB-M] fold 4/5: 9.6s
+    [Artificial1][OB-M] fold 5/5: 9.7s
+  [OB-M] 48.1s
+  [time] Artificial1 total: 277.4s
+
+===== RQ3 LOG: Artificial5 =====
+    [Artificial5][NE-NPaA] fold 1/5: 30.8s
+    [Artificial5][NE-NPaA] fold 2/5: 31.4s
+    [Artificial5][NE-NPaA] fold 3/5: 30.8s
+    [Artificial5][NE-NPaA] fold 4/5: 31.0s
+    [Artificial5][NE-NPaA] fold 5/5: 31.5s
+  [NE-NPaA] 155.6s
+    [Artificial5][NE-NMPr] fold 1/5: 28.2s
+    [Artificial5][NE-NMPr] fold 2/5: 28.4s
+    [Artificial5][NE-NMPr] fold 3/5: 28.2s
+    [Artificial5][NE-NMPr] fold 4/5: 28.3s
+    [Artificial5][NE-NMPr] fold 5/5: 28.2s
+  [NE-NMPr] 141.3s
+    [Artificial5][NV-PrT] fold 1/5: 30.9s
+    [Artificial5][NV-PrT] fold 2/5: 31.3s
+    [Artificial5][NV-PrT] fold 3/5: 31.0s
+    [Artificial5][NV-PrT] fold 4/5: 30.5s
+    [Artificial5][NV-PrT] fold 5/5: 32.5s
+  [NV-PrT] 156.3s
+    [Artificial5][NV-PaT] fold 1/5: 31.2s
+    [Artificial5][NV-PaT] fold 2/5: 32.0s
+    [Artificial5][NV-PaT] fold 3/5: 31.0s
+    [Artificial5][NV-PaT] fold 4/5: 30.8s
+    [Artificial5][NV-PaT] fold 5/5: 31.2s
+  [NV-PaT] 156.2s
+    [Artificial5][NV-NMPr] fold 1/5: 30.7s
+    [Artificial5][NV-NMPr] fold 2/5: 31.3s
+    [Artificial5][NV-NMPr] fold 3/5: 30.6s
+    [Artificial5][NV-NMPr] fold 4/5: 30.7s
+    [Artificial5][NV-NMPr] fold 5/5: 31.3s
+  [NV-NMPr] 154.7s
+    [Artificial5][OB-M] fold 1/5: 41.1s
+    [Artificial5][OB-M] fold 2/5: 34.0s
+    [Artificial5][OB-M] fold 3/5: 37.7s
+    [Artificial5][OB-M] fold 4/5: 38.7s
+    [Artificial5][OB-M] fold 5/5: 34.0s
+  [OB-M] 185.4s
+  [time] Artificial5 total: 951.6s
+
+===== RQ3 LOG: Real4 =====
+    [Real4][NE-NPaA] fold 1/5: 23.6s
+    [Real4][NE-NPaA] fold 2/5: 23.3s
+    [Real4][NE-NPaA] fold 3/5: 23.4s
+    [Real4][NE-NPaA] fold 4/5: 23.1s
+    [Real4][NE-NPaA] fold 5/5: 23.2s
+  [NE-NPaA] 116.6s
+    [Real4][NE-NMPr] fold 1/5: 21.7s
+    [Real4][NE-NMPr] fold 2/5: 21.6s
+    [Real4][NE-NMPr] fold 3/5: 21.7s
+    [Real4][NE-NMPr] fold 4/5: 21.6s
+    [Real4][NE-NMPr] fold 5/5: 22.0s
+  [NE-NMPr] 108.6s
+    [Real4][NV-PrT] fold 1/5: 23.4s
+    [Real4][NV-PrT] fold 2/5: 23.4s
+    [Real4][NV-PrT] fold 3/5: 23.5s
+    [Real4][NV-PrT] fold 4/5: 23.4s
+    [Real4][NV-PrT] fold 5/5: 23.2s
+  [NV-PrT] 116.9s
+    [Real4][NV-PaT] fold 1/5: 23.1s
+    [Real4][NV-PaT] fold 2/5: 23.2s
+    [Real4][NV-PaT] fold 3/5: 23.1s
+    [Real4][NV-PaT] fold 4/5: 23.3s
+    [Real4][NV-PaT] fold 5/5: 23.1s
+  [NV-PaT] 115.8s
+    [Real4][NV-NMPr] fold 1/5: 23.1s
+    [Real4][NV-NMPr] fold 2/5: 23.3s
+    [Real4][NV-NMPr] fold 3/5: 23.1s
+    [Real4][NV-NMPr] fold 4/5: 23.2s
+    [Real4][NV-NMPr] fold 5/5: 23.2s
+  [NV-NMPr] 115.9s
+    [Real4][OB-M] fold 1/5: 23.3s
+    [Real4][OB-M] fold 2/5: 23.4s
+    [Real4][OB-M] fold 3/5: 23.4s
+    [Real4][OB-M] fold 4/5: 23.2s
+    [Real4][OB-M] fold 5/5: 23.3s
+  [OB-M] 116.6s
+  [time] Real4 total: 691.6s

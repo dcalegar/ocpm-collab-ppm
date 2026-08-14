@@ -1,0 +1,15 @@
+log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity
+BPI2013,NE-NEPr,CollaborationCase,Multiclass classification,xgboost,62030,True,f1_macro,0.3849502173032742,0.002510124426472061,0.18783359015555284,5,,
+BPI2013,NE-NPaA,Participant,Multiclass classification,xgboost,62030,True,f1_macro,0.05237385668404665,0.0021940673635308925,0.037087345761862206,5,,
+BPI2013,NE-NEPa,Participant,Multiclass classification,xgboost,62030,True,f1_macro,0.033754870727624404,0.0017148605753301367,0.008957271010923772,5,,
+BPI2013,NE-NPaM,Participant,Multiclass classification,xgboost,16499,True,f1_macro,0.06059347087686708,0.002185192271434747,0.03752728234720606,5,,
+BPI2013,NE-NMPa,OrchestrationCase,Multiclass classification,xgboost,14538,True,f1_macro,1.0,0.0,1.0,5,Org line C,
+BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,xgboost,18481,True,f1_macro,1.0,0.0,1.0,5,,
+BPI2013,NV-PrT,CollaborationCase,Regression (time),xgboost,62030,True,mae,1445739.4167779381,155416.01346737915,1156740.769869925,5,,
+BPI2013,NV-PaT,OrchestrationCase,Regression (time),xgboost,62030,True,mae,736744.9761097475,75598.47747636247,679187.8359126697,5,Org line C,
+BPI2013,NV-TNE,CollaborationCase,Regression (time),xgboost,62030,True,mae,193364.0622556486,14046.978661253183,126967.4297013336,5,,
+BPI2013,NV-TNM,Message,Regression (time),xgboost,16499,True,mae,342556.07428959117,48736.63193188515,246048.68412274588,5,,
+BPI2013,NV-NMPr,Message,Count regression,xgboost,62030,True,mae,1.7218061657467196,0.10844977257244781,1.3919623911563739,5,,
+BPI2013,NV-NMPa,Message,Count regression,xgboost,62030,True,mae,0.6917379951997515,0.041138740151603126,0.5088158026888501,5,Org line C,
+BPI2013,OB-P,OrchestrationCase,Binary classification,xgboost,62030,True,f1_macro,0.638592547395835,0.009061594525672066,0.41716500826123293,5,Org line C,
+BPI2013,OB-M,Message,Binary classification,xgboost,62030,True,f1_macro,0.7079521212971189,0.006917139386089693,0.4124913646160464,5,,Queued

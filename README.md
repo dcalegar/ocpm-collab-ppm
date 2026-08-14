@@ -87,6 +87,7 @@ Event Data (OCED)"](docs/2410.14495v1.pdf).
 | [src/features/README.md](src/features/README.md) | OCEL 2.0 reading + native OCPA feature extraction, decoupled from the evaluation orchestrator |
 | [src/predictors/README.md](src/predictors/README.md) | the per-learner fit/score registry (RandomForest, XGBoost, LSTM, Transformer, GNN, …), decoupled from the evaluation orchestrator |
 | [src/evaluation/README.md](src/evaluation/README.md) | RQ2–RQ3 — the evaluation stages that wire `tasks` + `features` + `predictors` together: fidelity/feasibility/structure metrics |
+| [src/evaluation/RQ3_EXECUTION_PLAN.md](src/evaluation/RQ3_EXECUTION_PLAN.md) | ordered command list to run the full RQ3 sweep — all log groups × scopes × predictors, with profiling and reporting |
 
 ## Repository structure
 
@@ -308,7 +309,8 @@ path to running things.
 ```bash
 # full evaluation (RQ2 + RQ3, partial scope, on the four Predict-Collab study
 # logs) — RQ3 requires OCPA installed; run from the repo root with .venv
-# active. Writes CSVs to data/results/ (see table below).
+# active. Writes CSVs to data/results/ (RQ3 under a per-stage subdirectory,
+# e.g. data/results/predictcollab_partial/ -- see table below).
 python -m evaluation.run_evaluation
 ```
 
@@ -342,9 +344,9 @@ isn't an option.
 Beyond these, the evaluation pipelines have no end-to-end unit tests (the
 persisted fold assignment and `evaluation.profiling` in particular are
 untested); validate a pipeline change by running the evaluation above and
-inspecting the `data/results/*.csv` outputs (RQ2 fidelity's `agreement` column
-should be ~1.0 and `full_equivalence` True; RQ3 rows should have
-`ran_end_to_end=True`).
+inspecting the `data/results/*.csv` (RQ2) / `data/results/{log_group}_{scope}
+/*.csv` (RQ3) outputs (RQ2 fidelity's `agreement` column should be ~1.0 and
+`full_equivalence` True; RQ3 rows should have `ran_end_to_end=True`).
 
 Point the evaluation at your own logs by editing the registry in
 `src/evaluation/config.py` — `LogSpec(name, ocel_path, xes_path)`, where
@@ -401,9 +403,18 @@ Maps each [research question](#research-questions) to its concrete artifacts.
 |---|---|---|---|
 | RQ1 | XES→OCEL transformation + checks | **converter (separate tool)** — out of scope here | — |
 | RQ2 | label fidelity (equivalence for the 14 tasks) | `evaluation/rq2_fidelity.py` | `data/results/rq2_fidelity_predictcollab.csv` |
-| RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `evaluation/rq3_pipeline.py` | `data/results/rq3_results_random_forest_predictcollab.csv` |
-| RQ3 profiling (opt-in, `--profile`) | per-stage wall-clock + peak RSS, kept out of the results CSV | `evaluation/profiling.py` | `data/results/rq3_profile_random_forest_predictcollab.csv` |
-| RQ2/RQ3 (BPI2013) | real-world validation on BPI Challenge 2013 (incidents, collaborative) — **opt-in**, not one of the four study logs | `evaluation/run_evaluation.py` (`log_groups=("bpi2013",)`) | `data/results/rq2_fidelity_bpi2013.csv`, `data/results/rq3_results_random_forest_bpi2013.csv` |
+| RQ3 | end-to-end feasibility on native OCPA features, 5-fold CV grouped by collaboration instance | `evaluation/rq3_pipeline.py` | `data/results/predictcollab_partial/rq3_results_random_forest_predictcollab.csv` |
+| RQ3 profiling (opt-in, `--profile`) | per-stage wall-clock + peak RSS, kept out of the results CSV | `evaluation/profiling.py` | `data/results/predictcollab_partial/rq3_profile_random_forest_predictcollab.csv` |
+| RQ2/RQ3 (BPI2013) | real-world validation on BPI Challenge 2013 (incidents, collaborative) — **opt-in**, not one of the four study logs | `evaluation/run_evaluation.py` (`log_groups=("bpi2013",)`) | `data/results/rq2_fidelity_bpi2013.csv`, `data/results/bpi2013_partial/rq3_results_random_forest_bpi2013.csv` |
+
+RQ3 outputs (results, profile, progress log, and once generated, `plots/`)
+live under a per-(log_group, scope) stage subdirectory of `data/results/`,
+e.g. `data/results/predictcollab_full/` — see
+[`evaluation/RQ3_EXECUTION_PLAN.md`](src/evaluation/RQ3_EXECUTION_PLAN.md)
+for the full ordered command list (all log groups × scopes × predictors)
+and [`evaluation/README.md`](src/evaluation/README.md#output) for the
+underlying convention. RQ2 output stays flat in `data/results/` (no scope
+axis).
 
 RQ2 *equivalence* compares the 14 tasks against the original collaborative log
 (R1). Both sides are read by the evaluation itself — R1 straight from the

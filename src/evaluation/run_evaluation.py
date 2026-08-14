@@ -19,7 +19,10 @@ filenames are derived from the combination, e.g. `rq3_results_random_forest_pred
 (predictcollab, full, gnn), `rq2_fidelity_bpi2013.csv` (RQ2 has no predictor
 axis), `rq3_results_xgboost_bpi2013_full.csv` (bpi2013, full, xgboost). The
 log group always appears in the name, so files stay self-describing as more
-predictors are added. See `main()` below.
+predictors are added. RQ3 files additionally land in a per-(log_group, scope)
+stage subdirectory of `cfg.out_dir`, e.g. `data/results/predictcollab_full/`
+-- see `plot_rq3_metrics.py`'s matching `--output-dir` default. See `main()`
+below.
 
 Some (predictor, log_group) combinations are slow (BPI2013 in particular, see
 below), so each axis can be restricted independently to run the evaluation in
@@ -54,10 +57,11 @@ runs at one seed -- so no reported figure depends on the variable being set.
 """
 import argparse
 import os
+import re
 import sys
 from dataclasses import replace
 from typing import Iterable, Literal, Optional
-from tasks.catalog import EQUIVALENCE_TASKS, RQ3_SUBSET
+from tasks.catalog import EQUIVALENCE_TASKS, RQ3_SUBSET, TASKS
 from .config import ExperimentConfig, predictcollab_ocel_logs, real_world_ocel_logs
 from .rq2_fidelity import run_rq2
 from .rq3_pipeline import run_rq3
@@ -84,11 +88,32 @@ _RQ3_SCOPES = {
 }
 
 
+def _subset_suffix(tasks: Optional[Iterable[str]], logs: Optional[Iterable[str]]) -> str:
+    """Filename marker for a narrowed run (see main()'s `tasks`/`logs`).
+
+    Non-empty only when the run is a strict subset of its stage, so a
+    single-task patch run can never silently overwrite the stage's canonical
+    14-task CSV -- which would discard hours of computation. The suffix is
+    appended to the results/profile/progress basenames, e.g.
+    rq3_results_transformer_bpi2013_full__OB-M.csv.
+    """
+    parts = []
+    if logs:
+        parts.extend(str(x) for x in logs)
+    if tasks:
+        parts.extend(str(x) for x in tasks)
+    if not parts:
+        return ""
+    return "__" + "-".join(re.sub(r"[^A-Za-z0-9-]+", "", p) for p in parts)
+
+
 def main(cfg: Optional[ExperimentConfig] = None,
         rqs: Iterable[RQ] = ("RQ2", "RQ3"),
         log_groups: Iterable[LogGroup] = ("predictcollab",),
         rq3_scopes: Iterable[Scope] = ("partial",),
-        predictors: Iterable[str] = ("random_forest",)):
+        predictors: Iterable[str] = ("random_forest",),
+        tasks: Optional[Iterable[str]] = None,
+        logs: Optional[Iterable[str]] = None):
     """Run RQ2/RQ3 over the requested (rq, log_group, rq3_scope, predictor) combinations.
 
     rq3_scopes and predictors are only meaningful when "RQ3" is in rqs; both
@@ -100,12 +125,34 @@ def main(cfg: Optional[ExperimentConfig] = None,
     "random_forest", "xgboost", "lstm", "lstm_torch", "transformer", "gnn"); RQ3 runs once per
     (log_group, predictor, scope) combination, each to its own
     rq3_results_{predictor}*.csv.
+
+    tasks (RQ3 only) narrows the run to specific tasks.catalog keys instead of
+    the whole scope catalog; logs narrows it to specific LogSpec names within
+    the selected log_groups. Both are for re-running one cell of an
+    already-computed stage -- e.g. re-measuring a (log, task) pair whose
+    timings were disturbed -- without repeating the stage. A narrowed run
+    writes to its own suffixed filenames (see _subset_suffix) so it never
+    overwrites the stage's canonical CSVs; merge the rows in deliberately.
     """
     base_cfg = cfg or ExperimentConfig()
     results = {}
+    if tasks is not None:
+        unknown = [t for t in tasks if t not in TASKS]
+        if unknown:
+            raise KeyError(f"Unknown task(s) {unknown}; valid keys: {', '.join(TASKS)}")
+    subset_suffix = _subset_suffix(tasks, logs)
 
     for group in log_groups:
-        group_cfg = replace(base_cfg, logs=_LOG_GROUPS[group]())
+        group_logs = _LOG_GROUPS[group]()
+        if logs is not None:
+            wanted = set(logs)
+            known = {spec.name for spec in group_logs}
+            unknown = wanted - known
+            if unknown:
+                raise KeyError(f"Unknown log(s) {sorted(unknown)} for log group "
+                               f"{group!r}; valid names: {', '.join(sorted(known))}")
+            group_logs = [spec for spec in group_logs if spec.name in wanted]
+        group_cfg = replace(base_cfg, logs=group_logs)
         suffix = f"_{group}"
 
         if "RQ2" in rqs:
@@ -116,12 +163,32 @@ def main(cfg: Optional[ExperimentConfig] = None,
             for predictor in predictors:
                 predictor_cfg = replace(group_cfg, predictor=predictor)
                 for scope in rq3_scopes:
-                    scope_cfg = replace(predictor_cfg, rq3_tasks=_RQ3_SCOPES[scope]())
                     scope_suffix = "" if scope == "partial" else "_full"
-                    print(f"\n########## RQ3 — {scope} catalog ({group}, {predictor}) ##########")
-                    results[f"rq3_{predictor}{suffix}{scope_suffix}"] = run_rq3(
+                    # One subdirectory per (log_group, scope) stage -- e.g.
+                    # data/results/predictcollab_full/ -- mirroring
+                    # plot_rq3_metrics.py's per-stage plot directories, so a
+                    # stage's results/profile/progress files live alongside
+                    # its plots instead of all stages mixing in a flat
+                    # data/results/. folds_dir is NOT nested here: fold
+                    # assignments are per-log only, deliberately reused
+                    # across every predictor/scope for that log. Directory
+                    # names always spell out the scope (_partial/_full), even
+                    # though partial's own FILENAMES stay suffix-less per the
+                    # module docstring's existing convention -- only the
+                    # directory needs both scopes to read as symmetric.
+                    stage_out_dir = os.path.join(base_cfg.out_dir, f"{group}_{scope}")
+                    # `tasks`, when given, replaces the scope catalog; the
+                    # scope itself still selects the stage directory and the
+                    # _full naming, so a narrowed run lands beside the stage
+                    # it patches rather than in a directory of its own.
+                    scope_tasks = list(tasks) if tasks is not None else _RQ3_SCOPES[scope]()
+                    scope_cfg = replace(predictor_cfg, rq3_tasks=scope_tasks,
+                                        out_dir=stage_out_dir)
+                    label = f"{scope} catalog" if tasks is None else f"tasks {', '.join(scope_tasks)}"
+                    print(f"\n########## RQ3 — {label} ({group}, {predictor}) ##########")
+                    results[f"rq3_{predictor}{suffix}{scope_suffix}{subset_suffix}"] = run_rq3(
                         scope_cfg,
-                        out_name=f"rq3_results_{predictor}{suffix}{scope_suffix}.csv")
+                        out_name=f"rq3_results_{predictor}{suffix}{scope_suffix}{subset_suffix}.csv")
 
     if "RQ2" in rqs or "RQ3" in rqs:
         print("\n[note] RQ1 (transformation + P1 + schema) is the converter's tool.")
@@ -147,6 +214,16 @@ def _parse_args(argv):
     p.add_argument("--predictors", nargs="+", choices=sorted(PREDICTOR_REGISTRY),
                    default=["random_forest"],
                    help="RQ3 predictors to evaluate, one run per predictor (default: random_forest)")
+    p.add_argument("--tasks", nargs="+", choices=sorted(TASKS), default=None, metavar="TASK",
+                   help="RQ3 only: run just these tasks.catalog keys instead of "
+                        "the whole --rq3-scopes catalog. For re-running one cell "
+                        "of an already-computed stage; output goes to suffixed "
+                        "filenames so it cannot overwrite the stage's own CSVs "
+                        f"(choices: {', '.join(sorted(TASKS))})")
+    p.add_argument("--logs", nargs="+", default=None, metavar="LOG",
+                   help="RQ3 only: run just these LogSpec names within the "
+                        "selected --log-groups (e.g. Healthcare, BPI2013). Same "
+                        "suffixed-output rule as --tasks")
     p.add_argument("--out-dir", default=None,
                    help="override ExperimentConfig.out_dir (default: data/results)")
     p.add_argument("--folds-dir", default=None,
@@ -189,4 +266,6 @@ if __name__ == "__main__":
         rqs=tuple(args.rqs),
         log_groups=tuple(args.log_groups),
         rq3_scopes=tuple(args.rq3_scopes),
-        predictors=tuple(args.predictors))
+        predictors=tuple(args.predictors),
+        tasks=tuple(args.tasks) if args.tasks else None,
+        logs=tuple(args.logs) if args.logs else None)

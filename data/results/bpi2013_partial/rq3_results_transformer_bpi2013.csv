@@ -1,0 +1,7 @@
+log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity
+BPI2013,NE-NPaA,Participant,Multiclass classification,transformer,62030,True,f1_macro,0.11559867397331307,0.012162574180996998,0.037087345761862206,5,,
+BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,transformer,18481,True,f1_macro,1.0,0.0,1.0,5,,
+BPI2013,NV-PrT,CollaborationCase,Regression (time),transformer,62030,True,mae,1261689.9328731492,156294.2028246674,1156740.769869925,5,,
+BPI2013,NV-PaT,OrchestrationCase,Regression (time),transformer,62030,True,mae,688620.1222461525,91262.55001987991,679187.8359126697,5,Org line C,
+BPI2013,NV-NMPr,Message,Count regression,transformer,62030,True,mae,1.4471021111601199,0.12123903243329412,1.3919623911563739,5,,
+BPI2013,OB-M,Message,Binary classification,transformer,62030,True,f1_macro,0.6371450454725374,0.024676578781197413,0.4124913646160464,5,,Queued

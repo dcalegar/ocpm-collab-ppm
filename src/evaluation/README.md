@@ -1,5 +1,9 @@
 # evaluation — evaluation stages
 
+See [`RQ3_EXECUTION_PLAN.md`](RQ3_EXECUTION_PLAN.md) for the ordered command
+list to run the full RQ3 sweep (all log groups × scopes × predictors, with
+profiling and reporting) end to end.
+
 Modular evaluation that answers RQ2–RQ3 of the study (see
 [Research questions](../../README.md#research-questions)). Task definitions and
 ground-truth labels come from the decoupled
@@ -32,6 +36,7 @@ package is the fuller, cross-validated version of the same pattern.
 | `profiling.py` | opt-in per-stage wall-clock + peak-RSS profiling (`--profile`), written to its own `rq3_profile_*.csv` so no computation times enter `rq3_results_*.csv` |
 | (always on, see `rq3_pipeline.py::run_rq3`) | plain-text progress log `rq3_progress_{predictor}_{log_group}[_full].log`, one line per fold/task/log elapsed time, flushed immediately -- `tail -f` it from any terminal to watch a long run regardless of how its stdout was (or wasn't) redirected |
 | `plot_rq3_metrics.py` | standalone reporting script — grouped bar charts from `rq3_results_*.csv` and, when present, `rq3_profile_*.csv` |
+| [`RQ3_EXECUTION_PLAN.md`](RQ3_EXECUTION_PLAN.md) | not a module — the ordered command list to run the full RQ3 sweep (all log groups × scopes × predictors) end to end |
 
 Feature extraction (`load_ocpa_ocel`/`read_ocel2_labels`/`extract_feature_table`)
 and predictor selection (`PREDICTOR_REGISTRY`/`resolve`) now live in
@@ -42,14 +47,28 @@ reading path. They are reusable independently of this orchestrator.
 | Stage | Module | Output |
 |---|---|---|
 | **RQ2** label fidelity | `rq2_fidelity.py` | `data/results/rq2_fidelity_predictcollab.csv` |
-| **RQ3** end-to-end feasibility (representative subset) | `rq3_pipeline.py` | `data/results/rq3_results_{predictor}_predictcollab.csv` (e.g. `rq3_results_random_forest_predictcollab.csv`) |
-| **RQ3** full catalog (supplementary coverage, 14 tasks × 4 logs) | `rq3_pipeline.py` via `run_evaluation.py` (`rq3_scopes=("partial","full")`) | `data/results/rq3_results_{predictor}_predictcollab_full.csv` |
+| **RQ3** end-to-end feasibility (representative subset) | `rq3_pipeline.py` | `data/results/predictcollab_partial/rq3_results_{predictor}_predictcollab.csv` (e.g. `rq3_results_random_forest_predictcollab.csv`) |
+| **RQ3** full catalog (supplementary coverage, 14 tasks × 4 logs) | `rq3_pipeline.py` via `run_evaluation.py` (`rq3_scopes=("partial","full")`) | `data/results/predictcollab_full/rq3_results_{predictor}_predictcollab_full.csv` |
 | RQ1 transformation + P1 | — | [`mapping`](../mapping/README.md) (separate tool) |
-| **RQ2/RQ3 on BPI2013** (opt-in real-world validation, see below) | `rq2_fidelity.py`/`rq3_pipeline.py` via `run_evaluation.py` (`log_groups=("bpi2013",)`) | `data/results/rq2_fidelity_bpi2013.csv`, `data/results/rq3_results_{predictor}_bpi2013.csv` |
+| **RQ2/RQ3 on BPI2013** (opt-in real-world validation, see below) | `rq2_fidelity.py`/`rq3_pipeline.py` via `run_evaluation.py` (`log_groups=("bpi2013",)`) | `data/results/rq2_fidelity_bpi2013.csv`, `data/results/bpi2013_partial/rq3_results_{predictor}_bpi2013.csv` |
 
 The log group (`predictcollab`/`bpi2013`) always appears in the output
 filename, so results stay self-describing as more predictors are added — no
 predictcollab file is left nameless just because it's the default group.
+RQ3 outputs additionally live under a per-(log_group, scope) stage
+subdirectory of `out_dir` -- `data/results/{log_group}_{scope}/`, e.g.
+`data/results/predictcollab_partial/`, `data/results/bpi2013_full/` -- holding
+that stage's `rq3_results_*.csv`, `rq3_profile_*.csv` (if `--profile`) and
+`rq3_progress_*.log` together (plus a `plots/` subdirectory once
+`plot_rq3_metrics.py` has been run for that stage -- see below), one
+directory per stage instead of every stage's files mixed flat in
+`data/results/`. The directory always spells out
+`_partial`/`_full`, even though the FILENAMES inside stay suffix-less for
+`partial` (see above) -- only the directory needs both scopes to read as
+symmetric. RQ2 output and `data/folds/`
+are NOT nested this way: RQ2 has no scope axis, and fold assignments are
+per-log only, deliberately shared across every predictor/scope run against
+that log.
 
 ## Reading path
 
@@ -132,7 +151,29 @@ python -m evaluation.run_evaluation --rqs RQ3 --predictors gnn xgboost  # RQ3 on
 python -m evaluation.run_evaluation --help                              # full flag list
 ```
 
-Four further flags are path/run knobs rather than axes:
+Two further flags narrow a run *below* a full stage, for re-running one cell
+of an already-computed stage without repeating it (e.g. re-measuring a
+(log, task) pair whose timings were disturbed):
+
+| Flag | Effect |
+|---|---|
+| `--tasks TASK...` | RQ3 only: run just these `tasks.catalog` keys instead of the whole `--rq3-scopes` catalog |
+| `--logs LOG...` | RQ3 only: run just these `LogSpec` names within the selected `--log-groups` (e.g. `Healthcare`, `BPI2013`) |
+
+Both write to **suffixed filenames** — `rq3_results_{predictor}_{log_group}[_full]__{logs}-{tasks}.csv`,
+e.g. `rq3_results_transformer_bpi2013_full__OB-M.csv` — inside the normal
+stage directory. That is deliberate: a one-task run must never silently
+overwrite the stage's own 14-task CSV and discard hours of computation, so
+merging the patched rows back in stays an explicit step (see
+[`RQ3_EXECUTION_PLAN.md`](RQ3_EXECUTION_PLAN.md)).
+
+```bash
+# re-measure a single (log, task) cell of an existing stage
+python -m evaluation.run_evaluation --rqs RQ3 --log-groups bpi2013 \
+    --predictors transformer --rq3-scopes full --tasks OB-M --profile
+```
+
+Five further flags are path/run knobs rather than axes:
 
 | Flag | Effect |
 |---|---|
@@ -263,13 +304,16 @@ only aggregates and charts what's already in the CSVs:
   two charts per stage (time, peak memory). Missing profile CSVs are skipped,
   not an error.
 
-Per-predictor CSV paths default to the naming convention above, derived from
-`--log-group`/`--scope`/`--results-dir`; a default path that doesn't exist is
-skipped (not every predictor has been run against every log group/scope), but
-an explicitly-passed override (e.g. `--xgboost path.csv`) still raises if
-missing. Charts are saved as PNGs under `--output-dir` (default
-`data/results/plots/rq3_metrics`), one file per metric or per stage-metric
-combination; each model keeps the same color across every chart.
+Per-predictor CSV paths default to the naming convention above, looked up
+under `--results-dir` (default `data/results/{log_group}_{scope}`, matching
+`run_evaluation.py`'s per-stage output directory -- see below); a default
+path that doesn't exist is skipped (not every predictor has been run against
+every log group/scope), but an explicitly-passed override (e.g. `--xgboost
+path.csv`) still raises if missing. Charts are saved as PNGs under
+`--output-dir` (default a `plots/` subdirectory of `--results-dir`, i.e.
+`data/results/{log_group}_{scope}/plots/` -- so a stage's charts live
+alongside the CSVs they were built from), one file per metric or per
+stage-metric combination; each model keeps the same color across every chart.
 
 ```bash
 python -m evaluation.plot_rq3_metrics --log-group predictcollab --scope full
