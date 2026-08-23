@@ -38,3 +38,6 @@ build/
 # Oversized raw export (exceeds GitHub's 100MB blob limit at this log's
 # scale); the .jsonocel.gz alongside it is tracked instead.
 data/logs/BPIChallenge2013/BPI2013_incidents_collaborative.jsonocel
+
+# Local results bundles (redundant with the tracked per-file results tree)
+data/results/*.zip
