@@ -1,0 +1,15 @@
+log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity,n_labels,degenerate
+BPI2013,NE-NEPr,CollaborationCase,Multiclass classification,gnn,62030,True,f1_macro,0.4430335824562036,0.0579238525442074,0.1878335901555528,5,,,4,False
+BPI2013,NE-NPaA,Participant,Multiclass classification,gnn,62030,True,f1_macro,0.092566019465857,0.0147552041118485,0.0370873457618622,5,,,25,False
+BPI2013,NE-NEPa,Participant,Multiclass classification,gnn,62030,True,f1_macro,0.0683228297841364,0.0083064282784386,0.0090663680708052,5,,,73,False
+BPI2013,NE-NPaM,Participant,Multiclass classification,gnn,16499,True,f1_macro,0.086627620410522,0.001269429580494,0.0379172178255082,5,,,25,False
+BPI2013,NE-NMPa,OrchestrationCase,Multiclass classification,gnn,14538,True,f1_macro,1.0,0.0,1.0,5,Org line C,,1,True
+BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,gnn,18481,True,f1_macro,1.0,0.0,1.0,5,,,1,True
+BPI2013,NV-PrT,CollaborationCase,Regression (time),gnn,62030,True,mae,1155014.0625,171330.7208304855,1156740.768543893,5,,,57048,False
+BPI2013,NV-PaT,OrchestrationCase,Regression (time),gnn,62030,True,mae,636369.9875,79808.40248203819,679187.835832813,5,Org line C,,39322,False
+BPI2013,NV-TNE,CollaborationCase,Regression (time),gnn,62030,True,mae,126278.4046875,6784.637551912791,126967.42976494716,5,,,23435,False
+BPI2013,NV-TNM,Message,Regression (time),gnn,16499,True,mae,245023.5625,59155.35956723456,246048.68424050356,5,,,11569,False
+BPI2013,NV-NMPr,Message,Count regression,gnn,62030,True,mae,1.4179173946380614,0.1314985855809631,1.391962391156374,5,,,51,False
+BPI2013,NV-NMPa,Message,Count regression,gnn,62030,True,mae,0.5958139181137085,0.0479650782980906,0.5088158026888501,5,Org line C,,19,False
+BPI2013,OB-P,OrchestrationCase,Binary classification,gnn,62030,True,f1_macro,0.6463426253375953,0.005939262910093,0.4171650082612329,5,Org line C,,2,False
+BPI2013,OB-M,Message,Binary classification,gnn,62030,True,f1_macro,0.7143616756638037,0.01017671725679,0.4124913646160464,5,,Queued,2,False

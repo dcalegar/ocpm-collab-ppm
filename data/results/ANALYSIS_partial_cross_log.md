@@ -16,9 +16,10 @@ per-stage findings and then what changes between them.
 
 This replicates the method of
 [`predictcollab_full/ANALYSIS.md`](predictcollab_full/ANALYSIS.md) on the
-partial catalog. The `full` catalog is not covered: BPI2013's `full` stage has
-GNN results for only 6 of its 14 tasks, so a like-for-like 5-predictor
-comparison is not available there.
+partial catalog. The `full` catalog is covered separately, in
+[`ANALYSIS_full_cross_log.md`](ANALYSIS_full_cross_log.md) — BPI2013's `full`
+stage now has all five predictors on all 14 tasks, so the like-for-like
+comparison that was missing when this document was written is available there.
 
 ## Environment
 
