@@ -1,0 +1,116 @@
+task,check,eval_labels,matches,mismatches,agreement,exact_agreement,only_in_reference,only_in_object_centric,full_equivalence,examples,log,param
+NE-NEPr,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,
+NE-NPaA,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,
+NE-NEPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,
+NE-NPaM,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,send
+NE-NPaM,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,receive
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line A2
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line B
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line C
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line D
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line E
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line F
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G1
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G2
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G3
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G4
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line H
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line I
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V1
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V10
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V11
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V2
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V3
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V4
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V5
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V7
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V7n
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V8
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V9
+NE-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Other
+NE-NMPr,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,
+NV-PrT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line A2
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line B
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line C
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line D
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line E
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line F
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G1
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G2
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G3
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G4
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line H
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line I
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V1
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V10
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V11
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V2
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V3
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V4
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V5
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V7
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V7n
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V8
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V9
+NV-PaT,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Other
+NV-TNE,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,
+NV-TNM,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,send
+NV-TNM,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,receive
+NV-NMPr,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line A2
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line B
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line C
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line D
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line E
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line F
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G1
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G2
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G3
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G4
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line H
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line I
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V1
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V10
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V11
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V2
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V3
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V4
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V5
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V7
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V7n
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V8
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V9
+NV-NMPa,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Other
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line A2
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line B
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line C
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line D
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line E
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line F
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G1
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G2
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G3
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line G4
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line H
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line I
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V1
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V10
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V11
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V2
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V3
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V4
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V5
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V7
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V7n
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V8
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Org line V9
+OB-P,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Other
+OB-M,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Accepted
+OB-M,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Completed
+OB-M,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Queued
+OB-M,equivalence,62030,62030,0,1.0,1.0,0,0,True,[],BPI2013,Unmatched

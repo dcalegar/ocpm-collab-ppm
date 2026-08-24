@@ -1,0 +1,15 @@
+log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity,n_labels,degenerate
+BPI2013,NE-NEPr,CollaborationCase,Multiclass classification,random_forest,62030,True,f1_macro,0.3769379402209133,0.002296763626961,0.1878335901555528,5,,,4,False
+BPI2013,NE-NPaA,Participant,Multiclass classification,random_forest,62030,True,f1_macro,0.0730889456468553,0.0036259173206302,0.0370873457618622,5,,,25,False
+BPI2013,NE-NEPa,Participant,Multiclass classification,random_forest,62030,True,f1_macro,0.0446075355440161,0.0031346841070252,0.0089572710109237,5,,,73,False
+BPI2013,NE-NPaM,Participant,Multiclass classification,random_forest,16499,True,f1_macro,0.0734219076397276,0.0075509300467814,0.037527282347206,5,,,25,False
+BPI2013,NE-NMPa,OrchestrationCase,Multiclass classification,random_forest,14538,True,f1_macro,1.0,0.0,1.0,5,Org line C,,1,True
+BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,random_forest,18481,True,f1_macro,1.0,0.0,1.0,5,,,1,True
+BPI2013,NV-PrT,CollaborationCase,Regression (time),random_forest,62030,True,mae,1623817.524373513,151513.0937067047,1156740.769869925,5,,,57048,False
+BPI2013,NV-PaT,OrchestrationCase,Regression (time),random_forest,62030,True,mae,826164.9406864134,73737.4392779341,679187.8359126697,5,Org line C,,39322,False
+BPI2013,NV-TNE,CollaborationCase,Regression (time),random_forest,62030,True,mae,210870.15024930597,15908.119881915029,126967.4297013336,5,,,23435,False
+BPI2013,NV-TNM,Message,Regression (time),random_forest,16499,True,mae,373118.9608004172,42657.74110274338,246048.68412274588,5,,,11569,False
+BPI2013,NV-NMPr,Message,Count regression,random_forest,62030,True,mae,1.8434865943187293,0.1054627434090003,1.391962391156374,5,,,51,False
+BPI2013,NV-NMPa,Message,Count regression,random_forest,62030,True,mae,0.7350017300136285,0.0361374314276266,0.5088158026888501,5,Org line C,,19,False
+BPI2013,OB-P,OrchestrationCase,Binary classification,random_forest,62030,True,f1_macro,0.5734976106449418,0.0060998454469196,0.4171650082612329,5,Org line C,,2,False
+BPI2013,OB-M,Message,Binary classification,random_forest,62030,True,f1_macro,0.6479872347923342,0.0033206063842193,0.4124913646160464,5,,Queued,2,False

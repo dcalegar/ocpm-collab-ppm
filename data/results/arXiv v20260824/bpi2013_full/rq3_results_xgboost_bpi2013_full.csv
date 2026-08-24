@@ -1,0 +1,15 @@
+log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity,n_labels,degenerate
+BPI2013,NE-NEPr,CollaborationCase,Multiclass classification,xgboost,62030,True,f1_macro,0.3849502173032742,0.002510124426472,0.1878335901555528,5,,,4,False
+BPI2013,NE-NPaA,Participant,Multiclass classification,xgboost,62030,True,f1_macro,0.0523738566840466,0.0021940673635308,0.0370873457618622,5,,,25,False
+BPI2013,NE-NEPa,Participant,Multiclass classification,xgboost,62030,True,f1_macro,0.0337548707276244,0.0017148605753301,0.0089572710109237,5,,,73,False
+BPI2013,NE-NPaM,Participant,Multiclass classification,xgboost,16499,True,f1_macro,0.060593470876867,0.0021851922714347,0.037527282347206,5,,,25,False
+BPI2013,NE-NMPa,OrchestrationCase,Multiclass classification,xgboost,14538,True,f1_macro,1.0,0.0,1.0,5,Org line C,,1,True
+BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,xgboost,18481,True,f1_macro,1.0,0.0,1.0,5,,,1,True
+BPI2013,NV-PrT,CollaborationCase,Regression (time),xgboost,62030,True,mae,1445739.416777938,155416.01346737915,1156740.769869925,5,,,57048,False
+BPI2013,NV-PaT,OrchestrationCase,Regression (time),xgboost,62030,True,mae,736744.9761097475,75598.47747636247,679187.8359126697,5,Org line C,,39322,False
+BPI2013,NV-TNE,CollaborationCase,Regression (time),xgboost,62030,True,mae,193364.0622556486,14046.978661253184,126967.4297013336,5,,,23435,False
+BPI2013,NV-TNM,Message,Regression (time),xgboost,16499,True,mae,342556.0742895912,48736.63193188515,246048.68412274588,5,,,11569,False
+BPI2013,NV-NMPr,Message,Count regression,xgboost,62030,True,mae,1.7218061657467196,0.1084497725724478,1.391962391156374,5,,,51,False
+BPI2013,NV-NMPa,Message,Count regression,xgboost,62030,True,mae,0.6917379951997515,0.0411387401516031,0.5088158026888501,5,Org line C,,19,False
+BPI2013,OB-P,OrchestrationCase,Binary classification,xgboost,62030,True,f1_macro,0.638592547395835,0.009061594525672,0.4171650082612329,5,Org line C,,2,False
+BPI2013,OB-M,Message,Binary classification,xgboost,62030,True,f1_macro,0.7079521212971189,0.0069171393860896,0.4124913646160464,5,,Queued,2,False

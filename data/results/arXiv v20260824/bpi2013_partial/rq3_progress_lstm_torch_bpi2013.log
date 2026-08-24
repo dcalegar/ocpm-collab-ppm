@@ -1,0 +1,39 @@
+
+===== RQ3 LOG: BPI2013 =====
+    [BPI2013][NE-NPaA] fold 1/5: 164.1s
+    [BPI2013][NE-NPaA] fold 2/5: 161.4s
+    [BPI2013][NE-NPaA] fold 3/5: 160.1s
+    [BPI2013][NE-NPaA] fold 4/5: 157.8s
+    [BPI2013][NE-NPaA] fold 5/5: 164.4s
+  [NE-NPaA] 807.7s
+    [BPI2013][NE-NMPr] fold 1/5: 0.3s
+    [BPI2013][NE-NMPr] fold 2/5: 0.3s
+    [BPI2013][NE-NMPr] fold 3/5: 0.3s
+    [BPI2013][NE-NMPr] fold 4/5: 0.3s
+    [BPI2013][NE-NMPr] fold 5/5: 0.3s
+  [NE-NMPr] 1.6s
+    [BPI2013][NV-PrT] fold 1/5: 159.2s
+    [BPI2013][NV-PrT] fold 2/5: 158.5s
+    [BPI2013][NV-PrT] fold 3/5: 154.7s
+    [BPI2013][NV-PrT] fold 4/5: 158.1s
+    [BPI2013][NV-PrT] fold 5/5: 159.4s
+  [NV-PrT] 789.9s
+    [BPI2013][NV-PaT] fold 1/5: 156.9s
+    [BPI2013][NV-PaT] fold 2/5: 156.6s
+    [BPI2013][NV-PaT] fold 3/5: 154.5s
+    [BPI2013][NV-PaT] fold 4/5: 157.1s
+    [BPI2013][NV-PaT] fold 5/5: 160.3s
+  [NV-PaT] 785.5s
+    [BPI2013][NV-NMPr] fold 1/5: 157.8s
+    [BPI2013][NV-NMPr] fold 2/5: 157.0s
+    [BPI2013][NV-NMPr] fold 3/5: 154.9s
+    [BPI2013][NV-NMPr] fold 4/5: 158.2s
+    [BPI2013][NV-NMPr] fold 5/5: 158.3s
+  [NV-NMPr] 786.4s
+    [BPI2013][OB-M] fold 1/5: 157.4s
+    [BPI2013][OB-M] fold 2/5: 156.4s
+    [BPI2013][OB-M] fold 3/5: 155.2s
+    [BPI2013][OB-M] fold 4/5: 155.5s
+    [BPI2013][OB-M] fold 5/5: 160.0s
+  [OB-M] 784.7s
+  [time] BPI2013 total: 3994.7s
