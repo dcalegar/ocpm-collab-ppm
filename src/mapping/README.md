@@ -2,7 +2,9 @@
 
 Model-to-model transformation **μ: extended collaborative XES → OCEL 2.0**
 (Berti et al. 2023, Definition 2), implementing mapping rules **M1–M8** and
-machine-checking consistency properties **P1.1–P1.7**. This is RQ1 of the
+machine-checking consistency properties **P1.1–P1.7** (P1.7 is an
+implementation-only export check, not part of the P1.1–P1.6 criteria
+formalized in the paper). This is RQ1 of the
 study (see [Research questions](../../README.md#research-questions)): the
 converter that produces the rich object-centric logs consumed by
 [`tasks`](../tasks/README.md), [`features`](../features/README.md),

@@ -32,7 +32,8 @@ pipeline stage, so it has no corresponding code):
   transformed into a semantically consistent object-centric representation
   (OCEL 2.0)? Addressed by the converter in
   [src/mapping/](src/mapping/README.md): mapping rules M1–M8 and consistency
-  checks P1.1–P1.7.
+  checks P1.1–P1.7 (P1.7 is an implementation-only export check, not part of
+  the P1.1–P1.6 criteria formalized in the paper).
 - **RQ2 — Task reformulation.** How can the 14 collaborative prediction
   tasks be reformulated as object-centric tasks without loss of label
   information? Addressed by comparing each reformulated task's labels
@@ -74,7 +75,7 @@ No OCEL 1.0 is used anywhere.
 Each package has its own README with the detail that belongs to it; this
 top-level file covers setup and how they fit together. The external format
 specifications the codebase targets are kept as reference PDFs under
-[docs/](docs/): the [OCEL 2.1 specification](docs/ocel20_specification.pdf)
+[docs/](docs/): the [OCEL 2.0 specification](docs/ocel20_specification.pdf)
 (Berti et al.), the [OCED Call for Action](docs/OCED_CFA2024.pdf), and
 [Fahland et al., "Towards a Simple and Extensible Standard for Object-Centric
 Event Data (OCED)"](docs/2410.14495v1.pdf).
@@ -137,7 +138,7 @@ ocpm-collab-ppm/
 │   │   └── BPIChallenge2013/    # real-world validation log (opt-in stage, see below)
 │   ├── folds/                   # persisted per-log CollaborationCase -> fold assignment
 │   └── results/                 # evaluation outputs
-└── docs/                       # reference specifications (OCEL 2.1, OCED) — not code
+└── docs/                       # reference specifications (OCEL 2.0, OCED) — not code
     ├── ocel20_specification.pdf
     ├── OCED_CFA2024.pdf
     └── 2410.14495v1.pdf
