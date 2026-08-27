@@ -1,11 +1,35 @@
 # A Framework for Object-Centric Predictive Monitoring of Collaborative Processes
 
-Reproducibility code for the study that reformulates collaborative predictive process
-monitoring (PPM) tasks over a **rich object-centric representation (OCEL 2.0)** and
-demonstrates them end-to-end with **native object-centric features (OCPA)**.
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
+
+<!-- Replace XXXXXXX with the Zenodo concept DOI once the first GitHub release is archived. -->
+
+Reproducibility code for the study that reformulates collaborative predictive process monitoring (PPM) tasks over a **rich object-centric representation (OCEL 2.0)** and demonstrates them end-to-end with **native object-centric features (OCPA)**.
 
 The code is split into a reusable **prediction-task library** and a modular
 **evaluation** that consumes it. Inputs are **OCEL 2.0 (SQLite)** event logs.
+
+### Citation
+
+A preprint version of the accompanying paper is available on arXiv:
+
+> Daniel Calegari, Andrea Delgado, Leonel Peña, Martín Rubio.
+> *A Framework for Object-Centric Predictive Monitoring of Collaborative
+> Processes.* Preprint, arXiv:XXXX.XXXXX, 2026.
+> <https://arxiv.org/abs/XXXX.XXXXX> *(identifier to be added once assigned)*
+
+```bibtex
+@misc{calegari2026ocpm,
+  title        = {A Framework for Object-Centric Predictive Monitoring of Collaborative Processes},
+  author       = {Calegari, Daniel and Delgado, Andrea and Pe\~{n}a, Leonel and Rubio, Mart\'{i}n},
+  year         = {2026},
+  eprint       = {XXXX.XXXXX},
+  archiveprefix = {arXiv},
+  primaryclass = {cs.SE},
+  howpublished = {arXiv preprint arXiv:XXXX.XXXXX},
+  url          = {https://arxiv.org/abs/XXXX.XXXXX}
+}
+```
 
 ### Scope: this repository reproduces exactly what the paper reports
 

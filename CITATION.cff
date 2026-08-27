@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite both the software and the accompanying paper."
+title: "A Framework for Object-Centric Predictive Monitoring of Collaborative Processes"
+type: software
+authors:
+  - family-names: Calegari
+    given-names: Daniel
+  - family-names: Delgado
+    given-names: Andrea
+  - family-names: Peña
+    given-names: Leonel
+  - family-names: Rubio
+    given-names: Martín
+year: 2026
+# doi: 10.5281/zenodo.XXXXXXX   # concept DOI; uncomment once the first GitHub release is archived on Zenodo
+url: "https://github.com/dcalegar/ocpm-collab-ppm"
+license: GPL-3.0-or-later
+preferred-citation:
+  type: article
+  title: "A Framework for Object-Centric Predictive Monitoring of Collaborative Processes"
+  authors:
+    - family-names: Calegari
+      given-names: Daniel
+    - family-names: Delgado
+      given-names: Andrea
+    - family-names: Peña
+      given-names: Leonel
+    - family-names: Rubio
+      given-names: Martín
+  year: 2026
+  journal: "arXiv preprint"
+  # eprint: XXXX.XXXXX
+  # url: "https://arxiv.org/abs/XXXX.XXXXX"
