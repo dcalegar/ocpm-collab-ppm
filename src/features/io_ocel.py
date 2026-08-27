@@ -175,8 +175,15 @@ def _break_timestamp_ties(path: str) -> str:
 
     con = sqlite3.connect(path)
     try:
-        suffixes = [r[0] for r in con.execute(
-            "SELECT ocel_type_map FROM event_map_type")]
+        # set(), not a plain list: event_map_type has one row per event
+        # TYPE, not per table, so two event types sharing a physical
+        # event_<suffix> table (the name-stripping collision noted at
+        # ParticipantTypes, collab_xes_to_ocel.py) would otherwise appear
+        # twice here, causing that table's rows to be read and nudged
+        # twice below. Mirrors adapters.py::from_ocel2_sqlite's
+        # set(et_map.values()).
+        suffixes = set(r[0] for r in con.execute(
+            "SELECT ocel_type_map FROM event_map_type"))
         rows = []  # (suffix, ocel_id, case, idx, time_str)
         for suffix in suffixes:
             for ocel_id, time_str in con.execute(

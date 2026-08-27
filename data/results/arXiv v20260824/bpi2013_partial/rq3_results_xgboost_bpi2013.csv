@@ -1,7 +1,0 @@
-log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity,n_labels,degenerate
-BPI2013,NE-NPaA,Participant,Multiclass classification,xgboost,62030,True,f1_macro,0.0523738566840466,0.0021940673635308,0.0370873457618622,5,,,25,False
-BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,xgboost,18481,True,f1_macro,1.0,0.0,1.0,5,,,1,True
-BPI2013,NV-PrT,CollaborationCase,Regression (time),xgboost,62030,True,mae,1445739.416777938,155416.01346737915,1156740.769869925,5,,,57048,False
-BPI2013,NV-PaT,OrchestrationCase,Regression (time),xgboost,62030,True,mae,736744.9761097475,75598.47747636247,679187.8359126697,5,Org line C,,39322,False
-BPI2013,NV-NMPr,Message,Count regression,xgboost,62030,True,mae,1.7218061657467196,0.1084497725724478,1.391962391156374,5,,,51,False
-BPI2013,OB-M,Message,Binary classification,xgboost,62030,True,f1_macro,0.7079521212971189,0.0069171393860896,0.4124913646160464,5,,Queued,2,False

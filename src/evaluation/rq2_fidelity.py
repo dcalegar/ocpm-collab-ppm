@@ -68,8 +68,11 @@ def _read_xes_cases(path: str) -> Dict[str, List[dict]]:
     # fix: thousands of false RQ2 mismatches (NV-PrT/NV-PaT/NV-TNE/NV-TNM)
     # against R2, which already reads the corrected copy. Re-deriving R1's
     # timestamps the same way R2's are derived keeps both readers on the
-    # identical clock regardless of a log's offset structure.
-    df["time:timestamp"] = _correct_utc_timestamps(path, len(df))
+    # identical clock regardless of a log's offset structure. pm4py's own
+    # parsed column is passed through (before being overwritten) so the
+    # positional correction can verify alignment rather than assume it
+    # (see collab_xes_to_ocel._correct_utc_timestamps).
+    df["time:timestamp"] = _correct_utc_timestamps(path, df["time:timestamp"])
 
     cases: Dict[str, List[dict]] = {}
     for case_id, grp in df.groupby("case:concept:name", sort=False):

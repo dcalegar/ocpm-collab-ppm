@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from mapping.collab_xes_to_ocel import (   # noqa: E402
     transform, run_consistency_checks, MappingConfig, TransformResult,
     _add_export_reachability_witnesses, _raw_timestamps_in_file_order,
+    _correct_utc_timestamps,
     check_export_reachability,
     COL_EID, COL_ACTIVITY, COL_TIMESTAMP, COL_OID, COL_OID2, COL_OTYPE, COL_QUALIFIER,
     Q_IN_COLLABORATION, Q_FROM, Q_TO, Q_SEND, Q_RECEIVE, Q_IN_PARTICIPANT, Q_IN_ORCHESTRATION, Q_EXCHANGED_IN,
@@ -555,6 +556,57 @@ def test_raw_timestamps_namespace_aware():
             os.remove(path)
 
 
+def test_correct_utc_timestamps_accepts_aligned_order():
+    """A06: when pm4py's row order agrees with the raw-XML file order, the
+    positional alignment check must pass silently and the corrected column
+    must still be the raw digits converted to true UTC."""
+    path = _write_temp_xes(namespaced=False)
+    try:
+        raw = _raw_timestamps_in_file_order(path)
+        # Simulate pm4py's parsed column: correct local digits, mislabeled
+        # as UTC (the bug _correct_utc_timestamps works around), same order
+        # as the raw XML.
+        pm4py_col = pd.Series([
+            pd.Timestamp(r).tz_localize(None).tz_localize("UTC") for r in raw
+        ])
+        corrected = _correct_utc_timestamps(path, pm4py_col)
+        assert list(corrected) == list(pd.to_datetime(pd.Series(raw), utc=True))
+    finally:
+        os.remove(path)
+
+
+def test_correct_utc_timestamps_detects_misaligned_order():
+    """A06: _correct_utc_timestamps used to assign raw-XML timestamps to
+    pm4py's rows by POSITION ALONE, checking only that the counts matched.
+    If pm4py's row order ever drifted from the raw-XML file order (e.g., a
+    future pm4py version reorders or drops-and-reinserts events) without
+    changing the count, every event from the drift point on would silently
+    receive another event's timestamp. This builds a log whose 3 events
+    have distinct wall-clock digits, then hands _correct_utc_timestamps a
+    pm4py column that is the SAME multiset of timestamps but in a different
+    order (simulating a reordering pm4py performed upstream) and asserts
+    this is now caught rather than silently accepted."""
+    path = _write_temp_xes(namespaced=False)
+    try:
+        raw = _raw_timestamps_in_file_order(path)
+        assert len(raw) == 3
+        # Correct local digits, mislabeled as UTC, but rows 0 and 2 swapped
+        # relative to the raw-XML file order.
+        shuffled = [raw[2], raw[1], raw[0]]
+        pm4py_col = pd.Series([
+            pd.Timestamp(r).tz_localize(None).tz_localize("UTC") for r in shuffled
+        ])
+        try:
+            _correct_utc_timestamps(path, pm4py_col)
+        except ValueError as exc:
+            assert "misaligned" in str(exc)
+        else:
+            raise AssertionError(
+                "expected ValueError for a misaligned pm4py row order")
+    finally:
+        os.remove(path)
+
+
 def test_p11_catches_undefined_source_participant():
     """B14: Definition app-r1 declares `part` a TOTAL function on E_L, unlike
     `from`/`to` (which the Normalization paragraph explicitly allows to be
@@ -593,7 +645,7 @@ def test_p11_catches_elemtype_out_of_domain():
     p11 = checks["P1.1 Totality"]
     assert not p11.passed
     assert "elemType absent or outside" in p11.detail
-    assert p11.detail.rstrip(".").endswith("=1")
+    assert "{task, SendTask, ReceiveTask}=1" in p11.detail
 
 
 def test_p11_catches_absent_and_blank_elemtype():
@@ -615,8 +667,26 @@ def test_p11_catches_absent_and_blank_elemtype():
         p11 = checks["P1.1 Totality"]
         assert not p11.passed, f"expected P1.1 to fail for elemType={bad!r}"
         assert "elemType absent or outside" in p11.detail
-        assert p11.detail.rstrip(".").endswith("=1"), \
+        assert "{task, SendTask, ReceiveTask}=1" in p11.detail, \
             f"expected exactly one out-of-domain elemType for {bad!r}: {p11.detail}"
+
+
+def test_p11_catches_task_event_with_endpoint_defined():
+    """A09: Definition app-r1 declares from/to PARTIAL functions on E_L,
+    defined only when elem(e) != task. A source 'task' event that
+    nonetheless carries a fromParticipant/toParticipant violates that
+    domain restriction, and transform() silently drops the value (event-
+    attribute and O2O emission are both gated on elem in {SendTask,
+    ReceiveTask}), so before this fix nothing flagged it: the dropped value
+    never reaches the output, so no preservation mismatch ever fires."""
+    src = _well_formed_log().copy()
+    idx = src[src[ACT_KEY] == "Start"].index[0]
+    src.loc[idx, FROM_KEY] = "A"
+    res = transform(src, MappingConfig())
+    checks = _checks_by_name(run_consistency_checks(src, res, MappingConfig()))
+    p11 = checks["P1.1 Totality"]
+    assert not p11.passed, "expected P1.1 to fail for a task event with fromParticipant defined"
+    assert "silently dropped by transform())=1" in p11.detail
 
 
 def test_transform_rejects_residual_attribute_name_collision():
@@ -637,6 +707,36 @@ def test_transform_rejects_residual_attribute_name_collision():
         assert False, "expected ValueError for reserved-name collision"
     except ValueError as ex:
         assert "participant" in str(ex)
+
+
+def test_transform_rejects_activity_table_collision():
+    """A08: ParticipantTypes guards injectivity of pm4py's table-name
+    stripping for object types (M2), but M5 sets evtype(mu_E(e)) = act(e)
+    directly -- an event type IS the source activity label, so there was
+    no equivalent guard on the event side. Two distinct activity labels
+    that strip to the same pm4py table name ("Send information" / "Send
+    Information", both -> "SendInformation") would make the OCEL 2.0
+    SQLite exporter silently merge their events into one event_<name>
+    table. transform() now raises instead of materializing this collision.
+    """
+    src = _well_formed_log().copy()
+    src.loc[src[ACT_KEY] == "End", ACT_KEY] = "Send information"
+    src.loc[(src[CASE_KEY] == "C1") & (src[ACT_KEY] == "Send1"), ACT_KEY] = "Send Information"
+    try:
+        transform(src, MappingConfig())
+        assert False, "expected ValueError for activity-label table collision"
+    except ValueError as ex:
+        msg = str(ex)
+        assert "Send information" in msg and "Send Information" in msg
+
+
+def test_transform_accepts_distinct_activity_tables():
+    """Sanity counterpart to test_transform_rejects_activity_table_collision:
+    activities that do not collide under pm4py's stripping (e.g. "Start" and
+    "End") must not trip the new A08 guard."""
+    src = _well_formed_log()
+    res = transform(src, MappingConfig())
+    assert res is not None
 
 
 def test_oc_id_no_separator_collision():

@@ -45,8 +45,8 @@ TASKS: Dict[str, Task] = {
     "NE-NEPa": Task("NE-NEPa", PARTICIPANT, MULTICLASS, "categorical"),
     "NE-NPaM": Task("NE-NPaM", PARTICIPANT, MULTICLASS, "categorical",
                     param="direction"),
-    "NE-NMPa": Task("NE-NMPa", ORCHESTRATION_CASE, MULTICLASS, "categorical", param="participant"),
-    "NE-NMPr": Task("NE-NMPr", CC,          MULTICLASS, "categorical"),
+    "NE-NMPa": Task("NE-NMPa", MESSAGE,     MULTICLASS, "categorical", param="participant"),
+    "NE-NMPr": Task("NE-NMPr", MESSAGE,     MULTICLASS, "categorical"),
     # --- Numeric value ---
     "NV-PrT":  Task("NV-PrT",  CC,          REG_TIME, "numeric"),
     "NV-PaT":  Task("NV-PaT",  ORCHESTRATION_CASE, REG_TIME, "numeric", param="participant"),
@@ -55,7 +55,7 @@ TASKS: Dict[str, Task] = {
     "NV-NMPr": Task("NV-NMPr", MESSAGE,     COUNT, "numeric"),
     "NV-NMPa": Task("NV-NMPa", MESSAGE,     COUNT, "numeric", param="participant"),
     # --- Outcome-based ---
-    "OB-P":    Task("OB-P",    ORCHESTRATION_CASE, BINARY, "binary", param="participant"),
+    "OB-P":    Task("OB-P",    PARTICIPANT, BINARY, "binary", param="participant"),
     "OB-M":    Task("OB-M",    MESSAGE,     BINARY, "binary", param="activity"),
 }
 

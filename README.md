@@ -68,6 +68,12 @@ Therefore, both sides read OCEL 2.0 SQLite: OCPA for features, and a small stdli
 `sqlite3` reader (`tasks.adapters.from_ocel2_sqlite`) for the labels. 
 No OCEL 1.0 is used anywhere.
 
+**Known upstream warning.** Importing the pm4py version pinned by OCPA emits a
+`DeprecationWarning` for `scipy.optimize.optimize`. It originates in
+pm4py 2.2.32 rather than this codebase and does not affect the current test
+results. The warning is intentionally left visible because a future SciPy
+release may require upgrading OCPA/pm4py together.
+
 ---
 
 ## Documentation map
@@ -334,6 +340,8 @@ Automated regression tests live in [`tests/`](tests/):
 | `test_fidelity.py` | `tasks.fidelity.compare_equivalence` — `agreement` vs `exact_agreement` vs `full_equivalence` | none (pure) |
 | `test_io_ocel_strip.py` | `features.io_ocel._strip_participant_e2o` — the cross-case E2O edge strip | stdlib `sqlite3` |
 | `test_io_ocel_ties.py` | `features.io_ocel._break_timestamp_ties` — within-case timestamp tie-breaking | stdlib `sqlite3` |
+| `test_labels_golden.py` | expected-value tests for the fourteen label functions of `tasks.labels`, against a hand-computed toy log (the only non-agreement check of label correctness in the repository) | none (pure) |
+| `test_task_anchors.py` | the target anchor of the fourteen tasks, kept identical across `tasks.catalog`, the `anchor` column of every `rq3_results_*.csv`, and the Anchor column of the paper's RQ3 tables (the paper checks skip when the paper sources are not checked out alongside; override the location with `PAPER_DIR`) | none (pure) |
 | `test_features_leakage.py` | temporal and cross-case leakage of every OCPA feature family, plus the deterministic row order | `.venv` (OCPA) |
 
 Run the whole suite with `python -m pytest tests/ -q`, or a single file
@@ -440,3 +448,10 @@ logs already ship alongside their `.sqlite`.
 - **Alignment.** OCPA rows are matched to labels by `event_id`
   (`feature_storage.feature_graphs` → `node.event_id`) and validated by a
   remaining-time oracle that aborts on any mismatch.
+- **OCPA compatibility and concurrency.** `load_ocpa_ocel` and
+  `extract_feature_table` temporarily replace selected pandas and `random`
+  methods to work around bugs in the pinned OCPA 1.3.3 revision, restoring the
+  original methods in `finally` blocks. These replacements are process-global
+  and therefore not thread-safe: do not invoke either function concurrently in
+  the same Python process. Run feature extraction sequentially or isolate
+  concurrent runs in separate processes.

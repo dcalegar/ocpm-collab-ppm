@@ -1,6 +1,6 @@
 log,task,anchor,problem_type,predictor,samples,ran_end_to_end,metric_name,metric_mean,metric_sd,baseline_mean,folds,participant,obm_activity,n_labels,degenerate
 BPI2013,NE-NPaA,Participant,Multiclass classification,random_forest,62030,True,f1_macro,0.0730889456468553,0.0036259173206302,0.0370873457618622,5,,,25,False
-BPI2013,NE-NMPr,CollaborationCase,Multiclass classification,random_forest,18481,True,f1_macro,1.0,0.0,1.0,5,,,1,True
+BPI2013,NE-NMPr,Message,Multiclass classification,random_forest,18481,True,f1_macro,1.0,0.0,1.0,5,,,1,True
 BPI2013,NV-PrT,CollaborationCase,Regression (time),random_forest,62030,True,mae,1623817.524373513,151513.0937067047,1156740.769869925,5,,,57048,False
 BPI2013,NV-PaT,OrchestrationCase,Regression (time),random_forest,62030,True,mae,826164.9406864134,73737.43927793409,679187.8359126697,5,Org line C,,39322,False
 BPI2013,NV-NMPr,Message,Count regression,random_forest,62030,True,mae,1.8434865943187293,0.1054627434090003,1.391962391156374,5,,,51,False

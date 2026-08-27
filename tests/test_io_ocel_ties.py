@@ -100,6 +100,46 @@ def test_break_ties_independent_across_cases():
     assert out == path  # no within-case tie -> no-op
 
 
+def test_break_ties_dedupes_suffixes_shared_by_two_event_types():
+    """A07: event_map_type has one row per event TYPE, not per physical
+    table, so two event types that stripped to the same table name (the
+    collision noted at ParticipantTypes, collab_xes_to_ocel.py) produce
+    TWO rows in event_map_type pointing to the SAME event_<suffix> table.
+    Before this fix, `suffixes = [r[0] for r in ...]` read that table
+    twice, duplicating its two (already distinct, non-tied) events within
+    the case and forcing a spurious cascade: both duplicate rows compare
+    equal to their own first occurrence and get nudged by 1us, even though
+    the two DISTINCT events (1s apart) never needed it. Builds such a db
+    directly (bypassing `_build_db`, which already de-duplicates the
+    suffix list itself) and checks the fix makes this a true no-op."""
+    T0 = "2024-01-01 00:00:00.000000"
+    T1 = "2024-01-01 00:00:01.000000"
+    fd, path = tempfile.mkstemp(suffix=".sqlite")
+    os.close(fd)
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE event_map_type (ocel_type TEXT, ocel_type_map TEXT)")
+    # Two distinct event types ("Send Information" / "Send information")
+    # both strip to the same physical table "task".
+    con.executemany(
+        "INSERT INTO event_map_type VALUES (?,?)",
+        [("Send Information", "task"), ("Send information", "task")],
+    )
+    con.execute('CREATE TABLE "event_task" (ocel_id TEXT, ocel_time TEXT)')
+    con.executemany(
+        'INSERT INTO "event_task" VALUES (?,?)',
+        [("e::C1::00", T0), ("e::C1::01", T1)],
+    )
+    con.commit()
+    con.close()
+
+    out = _break_timestamp_ties(path)
+    assert out == path, (  # no real tie between the two distinct events -> no-op
+        "expected a no-op: the shared-table row duplication was falsely "
+        "read as a within-case tie and triggered an unneeded nudge")
+    times = _all_times(out, ["task"])
+    assert times["e::C1::00"] == T0 and times["e::C1::01"] == T1
+
+
 def _run_all():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in fns:

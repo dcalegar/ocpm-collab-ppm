@@ -127,7 +127,7 @@ import logging
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 
@@ -279,14 +279,46 @@ _NON_ALNUM = re.compile(r"[^0-9a-zA-Z]+")
 
 
 def _pm4py_table_name(otype: str) -> str:
-    """Reproduce pm4py's object-type name stripping
+    """Reproduce pm4py's name stripping
     (pm4py.objects.ocel.util.names_stripping.apply), which the OCEL 2.0
-    SQLite exporter uses to derive the physical ``object_<name>`` table of
-    each object type. Two object types whose stripped names coincide would
-    make the exporter write the same table twice; the registry below
-    therefore keeps this image injective as well, not only tau itself."""
+    SQLite exporter uses, IDENTICALLY, to derive the physical
+    ``object_<name>`` table of each object type AND the ``event_<name>``
+    table of each event type (activity label) -- same regex, same
+    capitalize-and-join, same truncation (verified against
+    pm4py.objects.ocel.exporter.sqlite.variants.ocel20). Two object types
+    whose stripped names coincide would make the exporter write the same
+    table twice; ``ParticipantTypes`` below keeps this image injective for
+    object types. Two ACTIVITY labels whose stripped names coincide have
+    the same failure mode on the event side; see
+    ``_check_activity_table_collisions`` (A08), which guards that case."""
     words = [w.capitalize() for w in otype.split(" ")]
     return _NON_ALNUM.sub("", "".join(words)).strip()[:100]
+
+
+def _check_activity_table_collisions(activities: Iterable[str]) -> None:
+    """Guard, for event types, the injectivity ``ParticipantTypes`` keeps
+    for object types (M2). Rule M5 sets ``evtype(mu_E(e)) = act(e))``: an
+    event type is the source activity label itself, unencoded, so unlike a
+    participant type (rule M2) it cannot be transparently renamed to avoid
+    a collision -- doing so would break the identity M5 asserts. Two
+    distinct activity labels whose pm4py-stripped table name coincides
+    (e.g. "Send information" / "Send Information", both -> "SendInformation")
+    would make the OCEL 2.0 SQLite exporter write both event types into the
+    same physical ``event_<name>`` table (see ``_pm4py_table_name``),
+    silently merging their events. Raises instead of writing a corrupt
+    export."""
+    seen: Dict[str, str] = {}
+    for a in activities:
+        table = _pm4py_table_name(a)
+        prior = seen.get(table)
+        if prior is not None and prior != a:
+            raise ValueError(
+                f"Activity labels {prior!r} and {a!r} both strip to the "
+                f"same pm4py SQLite table name {table!r}; the OCEL 2.0 "
+                f"SQLite exporter would silently merge their events into "
+                f"one event_{table} table (A08). Rename one of the two "
+                f"source activities before mapping.")
+        seen[table] = a
 
 
 def _encode_object_type(p: str) -> str:
@@ -397,7 +429,23 @@ def _raw_timestamps_in_file_order(path: str) -> List[str]:
     return out
 
 
-def _correct_utc_timestamps(path: str, n_events: int) -> pd.Series:
+def _naive_local(ts: Any) -> Optional[pd.Timestamp]:
+    """The local wall-clock digits of ``ts``, tzinfo stripped, or None if
+    ``ts`` is missing/unparseable. Used only to compare wall-clock digits
+    across two representations of the same timestamp, never as a value in
+    its own right (see _correct_utc_timestamps)."""
+    if ts is None:
+        return None
+    try:
+        ts = pd.Timestamp(ts)
+    except (ValueError, TypeError):
+        return None
+    if pd.isna(ts):
+        return None
+    return ts.replace(tzinfo=None) if ts.tzinfo is not None else ts
+
+
+def _correct_utc_timestamps(path: str, pm4py_timestamps: pd.Series) -> pd.Series:
     """Re-derive the timestamp column directly from the raw XES, in UTC.
 
     pm4py's ISO8601 datetime parsers -- both the default
@@ -424,14 +472,49 @@ def _correct_utc_timestamps(path: str, n_events: int) -> pd.Series:
     Bypasses the bug by re-parsing the raw attribute strings ourselves
     with pandas (which converts non-UTC offsets to UTC correctly)
     instead of trusting pm4py's parsed column.
+
+    ``pm4py_timestamps`` is pm4py's own parsed column, in pm4py's row
+    order, taken *before* this function overwrites it; it is used only to
+    verify -- not to correct -- alignment. The correction below assumes
+    that the raw-XML file order (``_raw_timestamps_in_file_order``) and
+    pm4py's row order are the same permutation of events; a matching count
+    alone does not establish this; e.g., a future pm4py version could
+    reorder or drop-and-reinsert events without changing the count, and a
+    purely positional correction would then silently assign every event
+    from that point on another event's timestamp. This is caught here
+    because pm4py's bug (above) leaves the local wall-clock digits intact
+    and only mislabels their tzinfo: at a position where the two orders
+    truly agree, ``pm4py_timestamps``'s naive digits and the raw XML
+    string's naive digits must be equal; a mismatch means the positional
+    correspondence does not hold, and this raises rather than silently
+    mislabeling the remaining events.
     """
     raw = _raw_timestamps_in_file_order(path)
+    pm4py_timestamps = pd.Series(pm4py_timestamps).reset_index(drop=True)
+    n_events = len(pm4py_timestamps)
     if len(raw) != n_events:
         raise ValueError(
             f"Raw timestamp count from XML ({len(raw)}) does not match "
             f"pm4py's parsed event count ({n_events}); cannot safely "
             f"realign timestamps to fix the UTC-offset bug (see "
             f"_correct_utc_timestamps docstring)."
+        )
+    raw_naive = [_naive_local(r) for r in raw]
+    pm4py_naive = [_naive_local(t) for t in pm4py_timestamps]
+    mismatched = [
+        i for i in range(n_events)
+        if raw_naive[i] is not None
+        and pm4py_naive[i] is not None
+        and raw_naive[i] != pm4py_naive[i]
+    ]
+    if mismatched:
+        i = mismatched[0]
+        raise ValueError(
+            f"{len(mismatched)} event(s) misaligned between the raw-XML "
+            f"file order and pm4py's parsed row order (first at position "
+            f"{i}: raw local time {raw_naive[i]} != pm4py's parsed "
+            f"{pm4py_naive[i]}); cannot safely realign timestamps "
+            f"position-by-position (see _correct_utc_timestamps docstring)."
         )
     return pd.to_datetime(pd.Series(raw), utc=True, errors="coerce")
 
@@ -453,9 +536,11 @@ def read_collaborative_xes(path: str, encoding: str = "utf-8") -> pd.DataFrame:
     logger.info("Read %d events.", len(df))
     # Work around pm4py's UTC-offset parsing bug (see
     # _correct_utc_timestamps): re-derive TIMESTAMP_KEY from the raw XML
-    # rather than trusting pm4py's own parsed column.
+    # rather than trusting pm4py's own parsed column. pm4py's own parsed
+    # column is passed through (before being overwritten) so the
+    # positional correction can verify alignment rather than assume it.
     df = df.reset_index(drop=True)
-    df[TIMESTAMP_KEY] = _correct_utc_timestamps(path, len(df))
+    df[TIMESTAMP_KEY] = _correct_utc_timestamps(path, df[TIMESTAMP_KEY])
     return df
 
 
@@ -875,6 +960,10 @@ def transform(df: pd.DataFrame, cfg: Optional[MappingConfig] = None) -> Transfor
     """
     cfg = cfg or MappingConfig()
     _require_columns(df, cfg)
+    # A08: fail fast on an activity-label collision under pm4py's SQLite
+    # table-name stripping, mirroring the guard ParticipantTypes keeps for
+    # object types (M2) but that M5 cannot provide for event types.
+    _check_activity_table_collisions(df[cfg.activity_key].unique())
     cases = _sorted_case_events(df, cfg)
 
     # Accumulators -----------------------------------------------------
@@ -1248,11 +1337,23 @@ def run_consistency_checks(src_df: pd.DataFrame,
     # 'task' before this check runs, masking it (only a non-empty bogus
     # string like 'BogusTask' survived to be caught).
     elemtype_out_of_domain = 0
-    for eid, (exp_act, exp_ts, exp_part, exp_elem, _, _) in expected_by_eid.items():
+    # A09: Definition app-r1 declares from/to PARTIAL, defined only when
+    # elem(e) != task; a source row whose elemType is (raw-or-defaulted)
+    # 'task' but that still carries a non-empty fromParticipant/
+    # toParticipant violates that domain restriction. transform() already
+    # discards such a value silently (event-attribute and O2O emission are
+    # both gated on elem in {SendTask, ReceiveTask}), so, like
+    # elemtype_out_of_domain above, this would otherwise pass unnoticed --
+    # counted separately since it flags a source precondition violation,
+    # not a construction defect.
+    task_endpoint_out_of_domain = 0
+    for eid, (exp_act, exp_ts, exp_part, exp_elem, exp_from, exp_to) in expected_by_eid.items():
         if exp_part is None:
             part_undefined_in_source += 1
         if expected_elem_raw_by_eid.get(eid) not in (ELEM_TASK, ELEM_SEND, ELEM_RECEIVE):
             elemtype_out_of_domain += 1
+        if exp_elem == ELEM_TASK and (exp_from is not None or exp_to is not None):
+            task_endpoint_out_of_domain += 1
         if ev_by_eid is None or eid not in ev_by_eid.index:
             missing_eids += 1
             continue
@@ -1288,7 +1389,7 @@ def run_consistency_checks(src_df: pd.DataFrame,
         and activity_mismatches == 0 and timestamp_mismatches == 0 \
         and participant_mismatches == 0 and elemtype_mismatches == 0 \
         and residual_mismatches == 0 and part_undefined_in_source == 0 \
-        and elemtype_out_of_domain == 0
+        and elemtype_out_of_domain == 0 and task_endpoint_out_of_domain == 0
     out.append(CheckResult(
         "P1.1 Totality",
         bool(p11),
@@ -1300,7 +1401,10 @@ def run_consistency_checks(src_df: pd.DataFrame,
         f"source events with collab:participant undefined (violates the "
         f"total-function precondition of Definition app-r1)={part_undefined_in_source}; "
         f"source events with collab:elemType absent or outside "
-        f"{{task, SendTask, ReceiveTask}}={elemtype_out_of_domain}."))
+        f"{{task, SendTask, ReceiveTask}}={elemtype_out_of_domain}; "
+        f"source 'task' events with a defined fromParticipant/toParticipant "
+        f"(violates the partial-function domain of Definition app-r1, silently "
+        f"dropped by transform())={task_endpoint_out_of_domain}."))
 
     # ---- P1.2 Per-case partition: in_collaboration-image of each cc equals
     # the exact SET of source event ids of that case (not merely its size,
