@@ -1,6 +1,6 @@
 # A Framework for Object-Centric Predictive Monitoring of Collaborative Processes
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22183242.svg)](https://doi.org/10.5281/zenodo.22183242)
+[![DOI](https://zenodo.org/badge/1280737845.svg)](https://doi.org/10.5281/zenodo.22183241)
 
 Reproducibility code for the study that reformulates collaborative predictive process monitoring (PPM) tasks over a **rich object-centric representation (OCEL 2.0)** and demonstrates them end-to-end with **native object-centric features (OCPA)**.
 
