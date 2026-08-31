@@ -15,19 +15,19 @@ A preprint version of the accompanying paper is available on arXiv:
 
 > Daniel Calegari, Andrea Delgado, Leonel Peña, Martín Rubio.
 > *A Framework for Object-Centric Predictive Monitoring of Collaborative
-> Processes.* Preprint, arXiv:XXXX.XXXXX, 2026.
-> <https://arxiv.org/abs/XXXX.XXXXX> *(identifier to be added once assigned)*
+> Processes.* Preprint, arXiv:2608.27671, 2026.
+> <https://arxiv.org/abs/2608.27671>
 
 ```bibtex
 @misc{calegari2026ocpm,
   title        = {A Framework for Object-Centric Predictive Monitoring of Collaborative Processes},
   author       = {Calegari, Daniel and Delgado, Andrea and Pe\~{n}a, Leonel and Rubio, Mart\'{i}n},
   year         = {2026},
-  eprint       = {XXXX.XXXXX},
+  eprint       = {2608.27671},
   archiveprefix = {arXiv},
   primaryclass = {cs.SE},
-  howpublished = {arXiv preprint arXiv:XXXX.XXXXX},
-  url          = {https://arxiv.org/abs/XXXX.XXXXX}
+  howpublished = {arXiv preprint arXiv:2608.27671},
+  url          = {https://arxiv.org/abs/2608.27671}
 }
 ```
 

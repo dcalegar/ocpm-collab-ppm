@@ -29,5 +29,5 @@ preferred-citation:
       given-names: Martín
   year: 2026
   journal: "arXiv preprint"
-  # eprint: XXXX.XXXXX
-  # url: "https://arxiv.org/abs/XXXX.XXXXX"
+  eprint: "2608.27671"
+  url: "https://arxiv.org/abs/2608.27671"
