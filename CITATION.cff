@@ -12,7 +12,7 @@ authors:
   - family-names: Rubio
     given-names: Martín
 year: 2026
-# doi: 10.5281/zenodo.XXXXXXX   # concept DOI; uncomment once the first GitHub release is archived on Zenodo
+doi: 10.5281/zenodo.22183242
 url: "https://github.com/dcalegar/ocpm-collab-ppm"
 license: GPL-3.0-or-later
 preferred-citation:
